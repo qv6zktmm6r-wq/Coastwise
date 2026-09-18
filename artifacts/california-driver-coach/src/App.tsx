@@ -127,8 +127,8 @@ const initialState: AppState = {
 
 const navItems: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/', label: 'Today', icon: Home },
-  { href: '/practice', label: 'Permit & knowledge', icon: BookOpen },
-  { href: '/drive', label: 'Driving exam', icon: RouteIcon },
+  { href: '/practice', label: 'Permit practice', icon: BookOpen },
+  { href: '/drive', label: 'Drive practice', icon: RouteIcon },
   { href: '/parent', label: 'Parent view', icon: HeartHandshake },
 ];
 

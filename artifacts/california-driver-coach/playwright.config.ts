@@ -11,7 +11,10 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         launchOptions: {
-          executablePath: process.env.REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE,
+          executablePath: process.env.REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE
+            ?? process.env.CHROMIUM_PATH
+            ?? '/repl/tools/bin/chromium',
+          args: ['--no-sandbox', '--disable-dev-shm-usage'],
         },
       },
     },
