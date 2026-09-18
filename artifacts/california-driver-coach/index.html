@@ -12,6 +12,37 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="California Teen Driver Coach" />
     <meta name="twitter:description" content="California Teen Driver Coach — built on Replit. Update this description to reflect the app." />
+    <script>
+      (() => {
+        const root = document.documentElement;
+        let appearance = 'system';
+
+        try {
+          const saved = window.localStorage.getItem('california-driver-coach');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            const candidate = parsed?.settings?.appearance;
+            if (candidate === 'light' || candidate === 'dark' || candidate === 'system') {
+              appearance = candidate;
+            }
+          }
+        } catch {
+          // Use the device preference when saved appearance data is unavailable.
+        }
+
+        let prefersDark = false;
+        try {
+          prefersDark = typeof window.matchMedia === 'function'
+            && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        } catch {
+          // Keep the light default when the device preference is unavailable.
+        }
+
+        const dark = appearance === 'dark' || (appearance === 'system' && prefersDark);
+        root.classList.toggle('dark', dark);
+        root.style.colorScheme = dark ? 'dark' : 'light';
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

@@ -131,18 +131,34 @@ const navItems: { href: string; label: string; icon: LucideIcon }[] = [
 ];
 
 const queryClient = new QueryClient();
+const storageKey = 'california-driver-coach';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isAppearance(value: unknown): value is Appearance {
+  return value === 'system' || value === 'light' || value === 'dark';
+}
 
 function getStoredState(): AppState {
   if (typeof window === 'undefined') return initialState;
   try {
-    const saved = window.localStorage.getItem('california-driver-coach');
+    const saved = window.localStorage.getItem(storageKey);
     if (!saved) return initialState;
-    const stored = JSON.parse(saved) as Partial<AppState>;
+    const parsed: unknown = JSON.parse(saved);
+    if (!isRecord(parsed)) return initialState;
+    const storedProfile = isRecord(parsed.profile) ? parsed.profile : {};
+    const storedSettings = isRecord(parsed.settings) ? parsed.settings : {};
     return {
       ...initialState,
-      ...stored,
-      profile: { ...initialState.profile, ...stored.profile },
-      settings: { ...initialState.settings, ...stored.settings },
+      ...parsed,
+      profile: { ...initialState.profile, ...storedProfile },
+      settings: {
+        ...initialState.settings,
+        ...storedSettings,
+        appearance: isAppearance(storedSettings.appearance) ? storedSettings.appearance : initialState.settings.appearance,
+      },
     };
   } catch {
     return initialState;
@@ -947,16 +963,24 @@ function SettingsPage({ state, setState }: { state: AppState; setState: (next: A
 
 function Router() {
   const [state, setState] = useState<AppState>(getStoredState);
-  useEffect(() => { window.localStorage.setItem('california-driver-coach', JSON.stringify(state)); }, [state]);
   useEffect(() => {
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(state));
+    } catch {
+      // Progress and appearance remain usable when storage is blocked or full.
+    }
+  }, [state]);
+  useEffect(() => {
+    const media = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-color-scheme: dark)')
+      : null;
     const applyAppearance = () => {
-      const dark = state.settings.appearance === 'dark' || (state.settings.appearance === 'system' && media.matches);
+      const dark = state.settings.appearance === 'dark' || (state.settings.appearance === 'system' && Boolean(media?.matches));
       document.documentElement.classList.toggle('dark', dark);
       document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
     };
     applyAppearance();
-    if (state.settings.appearance !== 'system') return;
+    if (state.settings.appearance !== 'system' || !media) return;
     media.addEventListener('change', applyAppearance);
     return () => media.removeEventListener('change', applyAppearance);
   }, [state.settings.appearance]);
