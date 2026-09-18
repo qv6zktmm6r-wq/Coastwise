@@ -301,7 +301,7 @@ function SettingsPage({ state, setState }: { state: AppState; setState: (next: A
 function Router() {
   const [state, setState] = useState<AppState>(getStoredState);
   useEffect(() => { window.localStorage.setItem('california-driver-coach', JSON.stringify(state)); }, [state]);
-  return <Shell state={state} setState={setState}><Switch><Route path="/" component={() => <Dashboard state={state} setState={setState} />} /><Route path="/practice" component={() => <Practice state={state} setState={setState} />} /><Route path="/scenarios" component={() => <Scenarios state={state} setState={setState} />} /><Route path="/drive" component={() => <Drive state={state} setState={setState} />} /><Route path="/parent" component={() => <Parent state={state} setState={setState} />} /><Route path="/settings" component={() => <SettingsPage state={state} setState={setState} />} /><Route component={NotFound} /></Switch></Shell>;
+  return <Shell state={state} setState={setState}><Switch><Route path="/"><Dashboard state={state} setState={setState} /></Route><Route path="/practice"><Practice state={state} setState={setState} /></Route><Route path="/scenarios"><Scenarios state={state} setState={setState} /></Route><Route path="/drive"><Drive state={state} setState={setState} /></Route><Route path="/parent"><Parent state={state} setState={setState} /></Route><Route path="/settings"><SettingsPage state={state} setState={setState} /></Route><Route component={NotFound} /></Switch></Shell>;
 }
 
 function App() {
