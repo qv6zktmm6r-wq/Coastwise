@@ -20,6 +20,10 @@ author = "agent"
 task = "workflow.run"
 args = "california-driver-coach-test"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "california-driver-coach-typecheck"
+
 [[workflows.workflow]]
 name = "california-driver-coach-test"
 author = "agent"
@@ -27,6 +31,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm --filter @workspace/california-driver-coach run test"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "california-driver-coach-typecheck"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/california-driver-coach run typecheck"
 
 [workflows.workflow.metadata]
 isValidation = true
