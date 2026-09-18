@@ -74,7 +74,10 @@ export function getDriveReviewBrowserFixture(): DriveReviewBrowserFixture | null
   if (format === 'unsupported') {
     return {
       reviewId: 'fixture-review',
-      recordedVideoUrl: `${import.meta.env.BASE_URL}drive-review-fixture.webm`,
+      // Keep this fixture genuinely undecodable instead of serving a valid
+      // WebM file with a misleading QuickTime label. Firefox will otherwise
+      // quite reasonably play the bytes and bypass the unsupported-format UI.
+      recordedVideoUrl: `${import.meta.env.BASE_URL}drive-review-fixture-unsupported.mov`,
       recordedVideoType: 'video/quicktime',
       plannedRoute,
       coachEvents,

@@ -26,6 +26,7 @@ export type RecordingCleanupFailure = {
 
 let lastDestinationTimestamp = -1;
 let destinationSequence = 0;
+let destinationReservation: Promise<void> = Promise.resolve();
 
 function createDestinationName() {
   const timestamp = Date.now();
@@ -35,16 +36,48 @@ function createDestinationName() {
   return `coastwise-drive-${timestamp}-${destinationSequence}-${uniqueSuffix}.mp4`;
 }
 
+async function withDestinationReservation<T>(task: () => Promise<T>) {
+  const previousReservation = destinationReservation;
+  let releaseReservation!: () => void;
+  destinationReservation = new Promise<void>((resolve) => {
+    releaseReservation = resolve;
+  });
+  await previousReservation;
+  try {
+    return await task();
+  } finally {
+    releaseReservation();
+  }
+}
+
+async function chooseDestination(
+  fileSystem: RecordingFileSystem,
+  destinationName?: string,
+) {
+  if (destinationName) return `${fileSystem.documentDirectory}${destinationName}`;
+
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const destination = `${fileSystem.documentDirectory}${createDestinationName()}`;
+    const info = await fileSystem.getInfoAsync(destination);
+    if (!info.exists) return destination;
+  }
+
+  throw new Error('Could not reserve a unique local recording destination.');
+}
+
 export async function finalizeRecording(
   result: CameraRecordingResult,
   fileSystem: RecordingFileSystem,
-  destinationName = createDestinationName(),
+  destinationName?: string,
   onCleanupFailure?: (failure: RecordingCleanupFailure) => void,
 ): Promise<FinalizedRecording | null> {
   if (!result?.uri || !fileSystem.documentDirectory) return null;
 
-  const destination = `${fileSystem.documentDirectory}${destinationName}`;
-  await fileSystem.copyAsync({ from: result.uri, to: destination });
+  const destination = await withDestinationReservation(async () => {
+    const reservedDestination = await chooseDestination(fileSystem, destinationName);
+    await fileSystem.copyAsync({ from: result.uri!, to: reservedDestination });
+    return reservedDestination;
+  });
 
   const cleanupDestination = async () => {
     try {

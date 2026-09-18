@@ -67,6 +67,42 @@ test('keeps destinations distinct when recordings finalize in the same milliseco
   }
 });
 
+test('skips a destination that already exists after an app restart', async () => {
+  const originalNow = Date.now;
+  const originalRandom = Math.random;
+  let firstCandidate: string | undefined;
+  let copiedDestination: string | undefined;
+
+  Date.now = () => 1_700_000_000_000;
+  Math.random = () => 0.5;
+
+  try {
+    const storage = fileSystem({
+      getInfoAsync: async (uri) => {
+        if (!firstCandidate) {
+          firstCandidate = uri;
+          return { exists: true, size: 4096 };
+        }
+        if (uri === copiedDestination) return { exists: true, size: 4096 };
+        return { exists: false, size: 4096 };
+      },
+      copyAsync: async ({ to }) => {
+        copiedDestination = to;
+      },
+    });
+
+    const result = await finalizeRecording({ uri: 'file:///cache/restarted.mp4' }, storage);
+
+    assert.ok(firstCandidate);
+    assert.ok(copiedDestination);
+    assert.notEqual(copiedDestination, firstCandidate);
+    assert.equal(result?.uri, copiedDestination);
+  } finally {
+    Date.now = originalNow;
+    Math.random = originalRandom;
+  }
+});
+
 test('does not produce recording metadata when copying the camera file fails', async () => {
   const message = await rejectionMessage(
     () => finalizeRecording(
