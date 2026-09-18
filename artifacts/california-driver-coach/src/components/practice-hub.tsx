@@ -86,11 +86,6 @@ export function PracticeHub({ answers, onAnswer }: Props) {
     const reviewAt = answers[question.id]?.nextReviewAt;
     return reviewAt && new Date(reviewAt).getTime() <= Date.now();
   });
-  const recommendedMode: PracticeMode = missedQuestions.length > 0 ? 'missed' : 'daily';
-  const recommendedTitle = missedQuestions.length > 0 ? 'Review what needs another look' : 'Start your Daily 10';
-  const recommendedCopy = missedQuestions.length > 0
-    ? `${missedQuestions.length} missed ${missedQuestions.length === 1 ? 'question is' : 'questions are'} ready for a quick retry.`
-    : 'Ten focused questions selected from unseen, due, and developing topics.';
   const currentQuestion = queue[questionIndex];
   const currentSelection = currentQuestion ? sessionAnswers[currentQuestion.id] : undefined;
   const sessionCorrect = useMemo(() => queue.filter((question) => sessionAnswers[question.id] === question.answer).length, [queue, sessionAnswers]);
@@ -148,7 +143,7 @@ export function PracticeHub({ answers, onAnswer }: Props) {
     return <div>
       <button onClick={exitSession} className="mb-6 inline-flex items-center gap-2 text-sm font-bold text-[hsl(var(--muted-foreground))]" data-testid="button-exit-session"><ArrowLeft size={16} />Practice home</button>
       <section className="overflow-hidden rounded-[26px] bg-[hsl(var(--primary))] p-7 text-[hsl(var(--primary-foreground))] shadow-xl md:p-10">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.16em] text-[hsl(var(--sidebar-primary))]"><Award size={17} />Session complete</div>
+        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.16em] text-[hsl(var(--sidebar-primary))]"><CheckCircle2 size={17} />Session complete</div>
         <h1 className="mt-4 font-display text-4xl md:text-6xl">{score}% this round.</h1>
         <p className="mt-4 max-w-xl text-sm leading-6 text-white/68">{sessionCorrect} correct out of {answeredThisSession}. The goal is not a perfect first pass—it is knowing exactly what to review next.</p>
         <div className="mt-7 flex flex-wrap gap-3">
@@ -185,15 +180,15 @@ export function PracticeHub({ answers, onAnswer }: Props) {
               const answered = currentSelection !== undefined;
               const correctOption = answered && optionIndex === currentQuestion.answer;
               const chosenWrong = answered && currentSelection === optionIndex && !correctOption;
-              return <button key={option} onClick={() => choose(optionIndex)} disabled={answered} className={`flex w-full items-start gap-3 rounded-xl border p-4 text-left text-sm font-semibold ${correctOption ? 'border-[hsl(var(--chart-3))] bg-[hsl(var(--chart-3)/.09)] text-[hsl(var(--chart-3))]' : chosenWrong ? 'border-[hsl(var(--destructive))] bg-[hsl(var(--destructive)/.07)]' : 'border-[hsl(var(--border))] hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--secondary)/.4)] disabled:opacity-100'}`} data-testid={`button-answer-${currentQuestion.id}-${optionIndex}`}>
-                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border font-mono-ui text-[11px] ${correctOption ? 'border-[hsl(var(--chart-3))] bg-[hsl(var(--chart-3))] text-white' : 'border-[hsl(var(--border))]'}`}>{String.fromCharCode(65 + optionIndex)}</span>
+              return <button key={option} onClick={() => choose(optionIndex)} disabled={answered} className={`flex w-full items-start gap-3 rounded-xl border p-4 text-left text-sm font-semibold ${correctOption ? 'border-[hsl(var(--success)/.55)] bg-[hsl(var(--success)/.09)] text-[hsl(var(--success))]' : chosenWrong ? 'border-[hsl(var(--accent)/.65)] bg-[hsl(var(--accent)/.1)]' : 'border-[hsl(var(--border))] hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--secondary)/.4)] disabled:opacity-100'}`} data-testid={`button-answer-${currentQuestion.id}-${optionIndex}`}>
+                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border font-mono-ui text-[11px] ${correctOption ? 'border-[hsl(var(--success))] bg-[hsl(var(--success))] text-white' : 'border-[hsl(var(--border))]'}`}>{String.fromCharCode(65 + optionIndex)}</span>
                 <span>{option}</span>
                 {correctOption && <Check size={16} className="ml-auto shrink-0" />}
               </button>;
             })}
           </div>
           {currentSelection !== undefined && <div className="mt-6 rounded-2xl bg-[hsl(var(--secondary)/.65)] p-5 animate-fade">
-            <div className={`flex items-center gap-2 text-sm font-extrabold ${selectedCorrectly ? 'text-[hsl(var(--chart-3))]' : 'text-[hsl(var(--destructive))]'}`}>{selectedCorrectly ? <CheckCircle2 size={18} /> : <CircleHelp size={18} />}{selectedCorrectly ? 'Good call.' : 'Review this one before moving on.'}</div>
+            <div className={`flex items-center gap-2 text-sm font-extrabold ${selectedCorrectly ? 'text-[hsl(var(--success))]' : 'text-[hsl(var(--accent-foreground))]'}`}>{selectedCorrectly ? <CheckCircle2 size={18} className="text-[hsl(var(--success))]" /> : <CircleHelp size={18} className="text-[hsl(var(--accent))]" />}{selectedCorrectly ? 'Good call.' : 'Review this one before moving on.'}</div>
             <p className="mt-2 text-sm leading-6 text-[hsl(var(--muted-foreground))]">{currentQuestion.explanation}</p>
             <div className="mt-4 border-t border-[hsl(var(--border))] pt-3 text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">Source: {currentQuestion.source}</div>
           </div>}
@@ -210,40 +205,46 @@ export function PracticeHub({ answers, onAnswer }: Props) {
     </div>;
   }
 
+  const recommendedMode: PracticeMode = missedQuestions.length > 0 ? 'missed' : 'daily';
+  const recommendationTitle = missedQuestions.length > 0 ? 'Review the questions you missed' : answeredCount === 0 ? 'Start with a focused 10' : 'Keep your practice moving';
+  const recommendationCopy = missedQuestions.length > 0
+    ? `${missedQuestions.length} question${missedQuestions.length === 1 ? '' : 's'} need another look. A short review keeps the explanation close.`
+    : answeredCount === 0
+      ? 'Take ten questions from the handbook. Coastwise will explain each answer and build your review plan as you go.'
+      : 'A short mix of new and due questions is ready. Keep the session small and return when you have a clear moment.';
   return <div>
-    <header className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-      <div className="max-w-2xl"><div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[.14em] text-[hsl(var(--primary))]"><BookOpen size={15} />California handbook</div><h1 className="font-display text-4xl font-bold leading-[1.04] tracking-[-.035em] md:text-5xl">Ready for five focused minutes?</h1><p className="mt-3 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">Coastwise chooses the most useful next questions so you can spend less time deciding what to study.</p></div>
-      <div className="flex items-center gap-2 rounded-full bg-[hsl(var(--secondary))] px-3 py-2 text-xs font-bold text-[hsl(var(--primary))]"><Gauge size={16} />{overallCoverage}% covered</div>
+    <header className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+      <div className="max-w-2xl"><div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[.16em] text-[hsl(var(--primary))]"><span className="h-px w-7 bg-[hsl(var(--primary))]" />California handbook practice</div><h1 className="font-display text-4xl leading-[1.05] tracking-[-.03em] md:text-5xl">A clear next step for permit practice.</h1><p className="mt-3 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">Short sessions cover the California Driver’s Handbook without turning practice into a score chase.</p></div>
+      <div className="flex w-fit items-center gap-2 rounded-full bg-[hsl(var(--secondary))] px-3 py-2 text-xs font-bold text-[hsl(var(--primary))]"><Gauge size={16} />{overallCoverage}% covered</div>
     </header>
-    <section className="relative overflow-hidden rounded-[26px] bg-[hsl(var(--primary))] p-6 text-[hsl(var(--primary-foreground))] shadow-[0_18px_50px_hsl(var(--primary)/.2)] md:p-8">
-      <div className="absolute -right-12 -top-16 h-52 w-52 rounded-full border-[28px] border-white/10" />
+    <section className="relative overflow-hidden rounded-[24px] bg-[hsl(var(--primary))] p-6 text-[hsl(var(--primary-foreground))] shadow-[0_16px_40px_hsl(211_100%_50%/.18)] md:p-8">
+      <div className="absolute -right-14 -top-20 h-56 w-56 rounded-full border-[24px] border-white/10" />
       <div className="relative max-w-2xl">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.14em] text-white/65"><Sparkles size={15} />Recommended next</div>
-        <h2 className="mt-3 font-display text-3xl font-bold tracking-[-.025em] md:text-4xl">{recommendedTitle}</h2>
-        <p className="mt-3 max-w-lg text-sm leading-6 text-white/72">{recommendedCopy}</p>
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          <button onClick={() => startSession(recommendedMode)} className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-extrabold text-[hsl(var(--primary))] shadow-sm active:scale-[.98]" data-testid={`button-mode-${recommendedMode}`}>Start session<ArrowRight size={16} /></button>
-          <span className="text-xs font-semibold text-white/60">{recommendedMode === 'daily' ? '10 questions · about 5 minutes' : `${missedQuestions.length} ready to review`}</span>
-        </div>
+        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.14em] text-white/70"><Sparkles size={15} />Recommended next session</div>
+        <h2 className="mt-3 font-display text-3xl leading-tight md:text-4xl">{recommendationTitle}</h2>
+        <p className="mt-3 max-w-xl text-sm leading-6 text-white/75">{recommendationCopy}</p>
+        <button onClick={() => startSession(recommendedMode)} className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-extrabold text-[hsl(var(--primary))] shadow-sm hover:bg-white/90" data-testid="button-start-recommended-practice">Start recommended session <ArrowRight size={16} /></button>
       </div>
     </section>
-    <section className="mt-4 grid grid-cols-3 gap-2 md:gap-4">
-      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4"><div className="text-[10px] font-bold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">Covered</div><div className="mt-1 font-display text-2xl font-bold">{answeredCount}<span className="text-sm font-semibold text-[hsl(var(--muted-foreground))]">/{questionBank.length}</span></div></div>
-      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4"><div className="text-[10px] font-bold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">Accuracy</div><div className="mt-1 font-display text-2xl font-bold">{overallAccuracy}%</div></div>
-      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4"><div className="text-[10px] font-bold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">Review</div><div className="mt-1 font-display text-2xl font-bold">{missedQuestions.length}</div></div>
+    {answeredCount === 0 && <div className="mt-4 flex items-start gap-3 rounded-2xl border border-[hsl(var(--primary)/.2)] bg-[hsl(var(--secondary)/.55)] p-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]"><Target size={17} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" /><p><strong className="text-[hsl(var(--foreground))]">Nothing to catch up on.</strong> Start the recommended session and your coverage, accuracy, and review reminders will fill in here.</p></div>}
+    <section className="mt-6 grid gap-3 sm:grid-cols-3">
+      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5"><div className="text-xs font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Handbook coverage</div><div className="mt-3 font-display text-4xl">{answeredCount}<span className="text-xl text-[hsl(var(--muted-foreground))]">/{questionBank.length}</span></div><div className="mt-4"><ProgressBar value={overallCoverage} /></div><div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{answeredCount ? 'questions seen' : 'ready to begin'}</div></div>
+      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5"><div className="text-xs font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Accuracy</div><div className="mt-3 font-display text-4xl">{answeredCount ? `${overallAccuracy}%` : '—'}</div><div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{answeredCount ? `${correctCount} currently mastered` : 'appears after your first answer'}</div></div>
+      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5"><div className="text-xs font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Needs review</div><div className="mt-3 font-display text-4xl">{answeredCount ? missedQuestions.length : '—'}</div><div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{answeredCount ? `${dueQuestions.length} due · ${unseenQuestions.length} unseen` : 'your review list is created as you learn'}</div></div>
     </section>
-    <section className="mt-8">
-      <div className="mb-4"><div className="text-xs font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">More ways to practice</div></div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {[
-        { mode: 'continue' as const, title: 'Continue', copy: 'Next 15 handbook questions', icon: BookOpen },
-        { mode: 'missed' as const, title: 'Review missed', copy: `${missedQuestions.length} waiting`, icon: RotateCcw, disabled: missedQuestions.length === 0 },
-        { mode: 'exam' as const, title: 'Test simulation', copy: '30 randomized questions', icon: Award },
-        { mode: 'full' as const, title: 'Full handbook', copy: `All ${questionBank.length} questions`, icon: Layers3 },
-      ].map((item) => {
-        const Icon = item.icon;
-        return <button key={item.mode} onClick={() => startSession(item.mode)} disabled={item.disabled} className="group flex items-center gap-4 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 text-left hover:border-[hsl(var(--primary)/.45)] hover:shadow-sm active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-mode-${item.mode}`}><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--secondary))] text-[hsl(var(--primary))]"><Icon size={19} /></span><span><span className="block text-sm font-extrabold">{item.title}</span><span className="mt-0.5 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">{item.copy}</span></span></button>;
-      })}
+    <section className="mt-9">
+      <div className="mb-4"><div className="text-xs font-bold uppercase tracking-[.14em] text-[hsl(var(--muted-foreground))]">More ways to practice</div><h2 className="mt-1 font-display text-2xl">Choose a different pace.</h2></div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { mode: 'daily' as const, title: 'Daily 10', copy: 'New and weak questions', icon: Sparkles },
+          { mode: 'continue' as const, title: 'Continue', copy: 'Next 15 handbook questions', icon: BookOpen },
+          { mode: 'missed' as const, title: 'Review missed', copy: `${missedQuestions.length} waiting`, icon: RotateCcw, disabled: missedQuestions.length === 0 },
+          { mode: 'exam' as const, title: 'Test simulation', copy: '30 randomized questions', icon: Award },
+          { mode: 'full' as const, title: 'Full handbook', copy: `All ${questionBank.length} questions`, icon: Layers3 },
+        ].map((item) => {
+          const Icon = item.icon;
+          return <button key={item.mode} onClick={() => startSession(item.mode)} disabled={item.disabled} className="group flex items-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 text-left hover:border-[hsl(var(--primary)/.5)] hover:bg-[hsl(var(--secondary)/.3)] disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-mode-${item.mode}`}><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--muted))] text-[hsl(var(--primary))]"><Icon size={18} /></span><span><span className="block text-sm font-extrabold">{item.title}</span><span className="mt-1 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">{item.copy}</span></span></button>;
+        })}
       </div>
     </section>
     <section className="mt-9">

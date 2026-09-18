@@ -28,8 +28,8 @@ export function RouteMap({ route, currentPosition }: { route: PlannedRoute; curr
       if (layer instanceof L.Polyline || layer instanceof L.CircleMarker) map.current?.removeLayer(layer);
     });
     const points = route.coordinates.map(([longitude, latitude]) => L.latLng(latitude, longitude));
-    const line = L.polyline(points, { color: '#e86c4a', weight: 6, opacity: 0.92, lineCap: 'round' }).addTo(map.current);
-    L.circleMarker([route.origin[1], route.origin[0]], { radius: 8, color: '#f8c56d', fillColor: '#244b42', fillOpacity: 1, weight: 3 }).addTo(map.current);
+    const line = L.polyline(points, { color: '#0a84ff', weight: 6, opacity: 0.9, lineCap: 'round' }).addTo(map.current);
+    L.circleMarker([route.origin[1], route.origin[0]], { radius: 8, color: '#ffffff', fillColor: '#0a84ff', fillOpacity: 1, weight: 3 }).addTo(map.current);
     map.current.fitBounds(line.getBounds(), { padding: [28, 28] });
   }, [route]);
 
