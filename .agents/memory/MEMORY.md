@@ -4,3 +4,4 @@
 - [Coastwise family sharing](coastwise-family-sharing.md) — accounts are optional for family progress sync; drive recordings remain device-local.
 - [Policy acknowledgements](policy-acknowledgements.md) — material privacy and safety acceptance is device-local and must not travel through backup or family sync.
 - [Coastwise AI privacy](coastwise-ai-privacy.md) — optional AI uses minimal summaries; sensitive drive media, location, identity, and notes stay on-device.
+- [Mobile drive interruption](mobile-drive-interruption.md) — native coaching pauses outside the foreground and resumes only through an explicit parked-user action.

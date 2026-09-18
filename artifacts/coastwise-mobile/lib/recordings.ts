@@ -14,9 +14,9 @@ export async function listLocalRecordings(): Promise<LocalRecording[]> {
   const names = await FileSystem.readDirectoryAsync(FileSystem.documentDirectory);
   const recordings = await Promise.all(names
     .filter((name) => RECORDING_PREFIXES.some((prefix) => name.startsWith(prefix)) && name.endsWith('.mp4'))
-    .map(async (name) => {
+    .map(async (name): Promise<LocalRecording | null> => {
       const uri = `${FileSystem.documentDirectory}${name}`;
-      const info = await FileSystem.getInfoAsync(uri, { size: true });
+      const info = await FileSystem.getInfoAsync(uri);
       if (!info.exists) return null;
       return {
         uri,

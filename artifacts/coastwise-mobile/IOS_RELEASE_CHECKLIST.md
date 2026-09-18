@@ -8,9 +8,7 @@ This native source was prepared in the workspace, but the Expo artifact could no
 - [ ] Install the versions in `package.json` with `pnpm install`.
 - [ ] Convert `assets/icon.svg` and `assets/splash.svg` to PNG assets if the Expo build requires raster files.
 - [ ] Set `EXPO_PUBLIC_DOMAIN` to the published API domain; do not hardcode a development hostname.
-- [ ] Run `CI=1 pnpm exec expo install --check`.
-- [ ] Run `pnpm dlx expo-doctor@latest` and resolve every finding.
-- [ ] Run `pnpm typecheck`.
+- [ ] Run `pnpm release-check` to check dependencies, TypeScript, Expo Doctor, and both platform bundles.
 - [ ] Test on physical iPhones, including iPhone SE-sized screens.
 - [ ] Test camera and microphone denial, location denial, interruption, low connectivity, and app restart.
 - [ ] Confirm recordings remain local and are not included in debrief or plan requests.

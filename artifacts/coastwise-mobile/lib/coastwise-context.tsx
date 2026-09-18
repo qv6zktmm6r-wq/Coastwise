@@ -33,6 +33,9 @@ type CoastwiseContextValue = MobileState & {
   beginActiveDrive: (drive: ActiveMobileDrive) => void;
   updateActiveDrive: (drive: ActiveMobileDrive) => void;
   finishActiveDrive: (drive: MobileDrive) => void;
+  discardActiveDrive: () => void;
+  forgetRecording: (uri: string) => void;
+  forgetAllRecordings: () => void;
   saveDrive: (drive: MobileDrive) => void;
   savePlan: (plan: NextDrivePlan) => void;
   acknowledgePrivacy: () => void;
@@ -68,6 +71,27 @@ export function CoastwiseProvider({ children }: { children: ReactNode }) {
       drives: current.drives.some((item) => item.id === drive.id)
         ? current.drives.map((item) => item.id === drive.id ? drive : item)
         : [drive, ...current.drives].slice(0, 50),
+    })),
+    discardActiveDrive: () => setState((current) => ({ ...current, activeDrive: undefined })),
+    forgetRecording: (uri) => setState((current) => ({
+      ...current,
+      activeDrive: current.activeDrive?.recordingUri === uri
+        ? { ...current.activeDrive, recordingUri: undefined, recordingSizeBytes: undefined }
+        : current.activeDrive,
+      drives: current.drives.map((drive) => drive.recordingUri === uri
+        ? { ...drive, recordingUri: undefined, recordingSizeBytes: undefined }
+        : drive),
+    })),
+    forgetAllRecordings: () => setState((current) => ({
+      ...current,
+      activeDrive: current.activeDrive
+        ? { ...current.activeDrive, recordingUri: undefined, recordingSizeBytes: undefined }
+        : undefined,
+      drives: current.drives.map((drive) => ({
+        ...drive,
+        recordingUri: undefined,
+        recordingSizeBytes: undefined,
+      })),
     })),
     saveDrive: (drive) => setState((current) => ({
       ...current,

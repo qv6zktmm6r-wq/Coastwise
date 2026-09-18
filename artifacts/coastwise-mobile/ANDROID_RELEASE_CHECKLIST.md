@@ -6,9 +6,7 @@ The Android app shares Coastwise's React Native screens and local-first state wi
 
 - [ ] Register the Expo mobile artifact from replit.com if it is not already registered.
 - [ ] Set `EXPO_PUBLIC_DOMAIN` to the published Coastwise API domain.
-- [ ] Run `CI=1 pnpm exec expo install --check`.
-- [ ] Run `pnpm dlx expo-doctor@latest`.
-- [ ] Run `pnpm typecheck`.
+- [ ] Run `pnpm release-check` to check dependencies, TypeScript, Expo Doctor, and both platform bundles.
 - [ ] Confirm the adaptive icon is not clipped by circle, squircle, or rounded-square launchers.
 - [ ] Install a signed Android build on physical phones from at least two manufacturers.
 - [ ] Test Android 13, 14, and 15 permission flows, including “Don’t ask again” and recovery through Settings.
