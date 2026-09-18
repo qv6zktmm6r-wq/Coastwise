@@ -96,6 +96,92 @@ export interface PracticeRoute {
   skills: string[];
 }
 
+export type DriveDebriefEventKind = typeof DriveDebriefEventKind[keyof typeof DriveDebriefEventKind];
+
+
+export const DriveDebriefEventKind = {
+  start: 'start',
+  prompt: 'prompt',
+  maneuver: 'maneuver',
+  safety: 'safety',
+} as const;
+
+export interface DriveDebriefEvent {
+  kind: DriveDebriefEventKind;
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  title: string;
+  /** @maxLength 500 */
+  detail: string;
+}
+
+export interface DriveDebriefTopic {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  topic: string;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  mastery: number;
+}
+
+export interface DriveDebriefInput {
+  /**
+     * @minimum 1
+     * @maximum 600
+     */
+  durationMinutes: number;
+  /**
+     * @minimum 0
+     * @maximum 500
+     */
+  distanceMiles: number;
+  night: boolean;
+  /**
+     * @maxItems 10
+     * @items.minLength 1
+     * @items.maxLength 120
+     */
+  skills: string[];
+  /** @maxItems 100 */
+  events: DriveDebriefEvent[];
+  /** @maxItems 10 */
+  weakTopics: DriveDebriefTopic[];
+}
+
+export interface DriveDebrief {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  headline: string;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  win: string;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  improvement: string;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  nextStep: string;
+  /**
+     * @minLength 1
+     * @maxLength 300
+     */
+  parentPrompt: string;
+}
+
 export type CreateInviteInputRole = typeof CreateInviteInputRole[keyof typeof CreateInviteInputRole];
 
 

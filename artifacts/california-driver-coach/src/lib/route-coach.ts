@@ -14,6 +14,7 @@ export type PlannedRoute = {
   distanceMeters: number;
   durationSeconds: number;
   origin: RouteCoordinate;
+  skills?: string[];
 };
 
 const DRIVE_RECORDINGS_DATABASE = 'coastwise-drive-recordings';

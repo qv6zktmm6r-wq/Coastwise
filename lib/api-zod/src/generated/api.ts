@@ -63,6 +63,71 @@ export const CreatePracticeRouteResponse = zod.object({
 
 
 /**
+ * Creates a short coaching debrief from a bounded summary. Video, coordinates, route geometry, and recording metadata are not accepted.
+ * @summary Create a private post-drive coaching debrief
+ */
+export const createDriveDebriefBodyDurationMinutesMax = 600;
+
+export const createDriveDebriefBodyDistanceMilesMin = 0;
+export const createDriveDebriefBodyDistanceMilesMax = 500;
+
+export const createDriveDebriefBodySkillsItemMax = 120;
+
+export const createDriveDebriefBodySkillsMax = 10;
+
+export const createDriveDebriefBodyEventsItemTitleMax = 160;
+
+export const createDriveDebriefBodyEventsItemDetailMax = 500;
+
+export const createDriveDebriefBodyEventsMax = 100;
+
+export const createDriveDebriefBodyWeakTopicsItemTopicMax = 120;
+
+export const createDriveDebriefBodyWeakTopicsItemMasteryMin = 0;
+export const createDriveDebriefBodyWeakTopicsItemMasteryMax = 100;
+
+export const createDriveDebriefBodyWeakTopicsMax = 10;
+
+
+
+export const CreateDriveDebriefBody = zod.object({
+  "durationMinutes": zod.number().int().min(1).max(createDriveDebriefBodyDurationMinutesMax),
+  "distanceMiles": zod.number().min(createDriveDebriefBodyDistanceMilesMin).max(createDriveDebriefBodyDistanceMilesMax),
+  "night": zod.boolean(),
+  "skills": zod.array(zod.string().min(1).max(createDriveDebriefBodySkillsItemMax)).max(createDriveDebriefBodySkillsMax),
+  "events": zod.array(zod.object({
+  "kind": zod.enum(['start', 'prompt', 'maneuver', 'safety']),
+  "title": zod.string().min(1).max(createDriveDebriefBodyEventsItemTitleMax),
+  "detail": zod.string().max(createDriveDebriefBodyEventsItemDetailMax)
+})).max(createDriveDebriefBodyEventsMax),
+  "weakTopics": zod.array(zod.object({
+  "topic": zod.string().min(1).max(createDriveDebriefBodyWeakTopicsItemTopicMax),
+  "mastery": zod.number().min(createDriveDebriefBodyWeakTopicsItemMasteryMin).max(createDriveDebriefBodyWeakTopicsItemMasteryMax)
+})).max(createDriveDebriefBodyWeakTopicsMax)
+})
+
+export const createDriveDebriefResponseHeadlineMax = 120;
+
+export const createDriveDebriefResponseWinMax = 500;
+
+export const createDriveDebriefResponseImprovementMax = 500;
+
+export const createDriveDebriefResponseNextStepMax = 500;
+
+export const createDriveDebriefResponseParentPromptMax = 300;
+
+
+
+export const CreateDriveDebriefResponse = zod.object({
+  "headline": zod.string().min(1).max(createDriveDebriefResponseHeadlineMax),
+  "win": zod.string().min(1).max(createDriveDebriefResponseWinMax),
+  "improvement": zod.string().min(1).max(createDriveDebriefResponseImprovementMax),
+  "nextStep": zod.string().min(1).max(createDriveDebriefResponseNextStepMax),
+  "parentPrompt": zod.string().min(1).max(createDriveDebriefResponseParentPromptMax)
+})
+
+
+/**
  * @summary Create a revocable family invite
  */
 export const createFamilyInviteBodyExpiresInHoursDefault = 72;

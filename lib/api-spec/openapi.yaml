@@ -14,6 +14,8 @@ tags:
     description: Skill-based practice route operations
   - name: family
     description: Authenticated family sharing and sync
+  - name: ai-coach
+    description: Privacy-minimized AI coaching operations
 paths:
   /healthz:
     get:
@@ -51,6 +53,31 @@ paths:
           description: Invalid route request
         "502":
           description: Directions service unavailable
+  /ai/drive-debrief:
+    post:
+      operationId: createDriveDebrief
+      tags: [ai-coach]
+      summary: Create a private post-drive coaching debrief
+      description: Creates a short coaching debrief from a bounded summary. Video, coordinates, route geometry, and recording metadata are not accepted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DriveDebriefInput"
+      responses:
+        "200":
+          description: Coaching debrief created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DriveDebrief"
+        "400":
+          description: Invalid debrief request
+        "429":
+          description: Too many debrief requests
+        "502":
+          description: AI coaching service unavailable
   /families/invites:
     post:
       operationId: createFamilyInvite
@@ -236,6 +263,91 @@ components:
           items:
             type: string
       required: [id, distanceMeters, durationSeconds, geometry, steps, skills]
+    DriveDebriefEvent:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          enum: [start, prompt, maneuver, safety]
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+        detail:
+          type: string
+          maxLength: 500
+      required: [kind, title, detail]
+    DriveDebriefTopic:
+      type: object
+      additionalProperties: false
+      properties:
+        topic:
+          type: string
+          minLength: 1
+          maxLength: 120
+        mastery:
+          type: number
+          minimum: 0
+          maximum: 100
+      required: [topic, mastery]
+    DriveDebriefInput:
+      type: object
+      additionalProperties: false
+      properties:
+        durationMinutes:
+          type: integer
+          minimum: 1
+          maximum: 600
+        distanceMiles:
+          type: number
+          minimum: 0
+          maximum: 500
+        night:
+          type: boolean
+        skills:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+            minLength: 1
+            maxLength: 120
+        events:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/DriveDebriefEvent"
+        weakTopics:
+          type: array
+          maxItems: 10
+          items:
+            $ref: "#/components/schemas/DriveDebriefTopic"
+      required: [durationMinutes, distanceMiles, night, skills, events, weakTopics]
+    DriveDebrief:
+      type: object
+      additionalProperties: false
+      properties:
+        headline:
+          type: string
+          minLength: 1
+          maxLength: 120
+        win:
+          type: string
+          minLength: 1
+          maxLength: 500
+        improvement:
+          type: string
+          minLength: 1
+          maxLength: 500
+        nextStep:
+          type: string
+          minLength: 1
+          maxLength: 500
+        parentPrompt:
+          type: string
+          minLength: 1
+          maxLength: 300
+      required: [headline, win, improvement, nextStep, parentPrompt]
     CreateInviteInput:
       type: object
       properties:

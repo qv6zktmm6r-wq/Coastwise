@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
+import type { DriveDebrief } from '@workspace/api-client-react';
 import type { CoachEvent } from './drive-review';
 import type { PlannedRoute } from './route-coach';
 
@@ -8,7 +9,7 @@ export type Topic = { topic: string; mastery: number; questions: number };
 export type PracticeQuestion = { prompt: string; options: string[]; answer: number; explanation: string; topic: string };
 export type Scenario = { situation: string; choices: string[]; bestChoice: number; coaching: string };
 export type DriveMission = { title: string; detail: string; category: string; minutes: number; completed: boolean };
-export type DriveSession = { id: string; date: string; minutes: number; night: boolean; notes: string; distanceMiles?: number; skills?: string[]; routeTitle?: string; review?: { id: string; durationSeconds: number; eventCount: number; events: CoachEvent[]; route: PlannedRoute; videoType: string } };
+export type DriveSession = { id: string; date: string; minutes: number; night: boolean; notes: string; distanceMiles?: number; skills?: string[]; routeTitle?: string; review?: { id: string; durationSeconds: number; eventCount: number; events: CoachEvent[]; route: PlannedRoute; videoType: string; aiDebrief?: DriveDebrief } };
 export type ParentPrompt = { title: string; copy: string; done: boolean };
 export type Appearance = 'system' | 'light' | 'dark';
 

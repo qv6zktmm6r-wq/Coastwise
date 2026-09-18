@@ -45,6 +45,10 @@ export default function LegalPage({ kind }: { kind: 'privacy' | 'terms' }) {
           <p>If you create an account or sign in, Coastwise’s authentication provider processes your account details, such as your email address, to sign you in. If you join a Coastwise family, profile information, study progress, goals, settings, and drive-log summaries such as date, duration, notes, and skills are sent to Coastwise’s service so approved family members can use them across devices.</p>
           <p>Drive recordings, precise routes, coaching-event positions and notes, annotations, and recording formats stay in the browser where they were created and are not included in family sync.</p>
         </PolicySection>
+        <PolicySection title="Optional AI drive debrief">
+          <p>If you choose <strong className="text-[hsl(var(--foreground))]">Generate debrief</strong>, Coastwise sends a limited drive summary to its managed AI service: duration, distance, night-driving status, selected skills, coach-event titles and descriptions, and up to three low-mastery study topics. The service uses that summary to return a coaching debrief.</p>
+          <p>Coastwise does not send the drive video, family notes, profile identity, precise route, GPS coordinates, speed readings, event positions, recording metadata, or raw practice answers for an AI debrief. The returned debrief is stored inside the device-local drive review and is not included in family sync.</p>
+        </PolicySection>
         <PolicySection title="Camera">
           <p>Coastwise asks for camera permission only when you choose to record a supervised drive. Coastwise does not request microphone access or record audio. The browser shows the preview and creates the video recording. You may deny permission and use other parts of Coastwise without recording.</p>
           <p>Other people who can use this device or browser profile may be able to open locally saved recordings in Coastwise.</p>

@@ -54,6 +54,59 @@ test('keeps browser video controls and coached moments synchronized', async ({ p
   await expect(page.locator('[data-testid^="button-review-event-"]')).toHaveCount(0);
 });
 
+test('generates an AI debrief from only the privacy-minimized review summary', async ({ page }) => {
+  let requestBody: Record<string, unknown> | undefined;
+  await page.route('**/api/ai/drive-debrief', async (route) => {
+    requestBody = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        headline: 'A calm drive with a clear next step.',
+        win: 'You completed focused turn practice with an adult.',
+        improvement: 'Prepare a little earlier before each turn.',
+        nextStep: 'Repeat three turns on a familiar, low-traffic route.',
+        parentPrompt: 'What helped you feel prepared before each turn?',
+      }),
+    });
+  });
+
+  await page.goto('/drive?reviewFixture=1');
+  await page.getByTestId('button-generate-ai-debrief').click();
+  await expect(page.getByTestId('text-ai-debrief-headline')).toContainText('clear next step');
+  await expect(page.getByTestId('text-ai-debrief-win')).toContainText('focused turn practice');
+  await expect(page.getByTestId('text-next-drive-focus')).toContainText('Repeat three turns');
+
+  expect(requestBody).toBeTruthy();
+  expect(Object.keys(requestBody!).sort()).toEqual([
+    'distanceMiles',
+    'durationMinutes',
+    'events',
+    'night',
+    'skills',
+    'weakTopics',
+  ]);
+  const requestKeys = (value: unknown): string[] => {
+    if (Array.isArray(value)) return value.flatMap(requestKeys);
+    if (!value || typeof value !== 'object') return [];
+    return Object.entries(value as Record<string, unknown>)
+      .flatMap(([key, nested]) => [key, ...requestKeys(nested)]);
+  };
+  expect(requestKeys(requestBody)).not.toEqual(expect.arrayContaining([
+    'position',
+    'coordinate',
+    'speedMph',
+    'distanceToNext',
+    'stepIndex',
+    'video',
+    'recording',
+    'route',
+    'profile',
+    'notes',
+    'reviewId',
+  ]));
+});
+
 test('seeks decoded review video with native media events', async ({ page }) => {
   await page.goto('/drive?reviewFixture=1');
 

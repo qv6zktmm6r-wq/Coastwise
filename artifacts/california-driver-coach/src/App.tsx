@@ -48,7 +48,11 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useCreatePracticeRoute, type PracticeRoute } from '@workspace/api-client-react';
+import {
+  useCreatePracticeRoute,
+  useCreateDriveDebrief,
+  type PracticeRoute,
+} from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { PracticeHub, type PracticeAnswer } from '@/components/practice-hub';
 import { Toaster } from '@/components/ui/toaster';
@@ -68,6 +72,7 @@ import {
 } from '@/lib/drive-review';
 import { getDriveReviewBrowserFixture } from '@/lib/drive-review-browser-fixture';
 import { canPlayRecording, chooseRecordingMimeType, describeRecordingFormat, getRecordingBrowser } from '@/lib/drive-recording';
+import { buildDriveDebriefInput } from '@/lib/ai-debrief';
 import coastwiseLogo from '@/assets/coastwise-logo.svg';
 import NotFound from '@/pages/not-found';
 import { AppState, createDriveSessionId, getStoredState, initialState, isRecord, parseStoredState, storageKey, type Appearance, type DriveSession, type PracticeQuestion, type Scenario, type Topic } from '@/lib/state';
@@ -457,6 +462,8 @@ function Scenarios({ state, setState }: { state: AppState; setState: (next: AppS
 function Drive({ state, setState }: { state: AppState; setState: (next: AppState) => void }) {
   const reviewFixture = useMemo(() => getDriveReviewBrowserFixture(), []);
   const [showForm, setShowForm] = useState(false);
+  const [transientDebriefs, setTransientDebriefs] = useState<Record<string, NonNullable<DriveSession['review']>['aiDebrief']>>({});
+  const createDriveDebrief = useCreateDriveDebrief();
   const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), minutes: '30', night: false, notes: '' });
   const [routeOptions, setRouteOptions] = useState<{ durationMinutes: 20 | 35 | 50; difficulty: 'beginner' | 'intermediate' | 'advanced'; skills: Array<'turns' | 'lane-changes' | 'intersections' | 'parking' | 'speed-control'> }>({ durationMinutes: 35, difficulty: 'beginner', skills: ['turns', 'intersections'] });
   const [tracking, setTracking] = useState(false);
@@ -480,7 +487,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const [currentCue, setCurrentCue] = useState('Route ready. Start only when the supervising adult says it is safe.');
   const [coachEvents, setCoachEvents] = useState<CoachEvent[]>(reviewFixture?.coachEvents ?? []);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(reviewFixture?.coachEvents[0]?.id ?? null);
-  const [openReviewId, setOpenReviewId] = useState<string | null>(null);
+  const [openReviewId, setOpenReviewId] = useState<string | null>(reviewFixture?.reviewId ?? null);
   const [reviewError, setReviewError] = useState('');
   const [reviewPlaybackError, setReviewPlaybackError] = useState('');
   const [storageEstimate, setStorageEstimate] = useState<StorageEstimate | null>(null);
@@ -509,11 +516,40 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const eventSequence = useRef(0);
   const coachEventsRef = useRef<CoachEvent[]>(reviewFixture?.coachEvents ?? []);
   const createRoute = useCreatePracticeRoute();
+
+  const activeReviewSession = state.sessions.find((session) => session.review?.id === openReviewId);
+  const currentDebrief = activeReviewSession?.review?.aiDebrief ?? (openReviewId ? transientDebriefs[openReviewId] : null) ?? null;
+  const handleGenerateDebrief = () => {
+    if (!openReviewId) return;
+    const reviewId = openReviewId;
+    const input = buildDriveDebriefInput({
+      session: activeReviewSession,
+      elapsedSeconds,
+      distanceMiles,
+      plannedSkills: plannedRoute?.skills ?? [],
+      events: coachEvents,
+      topics: state.topics,
+    });
+    createDriveDebrief.mutate(
+      { data: input },
+      {
+        onSuccess: (result) => {
+          setTransientDebriefs((current) => ({ ...current, [reviewId]: result }));
+          setState({
+            ...state,
+            sessions: state.sessions.map((session) => session.review?.id === reviewId
+              ? { ...session, review: { ...session.review, aiDebrief: result } }
+              : session),
+          });
+        },
+      }
+    );
+  };
+
   const total = state.sessions.reduce((sum, session) => sum + session.minutes, 0);
   const night = state.sessions.filter((session) => session.night).reduce((sum, session) => sum + session.minutes, 0);
   const completed = state.missions.filter((mission) => mission.completed).length;
   const averageSpeed = elapsedSeconds > 0 ? distanceMiles / (elapsedSeconds / 3600) : 0;
-  const activeReviewSession = state.sessions.find((session) => session.review?.id === openReviewId);
   const reviewDistance = activeReviewSession?.distanceMiles ?? distanceMiles;
   const nextDriveFocus = coachEvents.some((event) => event.title === 'Route updated')
     ? 'Look farther ahead and prepare earlier so the route stays easier to follow.'
@@ -1017,9 +1053,11 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     if (openReviewId) {
       setState({
         ...state,
-        sessions: state.sessions.map((session) => session.review?.id === openReviewId
-          ? { ...session, review: { ...session.review, events: next.coachEvents, eventCount: next.coachEvents.length } }
-          : session),
+        sessions: state.sessions.map((session) => {
+          if (session.review?.id !== openReviewId) return session;
+          const { aiDebrief: _staleDebrief, ...review } = session.review;
+          return { ...session, review: { ...review, events: next.coachEvents, eventCount: next.coachEvents.length } };
+        }),
       });
     }
   };
@@ -1101,7 +1139,15 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
       `${Math.max(1, Math.round(elapsedSeconds / 60))} minutes · ${reviewDistance.toFixed(1)} miles`,
       `${coachEvents.length} coached ${coachEvents.length === 1 ? 'moment' : 'moments'}`,
-      `Next focus: ${nextDriveFocus}`,
+      `Next focus: ${currentDebrief ? currentDebrief.nextStep : nextDriveFocus}`,
+      ...(currentDebrief ? [
+        '',
+        'AI Debrief:',
+        `Win: ${currentDebrief.win}`,
+        `Growth: ${currentDebrief.improvement}`,
+        `Parent: ${currentDebrief.parentPrompt}`
+      ] : []),
+      '',
       'Completed with an attentive supervising adult.',
     ].join('\n');
     try {
@@ -1165,8 +1211,56 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
         <div className="mb-6 grid gap-3 rounded-2xl bg-[hsl(var(--secondary)/.45)] p-4 sm:grid-cols-[auto_auto_1fr_auto]" data-testid="drive-debrief">
           <div><div className="font-mono-ui text-[10px] uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Time</div><div className="mt-1 font-display text-2xl">{Math.max(1, Math.round(elapsedSeconds / 60))} min</div></div>
           <div><div className="font-mono-ui text-[10px] uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Distance</div><div className="mt-1 font-display text-2xl">{reviewDistance.toFixed(1)} mi</div></div>
-          <div className="sm:border-l sm:border-[hsl(var(--border))] sm:pl-4"><div className="font-mono-ui text-[10px] uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Next drive focus</div><div className="mt-1 text-sm font-bold leading-5">{nextDriveFocus}</div></div>
+          <div className="sm:border-l sm:border-[hsl(var(--border))] sm:pl-4"><div className="font-mono-ui text-[10px] uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Next drive focus</div><div className="mt-1 text-sm font-bold leading-5" data-testid="text-next-drive-focus">{currentDebrief ? currentDebrief.nextStep : nextDriveFocus}</div></div>
           <div className="flex items-center"><ActionButton onClick={() => void shareDriveSummary()} variant="outline" testId="button-share-drive-summary"><Upload size={15} />Share summary</ActionButton></div>
+        </div>
+
+        <div className="mb-6 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden soft-shadow" data-testid="ai-drive-debrief-container">
+          {currentDebrief ? (
+            <div className="p-5 md:p-6 animate-fade bg-gradient-to-br from-[hsl(var(--secondary)/.5)] to-transparent">
+              <div className="flex items-center justify-between gap-4 mb-5 border-b border-[hsl(var(--border))] pb-5">
+                <div>
+                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.15em] text-[hsl(var(--primary))] mb-1"><Sparkles size={14} /> AI Debrief</div>
+                  <h3 className="font-display text-2xl" data-testid="text-ai-debrief-headline">{currentDebrief.headline}</h3>
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 soft-shadow shadow-sm">
+                  <div className="text-[10px] font-bold uppercase tracking-[.1em] text-[hsl(var(--success))] mb-2 flex items-center gap-1.5"><Award size={14}/> Big Win</div>
+                  <p className="text-sm font-semibold leading-relaxed" data-testid="text-ai-debrief-win">{currentDebrief.win}</p>
+                </div>
+                <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 soft-shadow shadow-sm">
+                  <div className="text-[10px] font-bold uppercase tracking-[.1em] text-[hsl(var(--warning))] mb-2 flex items-center gap-1.5"><Target size={14}/> Room to Grow</div>
+                  <p className="text-sm font-semibold leading-relaxed" data-testid="text-ai-debrief-improvement">{currentDebrief.improvement}</p>
+                </div>
+                <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 soft-shadow shadow-sm">
+                  <div className="text-[10px] font-bold uppercase tracking-[.1em] text-[hsl(var(--accent))] mb-2 flex items-center gap-1.5"><HeartHandshake size={14}/> Parent Prompt</div>
+                  <p className="text-sm font-semibold leading-relaxed" data-testid="text-ai-debrief-parent-prompt">{currentDebrief.parentPrompt}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row gap-5 items-center justify-between p-5 md:p-6 bg-[hsl(var(--secondary)/.3)] hover:bg-[hsl(var(--secondary)/.4)] transition-colors">
+              <div>
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--primary))]"><Sparkles size={16} /> AI Drive Debrief</div>
+                <h3 className="mt-1 font-display text-2xl">Get personalized coaching insights.</h3>
+                <p className="mt-2 text-xs leading-5 text-[hsl(var(--muted-foreground))] max-w-xl"><strong className="text-[hsl(var(--foreground))]">Privacy first:</strong> Coastwise sends duration, distance, night-driving status, selected skills, coach-event titles and descriptions, and your three lowest mastery topics. Video, notes, route maps, precise locations, and identity stay on this device.</p>
+              </div>
+              <div className="flex shrink-0">
+                <ActionButton onClick={handleGenerateDebrief} disabled={createDriveDebrief.isPending} testId="button-generate-ai-debrief">
+                  {createDriveDebrief.isPending ? <span className="flex items-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"/> Analyzing...</span> : <span className="flex items-center gap-2"><Sparkles size={16} /> Generate debrief</span>}
+                </ActionButton>
+              </div>
+            </div>
+          )}
+          {createDriveDebrief.isError && !currentDebrief && (
+            <div className="border-t border-[hsl(var(--border))] px-5 py-4 md:px-6">
+              <div className="flex items-center justify-between gap-4 text-sm font-semibold text-[hsl(var(--destructive))]" role="alert">
+                <div className="flex items-center gap-2"><AlertTriangle size={16} /> Coastwise could not generate the AI debrief right now.</div>
+                <ActionButton onClick={handleGenerateDebrief} variant="quiet" className="text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive)/.1)]" testId="button-retry-ai-debrief">Retry</ActionButton>
+              </div>
+            </div>
+          )}
         </div>
         {shareStatus && <p className="mb-5 text-xs font-semibold text-[hsl(var(--primary))]" role="status">{shareStatus}</p>}
        <div className="grid gap-6 lg:grid-cols-[1.08fr_.92fr]">
@@ -1358,6 +1452,7 @@ function convertApiRoute(route: PracticeRoute): PlannedRoute {
       distance: step.distanceMeters,
       location: [step.coordinate.longitude, step.coordinate.latitude],
     })),
+    skills: route.skills,
   };
 }
 

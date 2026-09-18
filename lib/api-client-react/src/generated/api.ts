@@ -21,6 +21,8 @@ import type {
 
 import type {
   CreateInviteInput,
+  DriveDebrief,
+  DriveDebriefInput,
   FamilyMembership,
   FamilyMembershipSummary,
   HealthStatus,
@@ -223,6 +225,95 @@ export const useCreatePracticeRoute = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getCreatePracticeRouteMutationOptions(options));
+    }
+
+export const getCreateDriveDebriefUrl = () => {
+
+
+
+
+  return `/api/ai/drive-debrief`
+}
+
+/**
+ * Creates a short coaching debrief from a bounded summary. Video, coordinates, route geometry, and recording metadata are not accepted.
+ * @summary Create a private post-drive coaching debrief
+ */
+export const createDriveDebrief = async (driveDebriefInput: DriveDebriefInput, options?: Parameters<typeof customFetch>[1]): Promise<DriveDebrief> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<DriveDebrief>(getCreateDriveDebriefUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(driveDebriefInput)
+  }
+);}
+
+
+
+
+
+export const getCreateDriveDebriefMutationKey = () => ['createDriveDebrief'] as const;
+
+export const getCreateDriveDebriefMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDriveDebrief>>, TError,CreateDriveDebriefMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createDriveDebrief>>, TError,CreateDriveDebriefMutationVariables, TContext> => {
+
+const mutationKey = getCreateDriveDebriefMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createDriveDebrief>>, CreateDriveDebriefMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createDriveDebrief(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateDriveDebriefMutationResult = NonNullable<Awaited<ReturnType<typeof createDriveDebrief>>>
+    export type CreateDriveDebriefMutationBody = BodyType<DriveDebriefInput>
+    export type CreateDriveDebriefMutationError = ErrorType<void>
+    export type CreateDriveDebriefMutationVariables = {data: BodyType<DriveDebriefInput>}
+
+    /**
+ * @summary Create a private post-drive coaching debrief
+ */
+export const useCreateDriveDebrief = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDriveDebrief>>, TError,CreateDriveDebriefMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createDriveDebrief>>,
+        TError,
+        CreateDriveDebriefMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateDriveDebriefMutationOptions(options));
     }
 
 export const getCreateFamilyInviteUrl = () => {

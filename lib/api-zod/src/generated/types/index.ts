@@ -8,6 +8,11 @@
 
 export * from './createInviteInput';
 export * from './createInviteInputRole';
+export * from './driveDebrief';
+export * from './driveDebriefEvent';
+export * from './driveDebriefEventKind';
+export * from './driveDebriefInput';
+export * from './driveDebriefTopic';
 export * from './familyMembership';
 export * from './familyMembershipRole';
 export * from './familyMembershipSummary';

@@ -15,6 +15,17 @@ export const policyAcknowledgementStorageKey = 'coastwise-policy-acknowledgement
 
 export const materialPolicyNotices: MaterialPolicyNotice[] = [
   {
+    version: '2026-09-18-ai-debrief',
+    effectiveDate: 'September 18, 2026',
+    title: 'Optional AI drive debriefs',
+    summary: 'Coastwise can now create an optional coaching debrief from a limited drive summary while keeping video, precise routes, identity, and family notes on your device.',
+    changes: [
+      'AI debriefs are generated only when you choose the Generate debrief action.',
+      'Only duration, distance, night-driving status, skills, coach-event text, and low-mastery topic summaries are sent.',
+      'Drive video, precise route and location, speed readings, identity, notes, recording details, and raw answers are not sent for AI debriefs.',
+    ],
+  },
+  {
     version: '2026-09-18',
     effectiveDate: 'September 18, 2026',
     title: 'Privacy and safety terms have changed',
