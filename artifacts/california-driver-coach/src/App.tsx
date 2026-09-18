@@ -52,7 +52,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { questionBank } from '@/data/question-bank';
 import { RouteMap } from '@/components/route-map';
-import { requestPracticeLoop, requestReturnRoute, type PlannedRoute, type RouteCoordinate } from '@/lib/route-coach';
+import { deleteDriveRecording as deleteSavedDriveRecording, loadDriveRecording, requestPracticeLoop, requestReturnRoute, saveDriveRecording, type PlannedRoute, type RouteCoordinate } from '@/lib/route-coach';
 import {
   appendCoachEvent,
   deleteCoachEvent,
@@ -67,7 +67,7 @@ type Topic = { topic: string; mastery: number; questions: number };
 type PracticeQuestion = { prompt: string; options: string[]; answer: number; explanation: string; topic: string };
 type Scenario = { situation: string; choices: string[]; bestChoice: number; coaching: string };
 type DriveMission = { title: string; detail: string; category: string; minutes: number; completed: boolean };
-type DriveSession = { date: string; minutes: number; night: boolean; notes: string; distanceMiles?: number; skills?: string[]; routeTitle?: string };
+type DriveSession = { date: string; minutes: number; night: boolean; notes: string; distanceMiles?: number; skills?: string[]; routeTitle?: string; review?: { id: string; durationSeconds: number; eventCount: number; events: CoachEvent[]; route: PlannedRoute; videoType: string } };
 type ParentPrompt = { title: string; copy: string; done: boolean };
 
 type AppState = {
@@ -381,6 +381,8 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const [currentCue, setCurrentCue] = useState('Route ready. Start only when the supervising adult says it is safe.');
   const [coachEvents, setCoachEvents] = useState<CoachEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [openReviewId, setOpenReviewId] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState('');
   const watchId = useRef<number | null>(null);
   const lastPosition = useRef<GeolocationPosition | null>(null);
   const lastPositionAt = useRef<number | null>(null);
@@ -399,6 +401,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const offRouteSince = useRef<number | null>(null);
   const rerouting = useRef(false);
   const recordingClockStartedAt = useRef<number | null>(null);
+  const finalElapsedSecondsRef = useRef(0);
   const eventSequence = useRef(0);
   const coachEventsRef = useRef<CoachEvent[]>([]);
   const createRoute = useCreatePracticeRoute();
@@ -603,18 +606,16 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     watchId.current = null;
     window.speechSynthesis?.cancel();
     coachAudio.current?.pause();
-    if (mediaRecorder.current?.state === 'recording') mediaRecorder.current.stop();
     cameraStream?.getTracks().forEach((track) => track.stop());
     setCameraStream(null);
     const finalElapsedSeconds = recordingClockStartedAt.current === null
       ? elapsedSeconds
       : Math.max(0, Math.floor((performance.now() - recordingClockStartedAt.current) / 1000));
     const minutes = Math.max(1, Math.round(finalElapsedSeconds / 60));
+    finalElapsedSecondsRef.current = finalElapsedSeconds;
+    if (mediaRecorder.current?.state === 'recording') mediaRecorder.current.stop();
     setElapsedSeconds(finalElapsedSeconds);
     setSelectedEventId(coachEventsRef.current[0]?.id ?? null);
-    if (startedAt && finalElapsedSeconds > 0) {
-      setState({ ...state, sessions: [{ date: new Date(startedAt).toISOString().slice(0, 10), minutes, night: false, notes: `Dashcam drive · ${distanceMiles.toFixed(1)} miles tracked` }, ...state.sessions] });
-    }
     recordingClockStartedAt.current = null;
     setCurrentSpeed(0);
     currentSpeedRef.current = null;
@@ -660,7 +661,27 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
         const videoType = recorder.mimeType || 'video/webm';
         const blob = new Blob(videoChunks.current, { type: videoType });
         setRecordedVideoType(videoType);
-        if (blob.size > 0) setRecordedVideoUrl(URL.createObjectURL(blob));
+        if (blob.size > 0 && routeRef.current) {
+          const reviewId = `drive-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+          const reviewEvents = coachEventsRef.current;
+          const reviewRoute = routeRef.current;
+          const durationSeconds = finalElapsedSecondsRef.current;
+          setRecordedVideoUrl(URL.createObjectURL(blob));
+          setOpenReviewId(reviewId);
+          void saveDriveRecording(reviewId, blob).then(() => {
+            setState({
+              ...state,
+              sessions: [{
+                date: new Date(startedAt ?? Date.now()).toISOString().slice(0, 10),
+                minutes: Math.max(1, Math.round(durationSeconds / 60)),
+                night: false,
+                notes: `Coached drive · ${distanceMiles.toFixed(1)} miles tracked`,
+                distanceMiles,
+                review: { id: reviewId, durationSeconds, eventCount: reviewEvents.length, events: reviewEvents, route: reviewRoute, videoType },
+              }, ...state.sessions],
+            });
+          }).catch(() => setReviewError('The review could not be saved in this browser. Download it before leaving this page.'));
+        }
         videoChunks.current = [];
       };
       recorder.start(1000);
@@ -767,11 +788,40 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   };
   const deleteRecording = () => {
     if (recordedVideoUrl) URL.revokeObjectURL(recordedVideoUrl);
+    if (openReviewId) {
+      void deleteSavedDriveRecording(openReviewId);
+      setState({ ...state, sessions: state.sessions.filter((session) => session.review?.id !== openReviewId) });
+    }
     const cleared = deleteDriveRecording();
     setRecordedVideoUrl(cleared.recordedVideoUrl);
+    setOpenReviewId(null);
     coachEventsRef.current = cleared.coachEvents;
     setCoachEvents(cleared.coachEvents);
     setSelectedEventId(cleared.selectedEventId);
+  };
+  const openSavedReview = async (session: DriveSession) => {
+    if (!session.review) return;
+    setReviewError('');
+    try {
+      const blob = await loadDriveRecording(session.review.id);
+      if (!blob) {
+        setReviewError('This local recording is no longer available on this device.');
+        return;
+      }
+      if (recordedVideoUrl) URL.revokeObjectURL(recordedVideoUrl);
+      setRecordedVideoUrl(URL.createObjectURL(blob));
+      setRecordedVideoType(session.review.videoType);
+      setOpenReviewId(session.review.id);
+      setElapsedSeconds(session.review.durationSeconds);
+      setPlannedRoute(session.review.route);
+      routeRef.current = session.review.route;
+      coachEventsRef.current = session.review.events;
+      setCoachEvents(session.review.events);
+      setSelectedEventId(session.review.events[0]?.id ?? null);
+      window.requestAnimationFrame(() => document.querySelector('[data-testid="video-drive-review"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+    } catch {
+      setReviewError('This local recording could not be opened. Try again in this browser.');
+    }
   };
   const togglePause = () => {
     const next = !paused;
@@ -811,6 +861,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
        {tracking && <div className="mt-6 grid gap-5 border-t border-white/10 pt-5 lg:grid-cols-[1.1fr_.9fr]"><div className="relative overflow-hidden rounded-2xl bg-black/40"><video ref={cameraPreview} autoPlay muted playsInline className="aspect-video w-full object-cover" /><div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/65 px-3 py-1.5 font-mono-ui text-[10px] uppercase tracking-[.12em] text-white"><span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />Road camera</div></div><div><div className="grid grid-cols-2 gap-4"><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Current speed</div><div className="mt-2 font-display text-3xl">{currentSpeed.toFixed(0)} <span className="font-sans text-sm font-bold text-white/55">mph</span></div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Miles tracked</div><div className="mt-2 font-display text-3xl">{distanceMiles.toFixed(1)} <span className="font-sans text-sm font-bold text-white/55">mi</span></div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Drive time</div><div className="mt-2 font-display text-3xl">{formatElapsed(elapsedSeconds)}</div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Average speed</div><div className="mt-2 font-display text-3xl">{averageSpeed.toFixed(0)} <span className="font-sans text-sm font-bold text-white/55">mph</span></div></div></div><div className="mt-5 flex items-start gap-2 rounded-xl border border-white/15 bg-white/8 px-4 py-3 text-xs text-white"><Volume2 size={16} className="mt-0.5 shrink-0" /><span><span className="block font-bold">{paused ? 'Coaching paused' : 'Natural coach is speaking automatically'}</span><span className="mt-1 block text-white/70" data-testid="text-current-voice-cue">{currentCue}</span></span></div></div></div>}
     </section>
     {tracking && plannedRoute && <section className="mb-6 grid gap-5 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 md:p-6 lg:grid-cols-[.7fr_1.3fr]"><div className="flex flex-col justify-center"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Next instruction · automatic</div><h2 className="mt-3 font-display text-3xl">{plannedRoute.steps[Math.min(activeStep, plannedRoute.steps.length - 1)]?.instruction ?? 'Continue safely'}</h2><div className="mt-4 font-mono-ui text-sm font-medium text-[hsl(var(--primary))]">{distanceToNext > 0 ? `${distanceToNext * 3.28084 >= 500 ? Math.round(distanceToNext * 3.28084 / 50) * 50 : Math.round(distanceToNext * 3.28084)} feet` : 'Acquiring GPS position'}</div><p className="mt-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">No taps are needed. Coastwise prepares the driver, announces the maneuver, advances to the next step, and calmly recalculates after a missed turn.</p></div><RouteMap route={plannedRoute} currentPosition={currentPosition} /></section>}
+     {reviewError && <div className="mb-6 rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert">{reviewError}</div>}
      {recordedVideoUrl && <section className="mb-6 rounded-2xl border border-[hsl(var(--accent)/.35)] bg-[hsl(var(--card))] p-5 md:p-6 animate-fade">
        <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
          <div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]"><CheckCircle2 size={15} />Drive ready to review</div><h2 className="mt-2 font-display text-3xl">Replay the moments that mattered.</h2><p className="mt-2 max-w-2xl text-xs leading-5 text-[hsl(var(--muted-foreground))]">Select a turn or safety prompt to jump the recording to that moment. The annotations and video stay local to this browser.</p></div>
@@ -819,7 +870,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
        <div className="grid gap-6 lg:grid-cols-[1.08fr_.92fr]">
          <div>
            <video ref={reviewVideo} src={recordedVideoUrl} controls playsInline onTimeUpdate={followReviewPlayback} className="aspect-video w-full rounded-xl bg-black object-cover" data-testid="video-drive-review" />
-           <div className="mt-3 flex items-center gap-2 text-xs leading-5 text-[hsl(var(--muted-foreground))]"><LockKeyhole size={14} className="shrink-0 text-[hsl(var(--primary))]" />Stored only on this device until you download or delete it.</div>
+            <div className="mt-3 flex items-center gap-2 text-xs leading-5 text-[hsl(var(--muted-foreground))]"><LockKeyhole size={14} className="shrink-0 text-[hsl(var(--primary))]" />Stored only in this browser on this device. Deleting removes the recording and all annotations together.</div>
          </div>
          <div className="min-w-0">
            <div className="mb-3 flex items-center justify-between"><div><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Coached moments</div><h3 className="mt-1 font-display text-2xl">Follow the route in order.</h3></div><span className="font-mono-ui text-xs text-[hsl(var(--muted-foreground))]">{formatElapsed(elapsedSeconds)}</span></div>
@@ -847,7 +898,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
      </section>}
     {showForm && <form onSubmit={addSession} className="mb-6 grid gap-4 rounded-2xl border border-[hsl(var(--accent)/.35)] bg-[hsl(var(--secondary)/.4)] p-5 md:grid-cols-4 md:items-end animate-fade"><label className="text-xs font-bold">Date<input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} className="mt-2 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-sm" data-testid="input-drive-date" /></label><label className="text-xs font-bold">Minutes<input type="number" min="1" value={form.minutes} onChange={(event) => setForm({ ...form, minutes: event.target.value })} className="mt-2 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-sm" data-testid="input-drive-minutes" /></label><label className="flex items-center gap-2 pb-2 text-sm font-semibold"><input type="checkbox" checked={form.night} onChange={(event) => setForm({ ...form, night: event.target.checked })} className="h-4 w-4 accent-[hsl(var(--primary))]" data-testid="input-drive-night" />Night practice</label><ActionButton type="submit" testId="button-save-drive-log"><Check size={16} />Save session</ActionButton><label className="md:col-span-4 text-xs font-bold">Notes<textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} rows={2} placeholder="What felt different today?" className="mt-2 w-full resize-none rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-sm font-normal" data-testid="input-drive-notes" /></label></form>}
     <section className="grid gap-4 md:grid-cols-3"><div className="rounded-2xl bg-[hsl(var(--primary))] p-5 text-[hsl(var(--primary-foreground))]"><div className="text-xs font-bold uppercase tracking-[.14em] text-white/55">Total logged</div><div className="mt-3 font-display text-4xl">{Math.floor(total / 60)}h {total % 60}m</div><ProgressBar value={(total / 3000) * 100} color="bg-[hsl(var(--sidebar-primary))]" /><div className="mt-2 text-xs text-white/60">of 50 supervised hours</div></div><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5"><div className="text-xs font-bold uppercase tracking-[.14em] text-[hsl(var(--muted-foreground))]">Night practice</div><div className="mt-3 font-display text-4xl">{Math.floor(night / 60)}h {night % 60}m</div><ProgressBar value={(night / 600) * 100} color="bg-[hsl(var(--accent))]" /><div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">of 10 required hours</div></div><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5"><div className="text-xs font-bold uppercase tracking-[.14em] text-[hsl(var(--muted-foreground))]">Missions</div><div className="mt-3 font-display text-4xl">{completed}<span className="text-2xl text-[hsl(var(--muted-foreground))]">/5</span></div><div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">small skills, repeated</div></div></section>
-    <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_.8fr]"><section><div className="mb-4 flex items-end justify-between"><div><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">The mission board</div><h2 className="mt-1 font-display text-3xl">Pick one for the next drive.</h2></div><span className="font-mono-ui text-xs text-[hsl(var(--muted-foreground))]">{completed} complete</span></div><div className="space-y-3">{state.missions.map((mission, index) => <button key={mission.title} onClick={() => setState({ ...state, missions: state.missions.map((item, itemIndex) => itemIndex === index ? { ...item, completed: !item.completed } : item) })} className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left ${mission.completed ? 'border-[hsl(var(--success)/.25)] bg-[hsl(var(--success)/.08)]' : 'border-[hsl(var(--border))] bg-[hsl(var(--card))] hover:border-[hsl(var(--primary))]'}`} data-testid={`button-mission-${index}`}><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${mission.completed ? 'bg-[hsl(var(--success))] text-white' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}>{mission.completed ? <Check size={19} /> : <RouteIcon size={19} />}</span><span className="min-w-0 flex-1"><span className={`block text-sm font-extrabold ${mission.completed ? 'line-through opacity-60' : ''}`}>{mission.title}</span><span className="mt-1 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">{mission.detail}</span></span><span className="hidden text-right sm:block"><span className="block font-mono-ui text-xs">{mission.minutes}m</span><span className="text-[10px] text-[hsl(var(--muted-foreground))]">{mission.category}</span></span></button>)}</div></section><section><div className="mb-4"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Recent log</div><h2 className="mt-1 font-display text-3xl">Your road so far.</h2></div><div className="overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]">{state.sessions.slice(0, 5).map((session, index) => <div key={`${session.date}-${index}`} className="flex items-start gap-3 border-b border-[hsl(var(--border))] p-4 last:border-0"><div className="mt-1 h-2 w-2 rounded-full bg-[hsl(var(--primary))]" /><div className="min-w-0 flex-1"><div className="flex justify-between gap-3 text-xs font-bold"><span>{new Date(`${session.date}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span><span className="font-mono-ui text-[hsl(var(--primary))]">{session.minutes}m {session.night && '· night'}</span></div><p className="mt-1 truncate text-xs text-[hsl(var(--muted-foreground))]">{session.notes}</p></div></div>)}<Link href="/drive" className="flex items-center justify-center gap-1 p-4 text-xs font-bold text-[hsl(var(--primary))] hover:bg-[hsl(var(--secondary)/.5)]" data-testid="link-drive-log">See full log <ChevronRight size={14} /></Link></div><div className="mt-4 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--secondary)/.45)] p-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]"><strong className="text-[hsl(var(--foreground))]">Also required:</strong> California requires 6 hours of professional driver training in addition to the 50 supervised practice hours.</div></section></div>
+     <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_.8fr]"><section><div className="mb-4 flex items-end justify-between"><div><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">The mission board</div><h2 className="mt-1 font-display text-3xl">Pick one for the next drive.</h2></div><span className="font-mono-ui text-xs text-[hsl(var(--muted-foreground))]">{completed} complete</span></div><div className="space-y-3">{state.missions.map((mission, index) => <button key={mission.title} onClick={() => setState({ ...state, missions: state.missions.map((item, itemIndex) => itemIndex === index ? { ...item, completed: !item.completed } : item) })} className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left ${mission.completed ? 'border-[hsl(var(--success)/.25)] bg-[hsl(var(--success)/.08)]' : 'border-[hsl(var(--border))] bg-[hsl(var(--card))] hover:border-[hsl(var(--primary))]'}`} data-testid={`button-mission-${index}`}><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${mission.completed ? 'bg-[hsl(var(--success))] text-white' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}>{mission.completed ? <Check size={19} /> : <RouteIcon size={19} />}</span><span className="min-w-0 flex-1"><span className={`block text-sm font-extrabold ${mission.completed ? 'line-through opacity-60' : ''}`}>{mission.title}</span><span className="mt-1 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">{mission.detail}</span></span><span className="hidden text-right sm:block"><span className="block font-mono-ui text-xs">{mission.minutes}m</span><span className="text-[10px] text-[hsl(var(--muted-foreground))]">{mission.category}</span></span></button>)}</div></section><section><div className="mb-4"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Local drive log</div><h2 className="mt-1 font-display text-3xl">Your road so far.</h2><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Completed reviews stay only in this browser on this device.</p></div><div className="overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]">{state.sessions.map((session, index) => <div key={session.review?.id ?? `${session.date}-${index}`} className="flex items-start gap-3 border-b border-[hsl(var(--border))] p-4 last:border-0"><div className="mt-1 h-2 w-2 rounded-full bg-[hsl(var(--primary))]" /><div className="min-w-0 flex-1"><div className="flex justify-between gap-3 text-xs font-bold"><span>{new Date(`${session.date}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span><span className="font-mono-ui text-[hsl(var(--primary))]">{session.minutes}m {session.night && '· night'}</span></div><p className="mt-1 truncate text-xs text-[hsl(var(--muted-foreground))]">{session.notes}</p>{session.review && <div className="mt-2 flex items-center justify-between gap-3"><span className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">{session.review.eventCount} coached {session.review.eventCount === 1 ? 'moment' : 'moments'}</span><button onClick={() => void openSavedReview(session)} className="inline-flex items-center gap-1 text-xs font-bold text-[hsl(var(--primary))] hover:underline" data-testid={`button-open-drive-review-${session.review.id}`}><Play size={13} />Open review</button></div>}</div></div>)}</div><div className="mt-4 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--secondary)/.45)] p-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]"><strong className="text-[hsl(var(--foreground))]">Local-only:</strong> recordings are not synced to another browser or device. Deleting a review removes its recording and annotations together.</div></section></div>
   </div>;
 }
 

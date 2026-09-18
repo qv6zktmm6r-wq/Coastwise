@@ -16,6 +16,55 @@ export type PlannedRoute = {
   origin: RouteCoordinate;
 };
 
+const DRIVE_RECORDINGS_DATABASE = 'coastwise-drive-recordings';
+const DRIVE_RECORDINGS_STORE = 'recordings';
+
+function openDriveRecordingsDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = window.indexedDB.open(DRIVE_RECORDINGS_DATABASE, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(DRIVE_RECORDINGS_STORE)) {
+        request.result.createObjectStore(DRIVE_RECORDINGS_STORE);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error('Could not open local drive storage'));
+  });
+}
+
+export async function saveDriveRecording(id: string, recording: Blob): Promise<void> {
+  const database = await openDriveRecordingsDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction(DRIVE_RECORDINGS_STORE, 'readwrite');
+    transaction.objectStore(DRIVE_RECORDINGS_STORE).put(recording, id);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error('Could not save the drive recording'));
+  });
+  database.close();
+}
+
+export async function loadDriveRecording(id: string): Promise<Blob | null> {
+  const database = await openDriveRecordingsDatabase();
+  const recording = await new Promise<Blob | null>((resolve, reject) => {
+    const request = database.transaction(DRIVE_RECORDINGS_STORE, 'readonly').objectStore(DRIVE_RECORDINGS_STORE).get(id);
+    request.onsuccess = () => resolve(request.result instanceof Blob ? request.result : null);
+    request.onerror = () => reject(request.error ?? new Error('Could not load the drive recording'));
+  });
+  database.close();
+  return recording;
+}
+
+export async function deleteDriveRecording(id: string): Promise<void> {
+  const database = await openDriveRecordingsDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction(DRIVE_RECORDINGS_STORE, 'readwrite');
+    transaction.objectStore(DRIVE_RECORDINGS_STORE).delete(id);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error('Could not delete the drive recording'));
+  });
+  database.close();
+}
+
 type OsrmStep = {
   distance: number;
   name?: string;
