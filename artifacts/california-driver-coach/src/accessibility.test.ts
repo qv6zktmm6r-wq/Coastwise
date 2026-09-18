@@ -3,6 +3,9 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const appSource = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8');
+
+const settingsSource = readFileSync(new URL('./pages/settings.tsx', import.meta.url), 'utf8');
+const syncManagerSource = readFileSync(new URL('./lib/use-sync-manager.ts', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('./index.css', import.meta.url), 'utf8');
 const mapSource = readFileSync(new URL('./components/route-map.tsx', import.meta.url), 'utf8');
 const documentSource = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
@@ -46,8 +49,8 @@ test('page and route-map movement honor reduced motion', () => {
 test('web beta surfaces local-data safeguards', () => {
   assert.match(appSource, /data-testid="local-progress-warning"/);
   assert.match(appSource, /data-testid="drive-storage-warning"/);
-  assert.match(appSource, /testId="button-export-progress"/);
-  assert.match(appSource, /data-testid="input-import-progress"/);
+  assert.match(settingsSource, /testId="button-export-progress"/);
+  assert.match(settingsSource, /data-testid="input-import-progress"/);
   assert.match(appSource, /Route coaching has started without video/);
 });
 
@@ -87,10 +90,13 @@ test('premium coaching loop connects planning, safety, review, and family progre
 });
 
 test('installed app ownership is local, portable, and resettable without an account', () => {
-  assert.match(appSource, /data-testid="install-coastwise-card"/);
-  assert.match(appSource, /data-testid="install-settings-card"/);
-  assert.match(appSource, /data-testid="reset-progress-card"/);
-  assert.match(appSource, /testId="button-confirm-reset"/);
-  assert.match(appSource, /clearDriveRecordings\(\)/);
-  assert.match(appSource, /No login is required/);
+  assert.match(settingsSource, /data-testid="install-settings-card"/);
+  assert.match(settingsSource, /data-testid="reset-progress-card"/);
+  assert.match(settingsSource, /testId="button-confirm-reset"/);
+  assert.match(settingsSource, /clearDriveRecordings\(\)/);
+  assert.match(settingsSource, /Use local coaching without an account/);
+  assert.match(settingsSource, /syncManager\.unlinkDevice\(\);\s*setState\(freshState\)/);
+  assert.match(syncManagerSource, /const unlinkDevice[\s\S]*lastLocalSyncState\.current = ''/);
+  assert.match(syncManagerSource, /syncGeneration\.current \+= 1/);
+  assert.match(syncManagerSource, /generation !== syncGeneration\.current/);
 });

@@ -1,10 +1,10 @@
 ---
-name: Coastwise local ownership
-description: Approved no-account product model for installed Coastwise progress and family sharing.
+name: Coastwise family sharing
+description: Product boundary for optional cross-device family sync and device-local drive video.
 ---
 
-Keep Coastwise installable and usable without an account. Progress and recordings belong to the current device; users can export, restore, share summaries, or reset everything.
+Keep Coastwise installable and usable without an account. An account is optional and enables permission-based, conflict-safe family progress sync; drive recordings remain owned by the device.
 
-**Why:** The user explicitly chose ownership and simplicity over mandatory login. Local storage also keeps sensitive teen driving data and recordings private by default.
+**Why:** Families need cross-device progress without making accounts mandatory or silently uploading sensitive teen driving video.
 
-**How to apply:** Do not introduce required authentication or silent cloud upload. Clearly warn that uninstalling, clearing browser data, or changing devices can erase progress unless the user downloads a backup first.
+**How to apply:** Preserve local use, backups, resets, non-destructive import, revocable roles, explicit conflicts, and device-local video. Require explicit consent before any future recording upload.

@@ -62,3 +62,92 @@ export const CreatePracticeRouteResponse = zod.object({
 })
 
 
+/**
+ * @summary Create a revocable family invite
+ */
+export const createFamilyInviteBodyExpiresInHoursDefault = 72;
+export const createFamilyInviteBodyExpiresInHoursMax = 168;
+
+
+
+export const CreateFamilyInviteBody = zod.object({
+  "role": zod.enum(['parent', 'student']),
+  "expiresInHours": zod.number().int().min(1).max(createFamilyInviteBodyExpiresInHoursMax).default(createFamilyInviteBodyExpiresInHoursDefault)
+})
+
+export const CreateFamilyInviteResponse = zod.object({
+  "token": zod.string(),
+  "role": zod.enum(['parent', 'student']),
+  "expiresAt": zod.coerce.date()
+})
+
+
+export const AcceptFamilyInviteParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const AcceptFamilyInviteResponse = zod.object({
+  "memberId": zod.string().uuid(),
+  "familyId": zod.string().uuid(),
+  "role": zod.enum(['parent', 'student'])
+})
+
+
+export const RevokeFamilyInviteParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const RevokeFamilyInviteResponse = zod.void()
+
+
+export const getFamilySyncResponseRevisionMin = 0;
+
+
+
+export const GetFamilySyncResponse = zod.object({
+  "familyId": zod.string().uuid(),
+  "revision": zod.number().int().min(getFamilySyncResponseRevisionMin),
+  "state": zod.record(zod.string(), zod.unknown()).describe('Sanitized AppState; video bytes and video/blob data are rejected.'),
+  "updatedAt": zod.coerce.date()
+})
+
+
+export const updateFamilySyncBodyRevisionMin = 0;
+
+
+
+export const UpdateFamilySyncBody = zod.object({
+  "revision": zod.number().int().min(updateFamilySyncBodyRevisionMin),
+  "state": zod.record(zod.string(), zod.unknown()).describe('Sanitized AppState; video bytes and video/blob data are rejected.')
+})
+
+export const updateFamilySyncResponseRevisionMin = 0;
+
+
+
+export const UpdateFamilySyncResponse = zod.object({
+  "familyId": zod.string().uuid(),
+  "revision": zod.number().int().min(updateFamilySyncResponseRevisionMin),
+  "state": zod.record(zod.string(), zod.unknown()).describe('Sanitized AppState; video bytes and video/blob data are rejected.'),
+  "updatedAt": zod.coerce.date()
+})
+
+
+export const GetFamilyMembershipResponse = zod.object({
+  "familyId": zod.string().uuid(),
+  "memberId": zod.string().uuid(),
+  "role": zod.enum(['parent', 'student']),
+  "members": zod.array(zod.object({
+  "memberId": zod.string().uuid(),
+  "role": zod.enum(['parent', 'student'])
+}))
+})
+
+
+export const RevokeFamilyMemberParams = zod.object({
+  "memberId": zod.coerce.string().uuid()
+})
+
+export const RevokeFamilyMemberResponse = zod.void()
+
+

@@ -1,0 +1,105 @@
+import type { LucideIcon } from 'lucide-react';
+import type { CoachEvent } from './drive-review';
+import type { PlannedRoute } from './route-coach';
+
+import type { PracticeAnswer } from '../components/practice-hub';
+
+export type Topic = { topic: string; mastery: number; questions: number };
+export type PracticeQuestion = { prompt: string; options: string[]; answer: number; explanation: string; topic: string };
+export type Scenario = { situation: string; choices: string[]; bestChoice: number; coaching: string };
+export type DriveMission = { title: string; detail: string; category: string; minutes: number; completed: boolean };
+export type DriveSession = { date: string; minutes: number; night: boolean; notes: string; distanceMiles?: number; skills?: string[]; routeTitle?: string; review?: { id: string; durationSeconds: number; eventCount: number; events: CoachEvent[]; route: PlannedRoute; videoType: string } };
+export type ParentPrompt = { title: string; copy: string; done: boolean };
+export type Appearance = 'system' | 'light' | 'dark';
+
+export type AppState = {
+  profile: { name: string; permitDate: string; targetTestDate: string };
+  topics: Topic[];
+  answers: Record<number, boolean>;
+  practiceProgress: Record<string, PracticeAnswer>;
+  scenarios: Scenario[];
+  scenarioAnswers: Record<number, number>;
+  missions: DriveMission[];
+  sessions: DriveSession[];
+  prompts: ParentPrompt[];
+  settings: { parentMode: boolean; reminders: boolean; sounds: boolean; appearance: Appearance };
+};
+
+export const initialState: AppState = {
+  profile: { name: 'Maya', permitDate: '2026-04-14', targetTestDate: '2026-11-18' },
+  topics: [
+    { topic: 'Right-of-way', mastery: 72, questions: 18 },
+    { topic: 'Signs & signals', mastery: 84, questions: 21 },
+    { topic: 'Safe speed', mastery: 58, questions: 14 },
+    { topic: 'Sharing the road', mastery: 46, questions: 11 },
+  ],
+  answers: {},
+  practiceProgress: {},
+  scenarios: [
+    { situation: 'You are turning left at a green light. A pedestrian has stepped into the crosswalk, and the car behind you is close.', choices: ['Turn before the pedestrian reaches your lane', 'Stop behind the limit line and let the pedestrian cross', 'Honk so the pedestrian knows you are waiting'], bestChoice: 1, coaching: 'A patient pause is the safest move. People in a crosswalk have the right-of-way, even when traffic is waiting behind you.' },
+    { situation: 'Rain starts on a familiar road. The posted limit is 45 mph and your visibility is getting worse.', choices: ['Keep 45 mph because it is the legal limit', 'Slow down enough to see and stop comfortably', 'Turn on hazard lights and continue at 45 mph'], bestChoice: 1, coaching: 'The speed limit is not a target in every condition. Choose a speed that lets you see, react, and keep a generous following distance.' },
+    { situation: 'You are approaching a four-way stop at the same time as another driver on your right.', choices: ['Go first because you are already rolling', 'Wave them through, then go when clear', 'Yield to the driver on your right'], bestChoice: 2, coaching: 'At an all-way stop, the driver who arrived first goes first. If arrival is at the same time, yield to the driver on your right.' },
+  ],
+  scenarioAnswers: {},
+  missions: [
+    { title: 'Smooth starts & stops', detail: 'Practice gentle acceleration and braking on a quiet street.', category: 'Control', minutes: 25, completed: true },
+    { title: 'Lane-change rhythm', detail: 'Mirror, signal, shoulder check, then move with space.', category: 'Awareness', minutes: 30, completed: false },
+    { title: 'Neighborhood navigation', detail: 'Plan a three-turn loop and narrate what you see ahead.', category: 'Navigation', minutes: 35, completed: false },
+    { title: 'Busy intersection scan', detail: 'Approach, identify hazards, and make two calm left turns.', category: 'Judgment', minutes: 30, completed: false },
+    { title: 'Night-drive basics', detail: 'With an adult, practice headlights, glare, and slower speeds.', category: 'Night', minutes: 25, completed: false },
+  ],
+  sessions: [
+    { date: '2025-06-01', minutes: 55, night: false, notes: 'Quiet streets and three-point turns.' },
+    { date: '2025-06-08', minutes: 65, night: false, notes: 'Lane changes on the boulevard.' },
+    { date: '2025-06-15', minutes: 45, night: true, notes: 'Sunset route; practiced headlights.' },
+    { date: '2025-06-22', minutes: 70, night: false, notes: 'Parking lot control and neighborhood loop.' },
+  ],
+  prompts: [
+    { title: 'Ask for a calm replay', copy: 'After a tricky moment, ask: “What did you notice first?” before offering your answer.', done: false },
+    { title: 'Name the win', copy: 'Call out one specific choice that felt safe or smooth today.', done: true },
+    { title: 'Set the next tiny goal', copy: 'Pick one skill for the next drive, not a whole list.', done: false },
+    { title: 'Keep the cabin quiet', copy: 'Save corrections for a safe stop. A calm driver learns faster.', done: false },
+  ],
+  settings: { parentMode: false, reminders: true, sounds: false, appearance: 'system' },
+};
+
+export const storageKey = 'california-driver-coach';
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export function isAppearance(value: unknown): value is Appearance {
+  return value === 'system' || value === 'light' || value === 'dark';
+}
+
+export function parseStoredState(saved: string | null): AppState {
+  if (!saved) return initialState;
+  try {
+    const parsed: unknown = JSON.parse(saved);
+    if (!isRecord(parsed)) return initialState;
+    const storedProfile = isRecord(parsed.profile) ? parsed.profile : {};
+    const storedSettings = isRecord(parsed.settings) ? parsed.settings : {};
+    return {
+      ...initialState,
+      ...parsed,
+      profile: { ...initialState.profile, ...storedProfile },
+      settings: {
+        ...initialState.settings,
+        ...storedSettings,
+        appearance: isAppearance(storedSettings.appearance) ? storedSettings.appearance : initialState.settings.appearance,
+      },
+    };
+  } catch {
+    return initialState;
+  }
+}
+
+export function getStoredState(): AppState {
+  if (typeof window === 'undefined') return initialState;
+  try {
+    return parseStoredState(window.localStorage.getItem(storageKey));
+  } catch {
+    return initialState;
+  }
+}

@@ -96,3 +96,95 @@ export interface PracticeRoute {
   skills: string[];
 }
 
+export type CreateInviteInputRole = typeof CreateInviteInputRole[keyof typeof CreateInviteInputRole];
+
+
+export const CreateInviteInputRole = {
+  parent: 'parent',
+  student: 'student',
+} as const;
+
+export interface CreateInviteInput {
+  role: CreateInviteInputRole;
+  /**
+     * @minimum 1
+     * @maximum 168
+     */
+  expiresInHours?: number;
+}
+
+export type InviteRole = typeof InviteRole[keyof typeof InviteRole];
+
+
+export const InviteRole = {
+  parent: 'parent',
+  student: 'student',
+} as const;
+
+export interface Invite {
+  token: string;
+  role: InviteRole;
+  expiresAt: string;
+}
+
+export type FamilyMembershipRole = typeof FamilyMembershipRole[keyof typeof FamilyMembershipRole];
+
+
+export const FamilyMembershipRole = {
+  parent: 'parent',
+  student: 'student',
+} as const;
+
+export interface FamilyMembership {
+  memberId: string;
+  familyId: string;
+  role: FamilyMembershipRole;
+}
+
+export type FamilyMembershipSummaryRole = typeof FamilyMembershipSummaryRole[keyof typeof FamilyMembershipSummaryRole];
+
+
+export const FamilyMembershipSummaryRole = {
+  parent: 'parent',
+  student: 'student',
+} as const;
+
+export type FamilyMemberSummaryRole = typeof FamilyMemberSummaryRole[keyof typeof FamilyMemberSummaryRole];
+
+
+export const FamilyMemberSummaryRole = {
+  parent: 'parent',
+  student: 'student',
+} as const;
+
+export interface FamilyMemberSummary {
+  memberId: string;
+  role: FamilyMemberSummaryRole;
+}
+
+export interface FamilyMembershipSummary {
+  familyId: string;
+  memberId: string;
+  role: FamilyMembershipSummaryRole;
+  members: FamilyMemberSummary[];
+}
+
+/**
+ * Sanitized AppState; video bytes and video/blob data are rejected.
+ */
+export interface SyncState { [key: string]: unknown }
+
+export interface SyncDocument {
+  familyId: string;
+  /** @minimum 0 */
+  revision: number;
+  state: SyncState;
+  updatedAt: string;
+}
+
+export interface SyncUpdate {
+  /** @minimum 0 */
+  revision: number;
+  state: SyncState;
+}
+

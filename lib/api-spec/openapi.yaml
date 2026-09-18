@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: routes
     description: Skill-based practice route operations
+  - name: family
+    description: Authenticated family sharing and sync
 paths:
   /healthz:
     get:
@@ -49,7 +51,111 @@ paths:
           description: Invalid route request
         "502":
           description: Directions service unavailable
+  /families/invites:
+    post:
+      operationId: createFamilyInvite
+      tags: [family]
+      security: [{ clerk: [] }]
+      summary: Create a revocable family invite
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInviteInput"
+      responses:
+        "201":
+          description: Invite created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invite"
+        "401": { description: Authentication required }
+        "403": { description: Parent role required }
+  /families/invites/{token}/accept:
+    post:
+      operationId: acceptFamilyInvite
+      tags: [family]
+      security: [{ clerk: [] }]
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Invite accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyMembership"
+        "400": { description: Invite invalid or expired }
+        "401": { description: Authentication required }
+  /families/invites/{token}:
+    delete:
+      operationId: revokeFamilyInvite
+      tags: [family]
+      security: [{ clerk: [] }]
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Invite revoked }
+        "403": { description: Parent role required }
+  /families/sync:
+    get:
+      operationId: getFamilySync
+      tags: [family]
+      security: [{ clerk: [] }]
+      responses:
+        "200":
+          description: Current family state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SyncDocument" }
+        "401": { description: Authentication required }
+    put:
+      operationId: updateFamilySync
+      tags: [family]
+      security: [{ clerk: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SyncUpdate" }
+      responses:
+        "200":
+          description: Updated family state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SyncDocument" }
+        "409": { description: Revision conflict; state was not overwritten }
+        "403": { description: Student cannot update parent-only fields }
+  /families/membership:
+    get:
+      operationId: getFamilyMembership
+      tags: [family]
+      security: [{ clerk: [] }]
+      responses:
+        "200":
+          description: Current membership and active family members
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FamilyMembershipSummary" }
+        "204": { description: Authenticated account is not part of a family }
+        "401": { description: Authentication required }
+  /families/members/{memberId}:
+    delete:
+      operationId: revokeFamilyMember
+      tags: [family]
+      security: [{ clerk: [] }]
+      parameters:
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: Member revoked }
+        "403": { description: Parent role required }
 components:
+  securitySchemes:
+    clerk:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     HealthStatus:
       type: object
@@ -130,4 +236,58 @@ components:
           items:
             type: string
       required: [id, distanceMeters, durationSeconds, geometry, steps, skills]
+    CreateInviteInput:
+      type: object
+      properties:
+        role: { type: string, enum: [parent, student] }
+        expiresInHours: { type: integer, minimum: 1, maximum: 168, default: 72 }
+      required: [role]
+    Invite:
+      type: object
+      properties:
+        token: { type: string }
+        role: { type: string, enum: [parent, student] }
+        expiresAt: { type: string, format: date-time }
+      required: [token, role, expiresAt]
+    FamilyMembership:
+      type: object
+      properties:
+        memberId: { type: string, format: uuid }
+        familyId: { type: string, format: uuid }
+        role: { type: string, enum: [parent, student] }
+      required: [memberId, familyId, role]
+    FamilyMembershipSummary:
+      type: object
+      properties:
+        familyId: { type: string, format: uuid }
+        memberId: { type: string, format: uuid }
+        role: { type: string, enum: [parent, student] }
+        members:
+          type: array
+          items: { $ref: "#/components/schemas/FamilyMemberSummary" }
+      required: [familyId, memberId, role, members]
+    FamilyMemberSummary:
+      type: object
+      properties:
+        memberId: { type: string, format: uuid }
+        role: { type: string, enum: [parent, student] }
+      required: [memberId, role]
+    SyncState:
+      type: object
+      additionalProperties: true
+      description: Sanitized AppState; video bytes and video/blob data are rejected.
+    SyncDocument:
+      type: object
+      properties:
+        familyId: { type: string, format: uuid }
+        revision: { type: integer, minimum: 0 }
+        state: { $ref: "#/components/schemas/SyncState" }
+        updatedAt: { type: string, format: date-time }
+      required: [familyId, revision, state, updatedAt]
+    SyncUpdate:
+      type: object
+      properties:
+        revision: { type: integer, minimum: 0 }
+        state: { $ref: "#/components/schemas/SyncState" }
+      required: [revision, state]
 

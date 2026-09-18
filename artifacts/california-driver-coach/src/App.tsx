@@ -56,7 +56,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { questionBank } from '@/data/question-bank';
 import { RouteMap } from '@/components/route-map';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { clearDriveRecordings, deleteDriveRecording as deleteSavedDriveRecording, loadDriveRecording, requestPracticeLoop, requestReturnRoute, saveDriveRecording, type PlannedRoute, type RouteCoordinate } from '@/lib/route-coach';
+import { deleteDriveRecording as deleteSavedDriveRecording, loadDriveRecording, requestPracticeLoop, requestReturnRoute, saveDriveRecording, type PlannedRoute, type RouteCoordinate } from '@/lib/route-coach';
 import {
   appendCoachEvent,
   deleteCoachEvent,
@@ -70,68 +70,9 @@ import { getDriveReviewBrowserFixture } from '@/lib/drive-review-browser-fixture
 import { canPlayRecording, chooseRecordingMimeType, describeRecordingFormat, getRecordingBrowser } from '@/lib/drive-recording';
 import coastwiseLogo from '@/assets/coastwise-logo.svg';
 import NotFound from '@/pages/not-found';
-type Topic = { topic: string; mastery: number; questions: number };
-type PracticeQuestion = { prompt: string; options: string[]; answer: number; explanation: string; topic: string };
-type Scenario = { situation: string; choices: string[]; bestChoice: number; coaching: string };
-type DriveMission = { title: string; detail: string; category: string; minutes: number; completed: boolean };
-type DriveSession = { date: string; minutes: number; night: boolean; notes: string; distanceMiles?: number; skills?: string[]; routeTitle?: string; review?: { id: string; durationSeconds: number; eventCount: number; events: CoachEvent[]; route: PlannedRoute; videoType: string } };
-type ParentPrompt = { title: string; copy: string; done: boolean };
-type Appearance = 'system' | 'light' | 'dark';
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
-};
-
-type AppState = {
-  profile: { name: string; permitDate: string; targetTestDate: string };
-  topics: Topic[];
-  answers: Record<number, boolean>;
-  practiceProgress: Record<string, PracticeAnswer>;
-  scenarios: Scenario[];
-  scenarioAnswers: Record<number, number>;
-  missions: DriveMission[];
-  sessions: DriveSession[];
-  prompts: ParentPrompt[];
-  settings: { parentMode: boolean; reminders: boolean; sounds: boolean; appearance: Appearance };
-};
-
-const initialState: AppState = {
-  profile: { name: 'Maya', permitDate: '2026-04-14', targetTestDate: '2026-11-18' },
-  topics: [
-    { topic: 'Right-of-way', mastery: 72, questions: 18 },
-    { topic: 'Signs & signals', mastery: 84, questions: 21 },
-    { topic: 'Safe speed', mastery: 58, questions: 14 },
-    { topic: 'Sharing the road', mastery: 46, questions: 11 },
-  ],
-  answers: {},
-  practiceProgress: {},
-  scenarios: [
-    { situation: 'You are turning left at a green light. A pedestrian has stepped into the crosswalk, and the car behind you is close.', choices: ['Turn before the pedestrian reaches your lane', 'Stop behind the limit line and let the pedestrian cross', 'Honk so the pedestrian knows you are waiting'], bestChoice: 1, coaching: 'A patient pause is the safest move. People in a crosswalk have the right-of-way, even when traffic is waiting behind you.' },
-    { situation: 'Rain starts on a familiar road. The posted limit is 45 mph and your visibility is getting worse.', choices: ['Keep 45 mph because it is the legal limit', 'Slow down enough to see and stop comfortably', 'Turn on hazard lights and continue at 45 mph'], bestChoice: 1, coaching: 'The speed limit is not a target in every condition. Choose a speed that lets you see, react, and keep a generous following distance.' },
-    { situation: 'You are approaching a four-way stop at the same time as another driver on your right.', choices: ['Go first because you are already rolling', 'Wave them through, then go when clear', 'Yield to the driver on your right'], bestChoice: 2, coaching: 'At an all-way stop, the driver who arrived first goes first. If arrival is at the same time, yield to the driver on your right.' },
-  ],
-  scenarioAnswers: {},
-  missions: [
-    { title: 'Smooth starts & stops', detail: 'Practice gentle acceleration and braking on a quiet street.', category: 'Control', minutes: 25, completed: true },
-    { title: 'Lane-change rhythm', detail: 'Mirror, signal, shoulder check, then move with space.', category: 'Awareness', minutes: 30, completed: false },
-    { title: 'Neighborhood navigation', detail: 'Plan a three-turn loop and narrate what you see ahead.', category: 'Navigation', minutes: 35, completed: false },
-    { title: 'Busy intersection scan', detail: 'Approach, identify hazards, and make two calm left turns.', category: 'Judgment', minutes: 30, completed: false },
-    { title: 'Night-drive basics', detail: 'With an adult, practice headlights, glare, and slower speeds.', category: 'Night', minutes: 25, completed: false },
-  ],
-  sessions: [
-    { date: '2025-06-01', minutes: 55, night: false, notes: 'Quiet streets and three-point turns.' },
-    { date: '2025-06-08', minutes: 65, night: false, notes: 'Lane changes on the boulevard.' },
-    { date: '2025-06-15', minutes: 45, night: true, notes: 'Sunset route; practiced headlights.' },
-    { date: '2025-06-22', minutes: 70, night: false, notes: 'Parking lot control and neighborhood loop.' },
-  ],
-  prompts: [
-    { title: 'Ask for a calm replay', copy: 'After a tricky moment, ask: “What did you notice first?” before offering your answer.', done: false },
-    { title: 'Name the win', copy: 'Call out one specific choice that felt safe or smooth today.', done: true },
-    { title: 'Set the next tiny goal', copy: 'Pick one skill for the next drive, not a whole list.', done: false },
-    { title: 'Keep the cabin quiet', copy: 'Save corrections for a safe stop. A calm driver learns faster.', done: false },
-  ],
-  settings: { parentMode: false, reminders: true, sounds: false, appearance: 'system' },
-};
+import { AppState, getStoredState, initialState, isRecord, parseStoredState, storageKey, type Appearance, type DriveSession, type PracticeQuestion, type Scenario, type Topic } from '@/lib/state';
+import { ActionButton, PageHeader, SafetyNote } from '@/components/shared';
+import SettingsPage from '@/pages/settings';
 
 const navItems: { href: string; label: string; testId: string; icon: LucideIcon }[] = [
   { href: '/', label: 'Today', testId: 'today', icon: Home },
@@ -148,7 +89,6 @@ const mobileNavItems = [
 ];
 const queryClient = new QueryClient();
 
-const storageKey = 'california-driver-coach';
 const criticalRecordingStorageBytes = 100 * 1024 * 1024;
 const lowRecordingStorageBytes = 250 * 1024 * 1024;
 
@@ -169,44 +109,9 @@ function getTimeOfDayGreeting(hour: number) {
   return 'Good evening';
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
-function isAppearance(value: unknown): value is Appearance {
-  return value === 'system' || value === 'light' || value === 'dark';
-}
 
-function parseStoredState(saved: string | null): AppState {
-  if (!saved) return initialState;
-  try {
-    const parsed: unknown = JSON.parse(saved);
-    if (!isRecord(parsed)) return initialState;
-    const storedProfile = isRecord(parsed.profile) ? parsed.profile : {};
-    const storedSettings = isRecord(parsed.settings) ? parsed.settings : {};
-    return {
-      ...initialState,
-      ...parsed,
-      profile: { ...initialState.profile, ...storedProfile },
-      settings: {
-        ...initialState.settings,
-        ...storedSettings,
-        appearance: isAppearance(storedSettings.appearance) ? storedSettings.appearance : initialState.settings.appearance,
-      },
-    };
-  } catch {
-    return initialState;
-  }
-}
 
-function getStoredState(): AppState {
-  if (typeof window === 'undefined') return initialState;
-  try {
-    return parseStoredState(window.localStorage.getItem(storageKey));
-  } catch {
-    return initialState;
-  }
-}
 
 function ProgressBar({ value, color = 'bg-[hsl(var(--accent))]' }: { value: number; color?: string }) {
   return <div className="h-2 overflow-hidden rounded-full bg-[hsl(var(--muted))]" aria-label={`${value}% complete`}><div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(100, value)}%` }} /></div>;
@@ -240,51 +145,7 @@ function routeProgressPercent(route: PlannedRoute, position: RouteCoordinate | n
   });
   return Math.round((nearestIndex / (route.coordinates.length - 1)) * 100);
 }
-function ActionButton({ children, onClick, href, variant = 'primary', className = '', disabled = false, type = 'button', testId }: { children: ReactNode; onClick?: () => void; href?: string; variant?: 'primary' | 'secondary' | 'quiet' | 'outline'; className?: string; disabled?: boolean; type?: 'button' | 'submit'; testId: string }) {
-  const classes = `inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 ${variant === 'primary' ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-sm hover:shadow-md' : variant === 'secondary' ? 'bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary)/.75)]' : variant === 'outline' ? 'border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))] hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--secondary)/.35)]' : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]'} ${className}`;
-  if (href) return <Link href={href} className={classes} data-testid={testId}>{children}</Link>;
-  return <button type={type} onClick={onClick} disabled={disabled} className={classes} data-testid={testId}>{children}</button>;
-}
 
-function InstallCoastwise() {
-  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [installed, setInstalled] = useState(false);
-  useEffect(() => {
-    const handleBeforeInstall = (event: Event) => {
-      event.preventDefault();
-      setInstallPrompt(event as BeforeInstallPromptEvent);
-    };
-    const handleInstalled = () => {
-      setInstalled(true);
-      setInstallPrompt(null);
-    };
-    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
-    window.addEventListener('appinstalled', handleInstalled);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
-      window.removeEventListener('appinstalled', handleInstalled);
-    };
-  }, []);
-  if (installed) return <p className="text-xs font-semibold text-[hsl(var(--success))]" role="status">Coastwise is installed on this device.</p>;
-  if (!installPrompt) return <p className="text-xs leading-5 text-[hsl(var(--muted-foreground))]">On iPhone or iPad, use Share → Add to Home Screen. On Android or desktop, use the browser’s Install or Add to Home Screen option.</p>;
-  const install = async () => {
-    await installPrompt.prompt();
-    await installPrompt.userChoice;
-    setInstallPrompt(null);
-  };
-  return <ActionButton onClick={() => void install()} variant="secondary" testId="button-install-coastwise"><Download size={16} />Install Coastwise</ActionButton>;
-}
-
-function PageHeader({ eyebrow, title, copy, action }: { eyebrow: string; title: string; copy: string; action?: ReactNode }) {
-  return <header className="mb-8 flex flex-col justify-between gap-5 md:flex-row md:items-end">
-    <div className="max-w-2xl">
-      <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[.18em] text-[hsl(var(--accent))]"><span className="h-px w-7 bg-[hsl(var(--accent))]" />{eyebrow}</div>
-      <h1 className="font-display text-4xl leading-[1.05] tracking-[-.03em] text-[hsl(var(--foreground))] md:text-5xl">{title}</h1>
-      <p className="mt-3 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">{copy}</p>
-    </div>
-    {action}
-  </header>;
-}
 
 function Shell({ children, state, setState, persistenceWarning }: { children: ReactNode; state: AppState; setState: (next: AppState) => void; persistenceWarning: string }) {
   const [location, setLocation] = useLocation();
@@ -399,9 +260,6 @@ function Shell({ children, state, setState, persistenceWarning }: { children: Re
   </div>;
 }
 
-function SafetyNote() {
-  return <div className="flex gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--secondary)/.45)] p-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]"><Info size={17} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" /><p><strong className="text-[hsl(var(--foreground))]">A note on safety.</strong> Coastwise is educational and is not the DMV. It never replaces a licensed instructor, the California Driver’s Handbook, or an attentive supervising adult.</p></div>;
-}
 
 function Dashboard({ state }: { state: AppState; setState: (next: AppState) => void }) {
   const [selectedGoal, setSelectedGoal] = useState<'permit' | 'driving' | null>(null);
@@ -456,10 +314,6 @@ function Dashboard({ state }: { state: AppState; setState: (next: AppState) => v
         <Link href="/scenarios" className="group bg-[hsl(var(--card))] p-5 hover:bg-[hsl(var(--secondary)/.35)]"><span className="font-mono-ui text-xs text-[hsl(var(--primary))]">02 · 5 MIN</span><span className="mt-3 block text-sm font-extrabold">Practice one road decision</span><span className="mt-1 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">Build calm judgment before the situation happens.</span><ArrowRight size={16} className="mt-4 text-[hsl(var(--primary))] transition-transform group-hover:translate-x-1" /></Link>
         <Link href="/drive" className="group bg-[hsl(var(--card))] p-5 hover:bg-[hsl(var(--secondary)/.35)]"><span className="font-mono-ui text-xs text-[hsl(var(--primary))]">03 · NEXT DRIVE</span><span className="mt-3 block text-sm font-extrabold">{nextMission?.title ?? 'Repeat a completed driving skill'}</span><span className="mt-1 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">{nextMission?.detail ?? 'Choose one calm, repeatable goal for the next supervised drive.'}</span><ArrowRight size={16} className="mt-4 text-[hsl(var(--primary))] transition-transform group-hover:translate-x-1" /></Link>
       </div>
-    </section>
-    <section className="mt-4 flex flex-col justify-between gap-4 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--secondary)/.35)] p-5 sm:flex-row sm:items-center" data-testid="install-coastwise-card">
-      <div><div className="text-sm font-extrabold">Keep Coastwise on this device</div><p className="mt-1 max-w-2xl text-xs leading-5 text-[hsl(var(--muted-foreground))]">No login is required. Install the app and your progress stays with this device.</p></div>
-      <InstallCoastwise />
     </section>
     <section className="mt-8 grid grid-cols-3 gap-2 border-t border-[hsl(var(--border))] pt-6 sm:gap-4">
       <div><div className="text-[10px] font-bold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">Permit covered</div><div className="mt-1 font-display text-2xl">{permitCoverage}%</div></div>
@@ -1323,98 +1177,17 @@ function Parent({ state, setState }: { state: AppState; setState: (next: AppStat
   </div>;
 }
 
-function SettingsPage({ state, setState }: { state: AppState; setState: (next: AppState) => void }) {
-  const [name, setName] = useState(state.profile.name);
-  const [backupMessage, setBackupMessage] = useState('');
-  const [resetConfirming, setResetConfirming] = useState(false);
-  const [resetting, setResetting] = useState(false);
-  const saveProfile = (event: React.FormEvent) => { event.preventDefault(); if (name.trim()) setState({ ...state, profile: { ...state.profile, name: name.trim() } }); };
-  const toggle = (key: 'parentMode' | 'reminders' | 'sounds') => setState({ ...state, settings: { ...state.settings, [key]: !state.settings[key] } });
-  const exportProgress = () => {
-    const exportableState: AppState = {
-      ...state,
-      sessions: state.sessions.map((session) => session.review ? {
-        date: session.date,
-        minutes: session.minutes,
-        night: session.night,
-        notes: session.notes,
-        distanceMiles: session.distanceMiles,
-        skills: session.skills,
-        routeTitle: session.routeTitle,
-      } : session),
-    };
-    const url = URL.createObjectURL(new Blob([JSON.stringify(exportableState, null, 2)], { type: 'application/json' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `coastwise-progress-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 0);
-    setBackupMessage('Progress backup downloaded. Drive videos are not included.');
-  };
-  const importProgress = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-    try {
-      const contents = await file.text();
-      const candidate: unknown = JSON.parse(contents);
-      if (!isRecord(candidate) || !isRecord(candidate.profile) || !Array.isArray(candidate.sessions) || !Array.isArray(candidate.topics)) {
-        throw new Error('Invalid Coastwise backup');
-      }
-      const restored = parseStoredState(contents);
-      const restoredWithoutVideos = {
-        ...restored,
-        sessions: restored.sessions.map((session) => session.review ? {
-          date: session.date,
-          minutes: session.minutes,
-          night: session.night,
-          notes: session.notes,
-          distanceMiles: session.distanceMiles,
-          skills: session.skills,
-          routeTitle: session.routeTitle,
-        } : session),
-      };
-      setState(restoredWithoutVideos);
-      setName(restoredWithoutVideos.profile.name);
-      setBackupMessage('Progress restored. Drive videos remain only in the browser where they were recorded.');
-    } catch {
-      setBackupMessage('That file could not be restored. Choose a Coastwise progress backup.');
-    }
-  };
-  const resetProgress = async () => {
-    setResetting(true);
-    try {
-      await clearDriveRecordings();
-      window.localStorage.removeItem(storageKey);
-      const freshState = parseStoredState(null);
-      setState(freshState);
-      setName(freshState.profile.name);
-      setBackupMessage('Progress reset. Coastwise is ready for a fresh start.');
-      setResetConfirming(false);
-    } catch {
-      setBackupMessage('Progress could not be fully reset. Try again.');
-    } finally {
-      setResetting(false);
-    }
-  };
-  const appearanceChoices: { value: Appearance; title: string; copy: string; icon: LucideIcon }[] = [
-    { value: 'system', title: 'Device', copy: 'Match this phone or computer.', icon: Settings },
-    { value: 'light', title: 'Light', copy: 'Use bright, calm surfaces.', icon: SunMedium },
-    { value: 'dark', title: 'Dark', copy: 'Reduce glare in low light.', icon: Moon },
-  ];
-  return <div><PageHeader eyebrow="Settings" title="Make the plan yours." copy="Your details stay on this device. Adjust the profile and the way Coastwise supports practice." />
-    <section className="mb-6 grid gap-5 lg:grid-cols-2" aria-label="App ownership and local data">
-      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6" data-testid="install-settings-card"><div className="mb-4 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[hsl(var(--secondary))]"><Download size={19} className="text-[hsl(var(--primary))]" /></div><div><h2 className="font-display text-2xl">Install Coastwise</h2><p className="text-xs text-[hsl(var(--muted-foreground))]">Use it like an app, without an account.</p></div></div><p className="mb-5 text-xs leading-5 text-[hsl(var(--muted-foreground))]">Your progress belongs to this device. Download a backup before changing devices, uninstalling, or clearing browser data.</p><InstallCoastwise /></div>
-      <div className="rounded-2xl border border-[hsl(var(--destructive)/.25)] bg-[hsl(var(--destructive)/.04)] p-6" data-testid="reset-progress-card"><div className="flex items-start gap-3"><Trash2 size={19} className="mt-0.5 shrink-0 text-[hsl(var(--destructive))]" /><div><h2 className="font-display text-2xl">Start over</h2><p className="mt-1 text-xs leading-5 text-[hsl(var(--muted-foreground))]">Delete all progress, drive logs, annotations, and saved drive videos from this device.</p>{!resetConfirming ? <ActionButton onClick={() => setResetConfirming(true)} variant="outline" className="mt-5" testId="button-reset-progress">Reset all progress</ActionButton> : <div className="mt-5 rounded-xl border border-[hsl(var(--destructive)/.25)] bg-[hsl(var(--card))] p-4"><p className="text-sm font-bold">Are you sure? This cannot be undone unless you downloaded a backup.</p><div className="mt-4 flex flex-wrap gap-2"><ActionButton onClick={() => void resetProgress()} disabled={resetting} testId="button-confirm-reset">{resetting ? 'Resetting…' : 'Yes, reset everything'}</ActionButton><ActionButton onClick={() => setResetConfirming(false)} variant="quiet" testId="button-cancel-reset">Cancel</ActionButton></div></div>}</div></div></div>
-    </section>
-    <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]"><section className="space-y-5"><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 md:p-7"><div className="mb-5"><h2 className="font-display text-2xl">Appearance</h2><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Choose what feels comfortable. Device follows your system setting automatically.</p></div><div className="grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Appearance">{appearanceChoices.map((choice) => { const Icon = choice.icon; const selected = state.settings.appearance === choice.value; return <button key={choice.value} type="button" role="radio" aria-checked={selected} onClick={() => setState({ ...state, settings: { ...state.settings, appearance: choice.value } })} className={`rounded-xl border p-4 text-left ${selected ? 'border-[hsl(var(--primary))] bg-[hsl(var(--secondary))] ring-2 ring-[hsl(var(--primary)/.18)]' : 'border-[hsl(var(--border))] bg-[hsl(var(--background))] hover:border-[hsl(var(--primary)/.55)]'}`} data-testid={`button-appearance-${choice.value}`}><span className={`flex h-9 w-9 items-center justify-center rounded-lg ${selected ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}><Icon size={17} /></span><span className="mt-3 block text-sm font-extrabold">{choice.title}</span><span className="mt-1 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">{choice.copy}</span></button>; })}</div></div><form onSubmit={saveProfile} className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 md:p-7"><div className="mb-6 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[hsl(var(--secondary))]"><UserRound size={19} className="text-[hsl(var(--primary))]" /></div><div><h2 className="font-display text-2xl">Student profile</h2><p className="text-xs text-[hsl(var(--muted-foreground))]">A little context keeps the dashboard relevant.</p></div></div><label className="block text-xs font-bold">Teen name<input value={name} onChange={(event) => setName(event.target.value)} className="mt-2 w-full rounded-xl border border-[hsl(var(--input))] bg-[hsl(var(--background))] px-4 py-3 text-sm outline-none focus:border-[hsl(var(--primary))]" data-testid="input-student-name" /></label><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-xs font-bold">Permit date<input type="date" value={state.profile.permitDate} onChange={(event) => setState({ ...state, profile: { ...state.profile, permitDate: event.target.value } })} className="mt-2 w-full rounded-xl border border-[hsl(var(--input))] bg-[hsl(var(--background))] px-4 py-3 text-sm" data-testid="input-permit-date" /></label><label className="text-xs font-bold">Target test date<input type="date" value={state.profile.targetTestDate} onChange={(event) => setState({ ...state, profile: { ...state.profile, targetTestDate: event.target.value } })} className="mt-2 w-full rounded-xl border border-[hsl(var(--input))] bg-[hsl(var(--background))] px-4 py-3 text-sm" data-testid="input-test-date" /></label></div><ActionButton type="submit" className="mt-5" testId="button-save-profile"><Check size={16} />Save profile</ActionButton></form><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6"><div className="mb-5 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[hsl(var(--secondary))]"><Bell size={19} className="text-[hsl(var(--primary))]" /></div><div><h2 className="font-display text-2xl">Support preferences</h2><p className="text-xs text-[hsl(var(--muted-foreground))]">Gentle nudges, no pressure.</p></div></div>{[{ key: 'parentMode' as const, title: 'Parent view by default', copy: 'Open the shared coaching view first.' }, { key: 'reminders' as const, title: 'Practice reminders', copy: 'Show a reminder when a small next step is ready.' }, { key: 'sounds' as const, title: 'Completion sounds', copy: 'Keep confirmations quiet or turn them on.' }].map((item) => <button key={item.key} onClick={() => toggle(item.key)} className="flex w-full items-center justify-between border-b border-[hsl(var(--border))] py-4 text-left last:border-0" data-testid={`button-toggle-${item.key}`}><span><span className="block text-sm font-extrabold">{item.title}</span><span className="mt-1 block text-xs text-[hsl(var(--muted-foreground))]">{item.copy}</span></span><span className={`relative h-6 w-11 rounded-full ${state.settings[item.key] ? 'bg-[hsl(var(--primary))]' : 'bg-[hsl(var(--muted))]'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-[hsl(var(--card))] transition-transform ${state.settings[item.key] ? 'translate-x-6' : 'translate-x-1'}`} /></span></button>)}</div><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6"><div className="mb-5 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[hsl(var(--secondary))]"><HardDrive size={19} className="text-[hsl(var(--primary))]" /></div><div><h2 className="font-display text-2xl">Progress backup</h2><p className="text-xs text-[hsl(var(--muted-foreground))]">Move permit progress and drive logs between browsers.</p></div></div><p className="text-xs leading-5 text-[hsl(var(--muted-foreground))]">Backups include your profile, practice answers, settings, and drive log. Private drive videos stay only in the browser that recorded them.</p><div className="mt-5 flex flex-wrap gap-3"><ActionButton onClick={exportProgress} testId="button-export-progress"><Download size={16} />Download backup</ActionButton><label className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-2.5 text-sm font-bold hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--secondary)/.35)]"><Upload size={16} />Restore backup<input type="file" accept="application/json,.json" onChange={(event) => void importProgress(event)} className="sr-only" data-testid="input-import-progress" /></label></div>{backupMessage && <p className="mt-4 text-xs font-semibold text-[hsl(var(--primary))]" role="status" data-testid="progress-backup-status">{backupMessage}</p>}</div></section><aside className="space-y-5"><div className="rounded-2xl bg-[hsl(var(--primary))] p-6 text-[hsl(var(--primary-foreground))]"><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--sidebar-primary))]"><ShieldCheck size={15} />Built for safe progress</div><h3 className="mt-4 font-display text-3xl">No account. No noise.</h3><p className="mt-3 text-sm leading-6 text-[hsl(var(--primary-foreground)/.68)]">Your progress is stored locally in this browser, so the plan stays simple and private.</p><div className="mt-6 flex items-center gap-2 text-xs font-bold text-[hsl(var(--primary-foreground)/.78)]"><LockKeyhole size={14} />Local-only progress</div></div><SafetyNote /><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5"><div className="flex items-center gap-2 text-sm font-extrabold"><Pencil size={16} className="text-[hsl(var(--accent))]" />California essentials</div><ul className="mt-4 space-y-3 text-xs leading-5 text-[hsl(var(--muted-foreground))]"><li className="flex gap-2"><Check size={14} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" />Permit held at least 6 months before the drive test.</li><li className="flex gap-2"><Check size={14} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" />50 supervised practice hours, including 10 at night.</li><li className="flex gap-2"><Check size={14} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" />6 hours of professional driver instruction.</li></ul></div></aside></div>
-  </div>;
-}
+
+import { useSyncManager } from '@/lib/use-sync-manager';
+
+import { AppClerkProvider } from '@/components/clerk-provider-with-routes';
+import SignInPage from '@/pages/sign-in';
+import SignUpPage from '@/pages/sign-up';
 
 function Router() {
   const [state, setState] = useState<AppState>(getStoredState);
+  const syncManager = useSyncManager(state, setState);
+
   const [persistenceWarning, setPersistenceWarning] = useState('');
   useEffect(() => {
     try {
@@ -1446,11 +1219,30 @@ function Router() {
     media.addEventListener('change', applyAppearance);
     return () => media.removeEventListener('change', applyAppearance);
   }, [state.settings.appearance]);
-  return <Shell state={state} setState={setState} persistenceWarning={persistenceWarning}><Switch><Route path="/"><Dashboard state={state} setState={setState} /></Route><Route path="/practice"><Practice state={state} setState={setState} /></Route><Route path="/scenarios"><Scenarios state={state} setState={setState} /></Route><Route path="/drive"><Drive state={state} setState={setState} /></Route><Route path="/parent"><Parent state={state} setState={setState} /></Route><Route path="/settings"><SettingsPage state={state} setState={setState} /></Route><Route component={NotFound} /></Switch></Shell>;
+
+  return (
+    <Switch>
+      <Route path="/sign-in/*?" component={SignInPage} />
+      <Route path="/sign-up/*?" component={SignUpPage} />
+      <Route>
+        <Shell state={state} setState={setState} persistenceWarning={persistenceWarning}>
+          <Switch>
+            <Route path="/"><Dashboard state={state} setState={setState} /></Route>
+            <Route path="/practice"><Practice state={state} setState={setState} /></Route>
+            <Route path="/scenarios"><Scenarios state={state} setState={setState} /></Route>
+            <Route path="/drive"><Drive state={state} setState={setState} /></Route>
+            <Route path="/parent"><Parent state={state} setState={setState} /></Route>
+            <Route path="/settings"><SettingsPage state={state} setState={setState} syncManager={syncManager} /></Route>
+            <Route component={NotFound} />
+          </Switch>
+        </Shell>
+      </Route>
+    </Switch>
+  );
 }
 
 function App() {
-  return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><ErrorBoundary resetKey={window.location.pathname}><Router /></ErrorBoundary></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><ErrorBoundary resetKey={window.location.pathname}><AppClerkProvider><Router /></AppClerkProvider></ErrorBoundary></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>;
 }
 
 export default App;
