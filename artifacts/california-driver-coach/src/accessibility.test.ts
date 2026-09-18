@@ -58,6 +58,7 @@ test('web beta metadata describes Coastwise without starter copy', () => {
 
 test('Coastwise uses the locked brand name and dedicated logo asset', () => {
   assert.match(appSource, /coastwiseLogo/);
+  assert.match(appSource, /data-testid="link-mobile-brand"/);
   assert.match(appSource, />Coastwise<\/div>/);
   assert.doesNotMatch(appSource, />coastwise<\/div>/);
   assert.match(documentSource, /href="\/favicon\.svg"/);
