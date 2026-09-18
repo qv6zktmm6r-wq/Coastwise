@@ -7,9 +7,10 @@ const styles = readFileSync(new URL('./index.css', import.meta.url), 'utf8');
 const mapSource = readFileSync(new URL('./components/route-map.tsx', import.meta.url), 'utf8');
 
 test('mobile navigation exposes every core destination with names and active state', () => {
-  for (const destination of ['Today', 'Permit practice', 'Drive practice', 'Parent view', 'Settings']) {
+  for (const destination of ['Today', 'Permit & knowledge', 'Driving exam', 'Parent view']) {
     assert.match(appSource, new RegExp(`label: '${destination}'`));
   }
+  assert.match(appSource, /data-testid="button-header-settings"/);
   assert.match(appSource, /aria-label=\{item\.label\}/);
   assert.match(appSource, /aria-current=\{active \? 'page' : undefined\}/);
   assert.equal((appSource.match(/aria-label="Primary navigation"/g) ?? []).length, 1);

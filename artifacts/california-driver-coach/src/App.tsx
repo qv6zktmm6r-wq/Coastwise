@@ -134,9 +134,8 @@ const navItems: { href: string; label: string; icon: LucideIcon }[] = [
 const mobileNavItems = [
   navItems[0],
   navItems[1],
+  navItems[2],
   navItems[3],
-  navItems[4],
-  { href: '/settings', label: 'Settings', icon: Settings },
 ];
 const queryClient = new QueryClient();
 
@@ -702,7 +701,22 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       : Math.max(0, Math.floor((performance.now() - recordingClockStartedAt.current) / 1000));
     const minutes = Math.max(1, Math.round(finalElapsedSeconds / 60));
     finalElapsedSecondsRef.current = finalElapsedSeconds;
-    if (mediaRecorder.current?.state === 'recording') mediaRecorder.current.stop();
+    const hasActiveRecording = mediaRecorder.current?.state === 'recording';
+    if (hasActiveRecording) {
+      mediaRecorder.current?.stop();
+    } else if (routeRef.current && recordingClockStartedAt.current !== null) {
+      setState({
+        ...state,
+        sessions: [{
+          date: new Date(startedAt ?? Date.now()).toISOString().slice(0, 10),
+          minutes,
+          night: false,
+          notes: `Coached route · ${distanceMiles.toFixed(1)} miles tracked · no video`,
+          distanceMiles,
+          routeTitle: 'Coached practice route',
+        }, ...state.sessions],
+      });
+    }
     setElapsedSeconds(finalElapsedSeconds);
     setSelectedEventId(coachEventsRef.current[0]?.id ?? null);
     recordingClockStartedAt.current = null;
@@ -712,13 +726,73 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     setPaused(false);
     pausedRef.current = false;
   };
+  const startGuidanceWithoutCamera = (message: string) => {
+    if (!plannedRoute) return;
+    mediaRecorder.current = null;
+    setTrackingError(message);
+    setDistanceMiles(0);
+    setCurrentSpeed(0);
+    currentSpeedRef.current = null;
+    setElapsedSeconds(0);
+    lastPosition.current = null;
+    lastPositionAt.current = null;
+    coachEventsRef.current = [];
+    setCoachEvents([]);
+    setSelectedEventId(null);
+    setPaused(false);
+    pausedRef.current = false;
+    setStartedAt(Date.now());
+    recordingClockStartedAt.current = performance.now();
+    eventSequence.current = 0;
+    setCueIndex(1);
+    routeRef.current = plannedRoute;
+    activeStepRef.current = 0;
+    setActiveStep(0);
+    preparedStepRef.current = -1;
+    finalStepRef.current = -1;
+    setTracking(true);
+    playCoach(coachVoice.started);
+    speak(`Coached route started. ${coaching[plannedRoute.steps[0]?.modifier === 'left' ? 'turns' : 'speed-control']}`);
+    recordCoachEvent({
+      kind: 'start',
+      title: 'Drive started',
+      detail: 'Route coaching is active without video recording.',
+    });
+    if (navigator.geolocation) {
+      watchId.current = navigator.geolocation.watchPosition((position) => {
+        if (pausedRef.current) return;
+        const now = position.timestamp || Date.now();
+        const previous = lastPosition.current;
+        const previousAt = lastPositionAt.current;
+        if (previous && previousAt) {
+          const addedMiles = distanceBetween(previous.coords.latitude, previous.coords.longitude, position.coords.latitude, position.coords.longitude) / 1609.344;
+          if (addedMiles < 0.1) setDistanceMiles((value) => value + addedMiles);
+        }
+        const speedMetersPerSecond = position.coords.speed;
+        const calculatedSpeed = previous && previousAt
+          ? distanceBetween(previous.coords.latitude, previous.coords.longitude, position.coords.latitude, position.coords.longitude) / ((now - previousAt) / 1000)
+          : 0;
+        const metersPerSecond = speedMetersPerSecond !== null && speedMetersPerSecond >= 0 ? speedMetersPerSecond : calculatedSpeed;
+        const speedMph = Number.isFinite(metersPerSecond) ? metersPerSecond * 2.236936 : 0;
+        currentSpeedRef.current = Number.isFinite(metersPerSecond) ? speedMph : null;
+        setCurrentSpeed(speedMph);
+        updateRouteProgress(position.coords.latitude, position.coords.longitude, Number.isFinite(metersPerSecond) ? metersPerSecond : 0);
+        lastPosition.current = position;
+        lastPositionAt.current = now;
+      }, () => {
+        setTrackingError('Route coaching started, but live GPS is unavailable. Check location permission before driving.');
+        if (watchId.current !== null) navigator.geolocation.clearWatch(watchId.current);
+        watchId.current = null;
+      }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 });
+    }
+  };
   const startTracking = async () => {
     if (!plannedRoute) {
       setTrackingError('Build and review a practice route before starting the camera.');
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-      setTrackingError('Camera recording is not available in this browser. You can still log a drive manually.');
+      startGuidanceWithoutCamera('Camera recording is unavailable. Route coaching has started without video.');
       return;
     }
     setTrackingError('');
@@ -821,7 +895,9 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
         setTrackingError('The road camera is recording, but GPS tracking is not available in this browser.');
       }
     } catch {
-      setTrackingError('Camera access was not available. Allow camera permission, mount the phone facing the road, then try again.');
+      cameraStream?.getTracks().forEach((track) => track.stop());
+      setCameraStream(null);
+      startGuidanceWithoutCamera('Camera access was not available. Route coaching has started without video.');
     }
   };
   useEffect(() => {
@@ -936,7 +1012,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
        </fieldset>
        <div className="mt-5 flex flex-wrap gap-3"><ActionButton onClick={buildRoute} disabled={routeLoading} testId="button-build-practice-route"><Compass size={16} />{routeLoading ? 'Mapping nearby roads…' : plannedRoute ? 'Rebuild route' : 'Map my practice route'}</ActionButton><ActionButton onClick={buildSkillRoute} disabled={routeLoading || createRoute.isPending || routeOptions.skills.length === 0} variant="secondary" testId="button-create-practice-route"><RouteIcon size={16} />{createRoute.isPending ? 'Building coached route…' : 'Create coached skill route'}</ActionButton></div>
       {routeError && <div className="mt-4 rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert">{routeError}</div>}
-      {plannedRoute && <div className="mt-6 grid gap-5 border-t border-[hsl(var(--border))] pt-5 lg:grid-cols-[1.25fr_.75fr]"><RouteMap route={plannedRoute} currentPosition={currentPosition} /><div className="flex flex-col justify-center"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Route ready</div><div className="mt-3 grid grid-cols-2 gap-3"><div className="rounded-xl bg-[hsl(var(--secondary)/.55)] p-4"><div className="font-display text-3xl">{(plannedRoute.distanceMeters / 1609.344).toFixed(1)}</div><div className="mt-1 text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">miles</div></div><div className="rounded-xl bg-[hsl(var(--secondary)/.55)] p-4"><div className="font-display text-3xl">{Math.max(1, Math.round(plannedRoute.durationSeconds / 60))}</div><div className="mt-1 text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">estimated min</div></div></div><p className="mt-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">Review the route while parked. Once the drive starts, instructions and rerouting are automatic. Starting confirms parent or guardian consent to AI-generated voice guidance.</p></div></div>}
+      {plannedRoute && <div className="mt-6 grid gap-5 border-t border-[hsl(var(--border))] pt-5 lg:grid-cols-[1.25fr_.75fr]"><RouteMap route={plannedRoute} currentPosition={currentPosition} /><div className="flex flex-col justify-center"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Route ready</div><div className="mt-3 grid grid-cols-2 gap-3"><div className="rounded-xl bg-[hsl(var(--secondary)/.55)] p-4"><div className="font-display text-3xl">{(plannedRoute.distanceMeters / 1609.344).toFixed(1)}</div><div className="mt-1 text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">miles</div></div><div className="rounded-xl bg-[hsl(var(--secondary)/.55)] p-4"><div className="font-display text-3xl">{Math.max(1, Math.round(plannedRoute.durationSeconds / 60))}</div><div className="mt-1 text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">estimated min</div></div></div><p className="mt-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">Review the route while parked. Starting confirms parent or guardian consent to AI-generated voice guidance. If video is unavailable, GPS and spoken coaching can still continue.</p><ActionButton onClick={startTracking} className="mt-5 w-full" testId="button-start-ready-route"><Play size={16} />Start this route</ActionButton></div></div>}
     </section>}
     <section className={`mb-6 overflow-hidden rounded-2xl border ${tracking ? 'border-[hsl(var(--accent)/.45)] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'} p-5 md:p-6`}>
       <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
