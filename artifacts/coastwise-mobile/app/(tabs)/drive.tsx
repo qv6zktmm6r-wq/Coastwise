@@ -105,10 +105,6 @@ export default function DriveScreen() {
       explainPermission('Camera', camera);
       return;
     }
-    if (!microphone.granted) {
-      explainPermission('Microphone', microphone);
-      return;
-    }
     if (!cameraRef.current) return;
     setRecording(true);
     try {
