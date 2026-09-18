@@ -25,7 +25,9 @@
         "NSPrivacyAccessedAPITypes": [
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
-            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
           }
         ]
       }
@@ -44,7 +46,8 @@
         {
           "locationWhenInUsePermission": "Allow Coastwise to coach an active supervised drive."
         }
-      ]
+      ],
+      "expo-font"
     ],
     "extra": {
       "router": {

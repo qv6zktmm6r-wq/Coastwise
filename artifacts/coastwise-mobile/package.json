@@ -15,18 +15,21 @@
     "@tanstack/react-query": "catalog:",
     "@workspace/api-client-react": "workspace:*",
     "expo": "~55.0.0",
-    "expo-camera": "~17.0.0",
-    "expo-file-system": "~19.0.0",
-    "expo-location": "~19.0.0",
-    "expo-router": "~6.0.0",
-    "expo-status-bar": "~3.0.0",
-    "react": "catalog:",
-    "react-native": "0.83.0",
+    "expo-camera": "~55.0.23",
+    "expo-constants": "~55.0.17",
+    "expo-file-system": "~55.0.26",
+    "expo-font": "~55.0.8",
+    "expo-linking": "~55.0.17",
+    "expo-location": "~55.1.14",
+    "expo-router": "~55.0.18",
+    "expo-status-bar": "~55.0.6",
+    "react": "19.2.0",
+    "react-native": "0.83.10",
     "react-native-safe-area-context": "~5.6.0",
-    "react-native-screens": "~4.16.0"
+    "react-native-screens": "~4.23.0"
   },
   "devDependencies": {
-    "@types/react": "catalog:",
+    "@types/react": "~19.2.18",
     "typescript": "^5.9.3"
   }
 }
