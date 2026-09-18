@@ -102,12 +102,30 @@ test('installed app ownership is local, portable, and resettable without an acco
   assert.match(syncManagerSource, /generation !== syncGeneration\.current/);
 });
 
-test('privacy and safety disclosures cover local ownership and optional sharing', () => {
-  assert.match(appSource, /path="\/privacy"/);
-  assert.match(appSource, /path="\/terms"/);
-  assert.match(settingsSource, /data-testid="link-privacy"/);
-  assert.match(settingsSource, /data-testid="link-terms"/);
-  assert.match(legalSource, /No account is required/);
-  assert.match(legalSource, /drive video files remain on the recording device and are not included in cloud sync/i);
-  assert.match(legalSource, /Only a passenger should operate Coastwise/);
+test('privacy and safety notices remain reachable and complete for release', () => {
+  for (const [path, kind, pageTestId] of [
+    ['/privacy', 'privacy', 'privacy-page'],
+    ['/terms', 'terms', 'terms-page'],
+  ] as const) {
+    assert.match(appSource, new RegExp(`<Route path="${path}"><LegalPage kind="${kind}"`));
+    assert.match(legalSource, new RegExp(`data-testid="${pageTestId}"`));
+  }
+
+  for (const [source, testId, path] of [
+    [settingsSource, 'link-settings-privacy', '/privacy'],
+    [settingsSource, 'link-settings-terms', '/terms'],
+    [appSource, 'link-footer-privacy', '/privacy'],
+    [appSource, 'link-footer-terms', '/terms'],
+  ] as const) {
+    assert.match(source, new RegExp(`href="${path}"[^>]*data-testid="${testId}"`));
+  }
+
+  assert.match(legalSource, /const policyEffectiveDate = 'September 18, 2026'/);
+  assert.match(legalSource, /Effective \{policyEffectiveDate\}/);
+  assert.match(legalSource, /const privacyContact = 'privacy@coastwise\.app'/);
+  assert.match(legalSource, /href=\{`mailto:\$\{privacyContact\}`\}/);
+  assert.match(legalSource, /Educational use only/);
+  assert.match(legalSource, /It is not the California DMV, a licensing authority, a driving school, a licensed driving instructor, legal advice, or a guarantee/i);
+  assert.match(legalSource, /Drive recordings remain device-local\./);
+  assert.match(legalSource, /They are not included in backups or uploaded by Coastwise\./);
 });
