@@ -1,4 +1,12 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import {
+  finalizeRecording as finalizeRecordingFile,
+  type CameraRecordingResult,
+  type FinalizedRecording,
+  type RecordingFileSystem,
+} from './recording-finalization';
+
+export type { CameraRecordingResult, FinalizedRecording };
 
 export type LocalRecording = {
   uri: string;
@@ -8,6 +16,23 @@ export type LocalRecording = {
 };
 
 const RECORDING_PREFIXES = ['coastwise-drive-', 'drive-'];
+
+export async function finalizeRecording(result: CameraRecordingResult): Promise<FinalizedRecording | null> {
+  const fileSystem: RecordingFileSystem = {
+    documentDirectory: FileSystem.documentDirectory,
+    copyAsync: (options) => FileSystem.copyAsync(options),
+    getInfoAsync: async (uri) => {
+      const info = await FileSystem.getInfoAsync(uri);
+      if (!info.exists) return { exists: false };
+      return {
+        size: info.size,
+        modificationTime: info.modificationTime,
+        exists: true,
+      };
+    },
+  };
+  return finalizeRecordingFile(result, fileSystem);
+}
 
 export async function listLocalRecordings(): Promise<LocalRecording[]> {
   if (!FileSystem.documentDirectory) return [];

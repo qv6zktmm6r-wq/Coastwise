@@ -237,6 +237,69 @@ test('discard cannot race a pending resume or end and always stops native tracki
   assert.equal(nativeStops, 2);
 });
 
+test('a failed recording task clears and still lets an active drive end and save', async () => {
+  const lifecycle = new DriveLifecycleCoordinator();
+  const drive = activeDrive();
+  let state: MobileState = beginDriveState({ drives: [] }, drive);
+  lifecycle.beginDrive();
+  lifecycle.beginRecording(Promise.reject(new Error('recording could not be saved')));
+
+  const ended = await lifecycle.end(
+    () => state.activeDrive ?? null,
+    () => drive.elapsedSeconds,
+    () => undefined,
+    (finished) => {
+      state = finishDriveState(state, finished);
+    },
+    () => undefined,
+  );
+
+  assert.equal(ended, true);
+  assert.equal(state.activeDrive, undefined);
+  assert.equal(state.drives[0]?.id, drive.id);
+  assert.equal(state.drives[0]?.recordingUri, undefined);
+
+  lifecycle.beginDrive();
+  state = beginDriveState(state, activeDrive('drive-2'));
+  assert.equal(
+    await lifecycle.end(
+      () => state.activeDrive ?? null,
+      () => 90,
+      () => undefined,
+      (finished) => {
+        state = finishDriveState(state, finished);
+      },
+      () => undefined,
+    ),
+    true,
+  );
+  assert.deepEqual(state.drives.map((item) => item.id), ['drive-2', 'drive-1']);
+});
+
+test('a failed recording task cannot attach metadata to a recovered replacement drive', async () => {
+  const lifecycle = new DriveLifecycleCoordinator();
+  const recovered = activeDrive('drive-recovered');
+  const replacement = activeDrive('drive-replacement');
+  let state: MobileState = beginDriveState({ drives: [] }, recovered);
+  lifecycle.beginDrive();
+  lifecycle.beginRecording(Promise.reject(new Error('recording metadata unavailable')));
+
+  const ended = await lifecycle.end(
+    () => state.activeDrive?.id === recovered.id ? replacement : state.activeDrive ?? null,
+    () => replacement.elapsedSeconds,
+    () => undefined,
+    (finished) => {
+      state = finishDriveState(state, finished);
+    },
+    () => undefined,
+  );
+
+  assert.equal(ended, true);
+  assert.equal(state.drives[0]?.id, replacement.id);
+  assert.equal(state.drives[0]?.recordingUri, undefined);
+  assert.equal(state.drives.some((item) => item.recordingUri !== undefined), false);
+});
+
 test('denied microphone permission is not requested after drive activation', () => {
   const denied = { granted: false };
   assert.equal(shouldRequestMicrophonePermission(false, denied), true);

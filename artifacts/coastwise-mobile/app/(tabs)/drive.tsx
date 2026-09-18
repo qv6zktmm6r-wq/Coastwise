@@ -1,6 +1,5 @@
 import { useCreateDriveDebrief } from '@workspace/api-client-react';
 import { CameraView, useCameraPermissions, useMicrophonePermissions, type CameraView as CameraViewType } from 'expo-camera';
-import * as FileSystem from 'expo-file-system/legacy';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, Linking, Platform, Pressable, Text, View, AccessibilityInfo } from 'react-native';
@@ -10,6 +9,7 @@ import {
   deleteAllLocalRecordings,
   deleteLocalRecording,
   cleanupLocalRecordings,
+  finalizeRecording,
   formatStorageSize,
   listLocalRecordings,
   STORAGE_WARNING_BYTES,
@@ -276,13 +276,11 @@ export default function DriveScreen() {
     AccessibilityInfo.announceForAccessibility("Recording started.");
     const task = (async () => {
       const result = await camera.recordAsync({ maxDuration: 3600 });
-      if (!result?.uri || !FileSystem.documentDirectory) return;
-      const destination = `${FileSystem.documentDirectory}coastwise-drive-${Date.now()}.mp4`;
-      await FileSystem.copyAsync({ from: result.uri, to: destination });
-      const info = await FileSystem.getInfoAsync(destination);
+      const metadata = await finalizeRecording(result);
+      if (!metadata) throw new Error('Camera did not return a saved recording.');
       const updated = attachRecording(driveRef.current, recordingDriveId, {
-        uri: destination,
-        sizeBytes: info.exists ? info.size ?? 0 : 0,
+        uri: metadata.uri,
+        sizeBytes: metadata.sizeBytes,
       });
       if (updated) {
         driveRef.current = updated;

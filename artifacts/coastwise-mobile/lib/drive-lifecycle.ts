@@ -18,9 +18,10 @@ export class DriveLifecycleCoordinator {
   }
 
   beginRecording(task: Promise<void>) {
-    this.recordingTask = task;
-    void task.finally(() => {
-      if (this.recordingTask === task) this.recordingTask = null;
+    const trackedTask = task.catch(() => undefined);
+    this.recordingTask = trackedTask;
+    void trackedTask.finally(() => {
+      if (this.recordingTask === trackedTask) this.recordingTask = null;
     });
   }
 
