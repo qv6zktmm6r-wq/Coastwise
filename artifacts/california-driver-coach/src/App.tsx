@@ -256,6 +256,7 @@ function PageHeader({ eyebrow, title, copy, action }: { eyebrow: string; title: 
 function Shell({ children, state, setState, persistenceWarning }: { children: ReactNode; state: AppState; setState: (next: AppState) => void; persistenceWarning: string }) {
   const [location, setLocation] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [online, setOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
   const isMobile = useIsMobile();
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -292,6 +293,16 @@ function Shell({ children, state, setState, persistenceWarning }: { children: Re
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
   }, [isMobile, mobileOpen]);
+  useEffect(() => {
+    const handleOnline = () => setOnline(true);
+    const handleOffline = () => setOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
   const closeMobileNavigation = () => {
     restoreMenuButtonFocus.current = true;
     setMobileOpen(false);
@@ -348,6 +359,7 @@ function Shell({ children, state, setState, persistenceWarning }: { children: Re
           </div>
         </div>
         {persistenceWarning && <div className="mt-5 flex gap-3 rounded-2xl border border-[hsl(var(--warning)/.45)] bg-[hsl(var(--warning)/.1)] p-4 text-sm leading-6" role="alert" data-testid="local-progress-warning"><AlertTriangle size={18} className="mt-0.5 shrink-0 text-[hsl(var(--warning-foreground))]" /><div><strong>Progress is not being saved.</strong> {persistenceWarning}</div></div>}
+        {!online && <div className="mt-5 flex gap-3 rounded-2xl border border-[hsl(var(--warning)/.45)] bg-[hsl(var(--warning)/.1)] p-4 text-sm leading-6" role="status" data-testid="offline-status"><AlertTriangle size={18} className="mt-0.5 shrink-0 text-[hsl(var(--warning-foreground))]" /><div><strong>Coastwise is offline.</strong> Saved practice and loaded drive reviews still work. Connect before building a new GPS route.</div></div>}
         <div className="page-transition pt-8">{children}</div>
       </div>
     </main>
@@ -363,6 +375,8 @@ function Dashboard({ state }: { state: AppState; setState: (next: AppState) => v
   const totalMinutes = state.sessions.reduce((sum, session) => sum + session.minutes, 0);
   const permitAnswers = Object.values(state.practiceProgress);
   const permitCoverage = Math.round((permitAnswers.length / questionBank.length) * 100);
+  const missedCount = permitAnswers.filter((answer) => !answer.correct).length;
+  const nextMission = state.missions.find((mission) => !mission.completed);
   const daysToTest = Math.max(0, Math.ceil((new Date(state.profile.targetTestDate).getTime() - Date.now()) / 86400000));
   const greeting = getTimeOfDayGreeting(new Date().getHours());
   return <div>
@@ -397,6 +411,17 @@ function Dashboard({ state }: { state: AppState; setState: (next: AppState) => v
           </div>
           <div className="mt-6 flex flex-col gap-2 sm:flex-row"><ActionButton href="/drive" testId="button-open-driving-menu">Open driving menu <ArrowRight size={16} /></ActionButton><ActionButton href="/scenarios" variant="outline" testId="button-open-scenarios">Practice scenarios</ActionButton></div>
         </div>}
+      </div>
+    </section>
+    <section className="mt-6 overflow-hidden rounded-[24px] border border-[hsl(var(--primary)/.22)] bg-[hsl(var(--card))] soft-shadow" data-testid="daily-coach-plan">
+      <div className="flex flex-col justify-between gap-3 border-b border-[hsl(var(--border))] bg-[hsl(var(--secondary)/.45)] p-5 sm:flex-row sm:items-center md:px-6">
+        <div><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--primary))]">Today’s Coastwise plan</div><h2 className="mt-1 font-display text-2xl">Three small steps, one clear direction.</h2></div>
+        <span className="w-fit rounded-full bg-[hsl(var(--card))] px-3 py-1.5 text-xs font-bold text-[hsl(var(--muted-foreground))]">About 25 minutes</span>
+      </div>
+      <div className="grid gap-px bg-[hsl(var(--border))] md:grid-cols-3">
+        <Link href="/practice" className="group bg-[hsl(var(--card))] p-5 hover:bg-[hsl(var(--secondary)/.35)]"><span className="font-mono-ui text-xs text-[hsl(var(--primary))]">01 · 10 MIN</span><span className="mt-3 block text-sm font-extrabold">{missedCount ? `Review ${Math.min(5, missedCount)} missed question${missedCount === 1 ? '' : 's'}` : 'Practice 10 handbook questions'}</span><span className="mt-1 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">Keep legal knowledge fresh with one focused session.</span><ArrowRight size={16} className="mt-4 text-[hsl(var(--primary))] transition-transform group-hover:translate-x-1" /></Link>
+        <Link href="/scenarios" className="group bg-[hsl(var(--card))] p-5 hover:bg-[hsl(var(--secondary)/.35)]"><span className="font-mono-ui text-xs text-[hsl(var(--primary))]">02 · 5 MIN</span><span className="mt-3 block text-sm font-extrabold">Practice one road decision</span><span className="mt-1 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">Build calm judgment before the situation happens.</span><ArrowRight size={16} className="mt-4 text-[hsl(var(--primary))] transition-transform group-hover:translate-x-1" /></Link>
+        <Link href="/drive" className="group bg-[hsl(var(--card))] p-5 hover:bg-[hsl(var(--secondary)/.35)]"><span className="font-mono-ui text-xs text-[hsl(var(--primary))]">03 · NEXT DRIVE</span><span className="mt-3 block text-sm font-extrabold">{nextMission?.title ?? 'Repeat a completed driving skill'}</span><span className="mt-1 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">{nextMission?.detail ?? 'Choose one calm, repeatable goal for the next supervised drive.'}</span><ArrowRight size={16} className="mt-4 text-[hsl(var(--primary))] transition-transform group-hover:translate-x-1" /></Link>
       </div>
     </section>
     <section className="mt-8 grid grid-cols-3 gap-2 border-t border-[hsl(var(--border))] pt-6 sm:gap-4">
@@ -503,6 +528,9 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const [reviewError, setReviewError] = useState('');
   const [reviewPlaybackError, setReviewPlaybackError] = useState('');
   const [storageEstimate, setStorageEstimate] = useState<StorageEstimate | null>(null);
+  const [showPreflight, setShowPreflight] = useState(false);
+  const [preflightChecks, setPreflightChecks] = useState({ parked: false, adult: false, mounted: false, reviewed: false });
+  const [shareStatus, setShareStatus] = useState('');
   const watchId = useRef<number | null>(null);
   const lastPosition = useRef<GeolocationPosition | null>(null);
   const lastPositionAt = useRef<number | null>(null);
@@ -529,6 +557,14 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const night = state.sessions.filter((session) => session.night).reduce((sum, session) => sum + session.minutes, 0);
   const completed = state.missions.filter((mission) => mission.completed).length;
   const averageSpeed = elapsedSeconds > 0 ? distanceMiles / (elapsedSeconds / 3600) : 0;
+  const activeReviewSession = state.sessions.find((session) => session.review?.id === openReviewId);
+  const reviewDistance = activeReviewSession?.distanceMiles ?? distanceMiles;
+  const nextDriveFocus = coachEvents.some((event) => event.title === 'Route updated')
+    ? 'Look farther ahead and prepare earlier so the route stays easier to follow.'
+    : coachEvents.some((event) => event.kind === 'maneuver')
+      ? 'Repeat the same route focus and prepare for each maneuver a little earlier.'
+      : 'Choose one simple skill and repeat it on the next supervised drive.';
+  const preflightReady = Object.values(preflightChecks).every(Boolean);
   const skillLabels: Record<string, string> = { turns: 'Turns', 'lane-changes': 'Lane changes', intersections: 'Intersections', parking: 'Parking', 'speed-control': 'Speed control' };
   const coaching: Record<string, string> = {
     turns: 'Coach cue: slow before the turn, scan the crosswalk, and look through the turn.',
@@ -590,6 +626,10 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     setCoachEvents(nextEvents);
   };
   const buildRoute = () => {
+    if (!navigator.onLine) {
+      setRouteError('Connect to the internet before building a new route. Saved practice and drive reviews still work offline.');
+      return;
+    }
     if (!navigator.geolocation) {
       setRouteError('GPS is not available in this browser.');
       return;
@@ -620,6 +660,10 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     }, { enableHighAccuracy: true, timeout: 12000 });
   };
   const buildSkillRoute = () => {
+    if (!navigator.onLine) {
+      setRouteError('Connect to the internet before building a new coached route.');
+      return;
+    }
     if (!navigator.geolocation) {
       setRouteError('GPS is not available in this browser.');
       return;
@@ -841,6 +885,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       setTrackingError('Build and review a practice route before starting the camera.');
       return;
     }
+    setShowPreflight(false);
     if (storageEstimate && storageEstimate.available < criticalRecordingStorageBytes) {
       startGuidanceWithoutCamera(`Only ${formatStorageBytes(storageEstimate.available)} of browser storage is available. Route coaching has started without video so this drive does not fill the device.`);
       return;
@@ -1075,6 +1120,36 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     if (!next) speak('Route coaching resumed.');
   };
   const addSession = (event: React.FormEvent) => { event.preventDefault(); const minutes = Number(form.minutes); if (!minutes || minutes < 1) return; setState({ ...state, sessions: [{ date: form.date, minutes, night: form.night, notes: form.notes || 'Practice drive' }, ...state.sessions] }); setForm({ date: new Date().toISOString().slice(0, 10), minutes: '30', night: false, notes: '' }); setShowForm(false); };
+  const requestDriveStart = () => {
+    if (!plannedRoute) {
+      setTrackingError('Build and review a practice route before starting.');
+      return;
+    }
+    setTrackingError('');
+    setShareStatus('');
+    setShowPreflight(true);
+  };
+  const shareDriveSummary = async () => {
+    const summary = [
+      'Coastwise drive review',
+      new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      `${Math.max(1, Math.round(elapsedSeconds / 60))} minutes · ${reviewDistance.toFixed(1)} miles`,
+      `${coachEvents.length} coached ${coachEvents.length === 1 ? 'moment' : 'moments'}`,
+      `Next focus: ${nextDriveFocus}`,
+      'Completed with an attentive supervising adult.',
+    ].join('\n');
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'Coastwise drive review', text: summary });
+        setShareStatus('Drive summary shared.');
+      } else {
+        await navigator.clipboard.writeText(summary);
+        setShareStatus('Drive summary copied to the clipboard.');
+      }
+    } catch {
+      setShareStatus('The summary was not shared. You can try again.');
+    }
+  };
   return <div><PageHeader eyebrow="Behind the wheel" title="Every drive is a building block." copy="Choose one mission, drive with an adult, and log the time while it is fresh. Progress here is measured in minutes, not pressure." action={<ActionButton onClick={() => setShowForm(!showForm)} variant="secondary" testId="button-toggle-drive-log"><Plus size={17} />Log drive</ActionButton>} />
     {!tracking && <section className="mb-6 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 soft-shadow md:p-6">
       <div className="flex flex-col justify-between gap-5 md:flex-row md:items-start">
@@ -1090,7 +1165,17 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
        </fieldset>
        <div className="mt-5 flex flex-wrap gap-3"><ActionButton onClick={buildRoute} disabled={routeLoading} testId="button-build-practice-route"><Compass size={16} />{routeLoading ? 'Mapping nearby roads…' : plannedRoute ? 'Rebuild route' : 'Map my practice route'}</ActionButton><ActionButton onClick={buildSkillRoute} disabled={routeLoading || createRoute.isPending || routeOptions.skills.length === 0} variant="secondary" testId="button-create-practice-route"><RouteIcon size={16} />{createRoute.isPending ? 'Building coached route…' : 'Create coached skill route'}</ActionButton></div>
       {routeError && <div className="mt-4 rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert">{routeError}</div>}
-      {plannedRoute && <div className="mt-6 grid gap-5 border-t border-[hsl(var(--border))] pt-5 lg:grid-cols-[1.25fr_.75fr]"><RouteMap route={plannedRoute} currentPosition={currentPosition} /><div className="flex flex-col justify-center"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Route ready</div><div className="mt-3 grid grid-cols-2 gap-3"><div className="rounded-xl bg-[hsl(var(--secondary)/.55)] p-4"><div className="font-display text-3xl">{(plannedRoute.distanceMeters / 1609.344).toFixed(1)}</div><div className="mt-1 text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">miles</div></div><div className="rounded-xl bg-[hsl(var(--secondary)/.55)] p-4"><div className="font-display text-3xl">{Math.max(1, Math.round(plannedRoute.durationSeconds / 60))}</div><div className="mt-1 text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">estimated min</div></div></div><p className="mt-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">Review the route while parked. Starting confirms parent or guardian consent to AI-generated voice guidance. If video is unavailable, GPS and spoken coaching can still continue.</p><ActionButton onClick={startTracking} className="mt-5 w-full" testId="button-start-ready-route"><Play size={16} />Start this route</ActionButton></div></div>}
+       {plannedRoute && <div className="mt-6 grid gap-5 border-t border-[hsl(var(--border))] pt-5 lg:grid-cols-[1.25fr_.75fr]"><RouteMap route={plannedRoute} currentPosition={currentPosition} /><div className="flex flex-col justify-center"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Route ready</div><div className="mt-3 grid grid-cols-2 gap-3"><div className="rounded-xl bg-[hsl(var(--secondary)/.55)] p-4"><div className="font-display text-3xl">{(plannedRoute.distanceMeters / 1609.344).toFixed(1)}</div><div className="mt-1 text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">miles</div></div><div className="rounded-xl bg-[hsl(var(--secondary)/.55)] p-4"><div className="font-display text-3xl">{Math.max(1, Math.round(plannedRoute.durationSeconds / 60))}</div><div className="mt-1 text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">estimated min</div></div></div><p className="mt-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">Review the route while parked. Starting confirms parent or guardian consent to voice guidance. If video is unavailable, GPS and spoken coaching can still continue.</p><ActionButton onClick={requestDriveStart} className="mt-5 w-full" testId="button-start-ready-route"><Play size={16} />Start this route</ActionButton></div></div>}
+    </section>}
+    {showPreflight && !tracking && <section className="mb-6 rounded-2xl border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--card))] p-5 soft-shadow md:p-6" data-testid="preflight-checklist">
+      <div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--primary))]"><ShieldCheck size={16} />Pre-drive safety check</div><h2 className="mt-2 font-display text-3xl">Start only when everyone is ready.</h2><p className="mt-2 text-xs leading-5 text-[hsl(var(--muted-foreground))]">The supervising adult should complete this while the vehicle is parked.</p></div><button onClick={() => setShowPreflight(false)} className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]" aria-label="Close safety check"><X size={19} /></button></div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">{[
+        ['parked', 'The vehicle is parked in a safe place.'],
+        ['adult', 'An attentive, licensed adult is supervising.'],
+        ['mounted', 'The phone is mounted and does not block the driver’s view.'],
+        ['reviewed', 'We reviewed the route and current conditions together.'],
+      ].map(([key, label]) => <label key={key} className="flex cursor-pointer items-start gap-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 text-sm font-semibold"><input type="checkbox" checked={preflightChecks[key as keyof typeof preflightChecks]} onChange={(event) => setPreflightChecks({ ...preflightChecks, [key]: event.target.checked })} className="mt-0.5 h-5 w-5 shrink-0 accent-[hsl(var(--primary))]" />{label}</label>)}</div>
+      <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><ActionButton onClick={() => setShowPreflight(false)} variant="quiet" testId="button-cancel-preflight">Cancel</ActionButton><ActionButton onClick={() => void startTracking()} disabled={!preflightReady} testId="button-confirm-preflight"><Check size={16} />Confirm & start coaching</ActionButton></div>
     </section>}
     <section className={`mb-6 overflow-hidden rounded-2xl border ${tracking ? 'border-[hsl(var(--accent)/.45)] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'} p-5 md:p-6`}>
       <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
@@ -1098,7 +1183,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
           <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${tracking ? 'bg-[hsl(var(--sidebar-primary))] text-[hsl(var(--sidebar-primary-foreground))]' : 'bg-[hsl(var(--secondary))] text-[hsl(var(--primary))]'}`}><Camera size={21} /></div>
           <div><div className={`text-xs font-bold uppercase tracking-[.15em] ${tracking ? 'text-[hsl(var(--sidebar-primary))]' : 'text-[hsl(var(--accent))]'}`}>{tracking ? 'Dashcam recording' : 'Dashcam coach mode'}</div><h2 className="mt-1 font-display text-2xl">{tracking ? 'Eyes on the road. Coastwise is recording.' : 'Record the road. Review the drive.'}</h2><p className={`mt-2 max-w-2xl text-xs leading-5 ${tracking ? 'text-white/65' : 'text-[hsl(var(--muted-foreground))]'}`}>{tracking ? 'Keep the phone mounted facing forward. Only the supervising adult should operate the screen.' : 'Coastwise records the road ahead while tracking GPS speed, miles, and time. It also gives occasional hands-free coaching cues.'}</p></div>
         </div>
-         {!tracking ? <ActionButton onClick={startTracking} disabled={!plannedRoute} variant="primary" testId="button-start-gps-drive"><Video size={15} />Start coached drive</ActionButton> : <div className="flex gap-2"><ActionButton onClick={togglePause} variant="outline" className="border-white/20 bg-white/10 text-white" testId="button-pause-route">{paused ? <Play size={14} /> : <Pause size={14} />}{paused ? 'Resume' : 'Pause'}</ActionButton><ActionButton onClick={stopTracking} variant="secondary" testId="button-stop-gps-drive"><Square size={14} />Stop & review</ActionButton></div>}
+         {!tracking ? <ActionButton onClick={requestDriveStart} disabled={!plannedRoute} variant="primary" testId="button-start-gps-drive"><Video size={15} />Start coached drive</ActionButton> : <div className="flex gap-2"><ActionButton onClick={togglePause} variant="outline" className="border-white/20 bg-white/10 text-white" testId="button-pause-route">{paused ? <Play size={14} /> : <Pause size={14} />}{paused ? 'Resume' : 'Pause'}</ActionButton><ActionButton onClick={stopTracking} variant="secondary" testId="button-stop-gps-drive"><Square size={14} />Stop & review</ActionButton></div>}
       </div>
       {trackingError && <div className="mt-4 rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert">{trackingError}</div>}
       {storageEstimate && storageEstimate.available < lowRecordingStorageBytes && <div className="mt-4 flex gap-3 rounded-xl border border-[hsl(var(--warning)/.4)] bg-[hsl(var(--warning)/.1)] p-4 text-xs leading-5" role="status" data-testid="drive-storage-warning"><HardDrive size={17} className="mt-0.5 shrink-0 text-[hsl(var(--warning-foreground))]" /><div><strong>{formatStorageBytes(storageEstimate.available)} available for this browser.</strong> Download or delete older drive recordings before starting another long recording. Below {formatStorageBytes(criticalRecordingStorageBytes)}, Coastwise continues without video.</div></div>}
@@ -1111,6 +1196,13 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
          <div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]"><CheckCircle2 size={15} />Drive ready to review</div><h2 className="mt-2 font-display text-3xl">Replay the moments that mattered.</h2><p className="mt-2 max-w-2xl text-xs leading-5 text-[hsl(var(--muted-foreground))]">Select a turn or safety prompt to jump the recording to that moment. The annotations and video stay local to this browser.</p></div>
          <div className="flex shrink-0 items-center gap-2 rounded-xl bg-[hsl(var(--secondary)/.6)] px-3 py-2 text-xs font-bold text-[hsl(var(--primary))]"><MapPin size={15} />{coachEvents.length} coached moments</div>
        </div>
+        <div className="mb-6 grid gap-3 rounded-2xl bg-[hsl(var(--secondary)/.45)] p-4 sm:grid-cols-[auto_auto_1fr_auto]" data-testid="drive-debrief">
+          <div><div className="font-mono-ui text-[10px] uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Time</div><div className="mt-1 font-display text-2xl">{Math.max(1, Math.round(elapsedSeconds / 60))} min</div></div>
+          <div><div className="font-mono-ui text-[10px] uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Distance</div><div className="mt-1 font-display text-2xl">{reviewDistance.toFixed(1)} mi</div></div>
+          <div className="sm:border-l sm:border-[hsl(var(--border))] sm:pl-4"><div className="font-mono-ui text-[10px] uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Next drive focus</div><div className="mt-1 text-sm font-bold leading-5">{nextDriveFocus}</div></div>
+          <div className="flex items-center"><ActionButton onClick={() => void shareDriveSummary()} variant="outline" testId="button-share-drive-summary"><Upload size={15} />Share summary</ActionButton></div>
+        </div>
+        {shareStatus && <p className="mb-5 text-xs font-semibold text-[hsl(var(--primary))]" role="status">{shareStatus}</p>}
        <div className="grid gap-6 lg:grid-cols-[1.08fr_.92fr]">
          <div>
             {reviewPlaybackError ? <div className="flex aspect-video w-full items-center justify-center rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-6 text-center text-sm font-semibold text-[hsl(var(--destructive))]" role="alert" data-testid="review-playback-error">{reviewPlaybackError}</div> : <video ref={reviewVideo} src={recordedVideoUrl} controls playsInline onError={handleReviewVideoError} onLoadedMetadata={handleReviewVideoMetadata} onTimeUpdate={followReviewPlayback} className="aspect-video w-full rounded-xl bg-black object-cover" data-testid="video-drive-review" />}
@@ -1148,15 +1240,48 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
 }
 
 function Parent({ state, setState }: { state: AppState; setState: (next: AppState) => void }) {
+  const [familyShareStatus, setFamilyShareStatus] = useState('');
   const total = state.sessions.reduce((sum, session) => sum + session.minutes, 0);
   const night = state.sessions.filter((session) => session.night).reduce((sum, session) => sum + session.minutes, 0);
   const permitAnswered = Object.values(state.practiceProgress);
   const permitCorrect = permitAnswered.filter((answer) => answer.correct).length;
   const permitReadiness = permitAnswered.length ? Math.round(((permitAnswered.length / questionBank.length) * 0.45 + (permitCorrect / permitAnswered.length) * 0.55) * 100) : 0;
   const donePrompts = state.prompts.filter((prompt) => prompt.done).length;
+  const completedMissions = state.missions.filter((mission) => mission.completed).length;
   const togglePrompt = (index: number) => setState({ ...state, prompts: state.prompts.map((prompt, promptIndex) => promptIndex === index ? { ...prompt, done: !prompt.done } : prompt) });
-  return <div><PageHeader eyebrow="Parent view" title="Coach the process, not just the result." copy="A quick read on what is going well, what is next, and how to make practice feel calm in the passenger seat." action={<div className="flex items-center gap-2 rounded-xl bg-[hsl(var(--secondary))] px-3 py-2 text-xs font-bold text-[hsl(var(--primary))]"><HeartHandshake size={16} />Shared plan</div>} />
+  const shareFamilySummary = async () => {
+    const nextMission = state.missions.find((mission) => !mission.completed)?.title ?? 'Repeat one completed driving skill';
+    const summary = [
+      'Coastwise family progress',
+      `Permit readiness: ${permitAnswered.length ? `${permitReadiness}%` : 'Not started'}`,
+      `Supervised driving: ${Math.floor(total / 60)}h ${total % 60}m of 50h`,
+      `Night driving: ${Math.floor(night / 60)}h ${night % 60}m of 10h`,
+      `Driving missions: ${completedMissions} of ${state.missions.length}`,
+      `Next drive focus: ${nextMission}`,
+      `Target test: ${new Date(`${state.profile.targetTestDate}T12:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`,
+    ].join('\n');
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'Coastwise family progress', text: summary });
+        setFamilyShareStatus('Family progress shared.');
+      } else {
+        await navigator.clipboard.writeText(summary);
+        setFamilyShareStatus('Family progress copied to the clipboard.');
+      }
+    } catch {
+      setFamilyShareStatus('The progress summary was not shared. You can try again.');
+    }
+  };
+  const journey = [
+    { title: 'Know the rules', value: permitAnswered.length ? `${permitReadiness}%` : 'Start', complete: permitReadiness >= 80 },
+    { title: 'Build road skills', value: `${completedMissions}/${state.missions.length}`, complete: completedMissions === state.missions.length },
+    { title: 'Practice 50 hours', value: `${Math.floor(total / 60)}h`, complete: total >= 3000 },
+    { title: 'Practice 10 at night', value: `${Math.floor(night / 60)}h`, complete: night >= 600 },
+  ];
+  return <div><PageHeader eyebrow="Parent view" title="Coach the process, not just the result." copy="A quick read on what is going well, what is next, and how to make practice feel calm in the passenger seat." action={<ActionButton onClick={() => void shareFamilySummary()} variant="secondary" testId="button-share-family-progress"><HeartHandshake size={16} />Share progress</ActionButton>} />
      <div className="grid gap-5 lg:grid-cols-[1fr_1fr_1fr]"><div className="rounded-2xl bg-[hsl(var(--primary))] p-6 text-[hsl(var(--primary-foreground))]"><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--sidebar-primary))]"><UserRound size={15} />{state.profile.name}'s permit readiness</div><div className="mt-5 font-display text-4xl">{permitAnswered.length ? `${permitReadiness}%` : 'Ready to start'}</div><p className="mt-3 text-xs leading-5 text-white/60">{permitAnswered.length ? `${permitAnswered.length} of ${questionBank.length} handbook questions covered · ${permitCorrect} currently correct.` : 'Begin a recommended practice session to create a useful readiness picture.'}</p></div><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--muted-foreground))]">Practice hours</div><div className="mt-4 font-display text-4xl">{Math.floor(total / 60)}h <span className="text-xl text-[hsl(var(--muted-foreground))]">of 50</span></div><ProgressBar value={(total / 3000) * 100} color="bg-[hsl(var(--primary))]" /><p className="mt-3 text-xs text-[hsl(var(--muted-foreground))]">{Math.floor(night / 60)}h {night % 60}m at night · 6 professional hours separate</p></div><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--muted-foreground))]">Permit timeline</div><div className="mt-4 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[hsl(var(--secondary))]"><LockKeyhole size={18} className="text-[hsl(var(--primary))]" /></div><div><div className="text-sm font-extrabold">6 month hold</div><div className="text-xs text-[hsl(var(--muted-foreground))]">before the drive test</div></div></div><p className="mt-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">Target test: <strong className="text-[hsl(var(--foreground))]">{new Date(`${state.profile.targetTestDate}T12:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong></p></div></div>
+    {familyShareStatus && <p className="mt-4 text-xs font-semibold text-[hsl(var(--primary))]" role="status">{familyShareStatus}</p>}
+    <section className="mt-8 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 md:p-6" data-testid="progress-journey"><div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end"><div><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Road to test day</div><h2 className="mt-1 font-display text-3xl">Progress that the whole family can read.</h2></div><span className="text-xs text-[hsl(var(--muted-foreground))]">Milestones update automatically</span></div><div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{journey.map((item, index) => <div key={item.title} className={`rounded-xl border p-4 ${item.complete ? 'border-[hsl(var(--success)/.35)] bg-[hsl(var(--success)/.07)]' : 'border-[hsl(var(--border))] bg-[hsl(var(--background))]'}`}><div className="flex items-center justify-between"><span className="font-mono-ui text-xs text-[hsl(var(--muted-foreground))]">{String(index + 1).padStart(2, '0')}</span>{item.complete ? <CheckCircle2 size={17} className="text-[hsl(var(--success))]" /> : <span className="h-2 w-2 rounded-full bg-[hsl(var(--primary)/.35)]" />}</div><div className="mt-4 font-display text-3xl">{item.value}</div><div className="mt-1 text-xs font-bold">{item.title}</div></div>)}</div></section>
     <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_.8fr]"><section><div className="mb-4 flex items-end justify-between"><div><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Coaching prompts</div><h2 className="mt-1 font-display text-3xl">Helpful words for the next drive.</h2></div><span className="font-mono-ui text-xs text-[hsl(var(--muted-foreground))]">{donePrompts}/{state.prompts.length} tried</span></div><div className="space-y-3">{state.prompts.map((prompt, index) => <button key={prompt.title} onClick={() => togglePrompt(index)} className={`flex w-full items-start gap-4 rounded-2xl border p-5 text-left ${prompt.done ? 'border-[hsl(var(--success)/.25)] bg-[hsl(var(--success)/.08)]' : 'border-[hsl(var(--border))] bg-[hsl(var(--card))] hover:border-[hsl(var(--primary))]'}`} data-testid={`button-parent-prompt-${index}`}><span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${prompt.done ? 'border-[hsl(var(--success))] bg-[hsl(var(--success))] text-white' : 'border-[hsl(var(--border))]'}`}>{prompt.done && <Check size={14} />}</span><span><span className={`block text-sm font-extrabold ${prompt.done ? 'line-through opacity-60' : ''}`}>{prompt.title}</span><span className="mt-1 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">{prompt.copy}</span></span></button>)}</div></section><aside><div className="mb-4 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">The adult seat</div><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--secondary)/.5)] p-6"><SunMedium size={22} className="text-[hsl(var(--accent))]" /><h3 className="mt-4 font-display text-2xl">Your calm is part of the lesson.</h3><p className="mt-3 text-sm leading-6 text-[hsl(var(--muted-foreground))]">Give directions early, keep your voice level, and save the debrief for a safe stop. The goal is a driver who can think clearly when something changes.</p><div className="mt-5 border-t border-[hsl(var(--border))] pt-4 text-xs font-semibold text-[hsl(var(--primary))]">Try asking: “What did you notice?”</div></div><div className="mt-4"><SafetyNote /></div></aside></div>
   </div>;
 }

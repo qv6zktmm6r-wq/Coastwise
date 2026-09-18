@@ -75,3 +75,13 @@ test('dashboard greeting is generic and time-aware', () => {
   assert.match(appSource, /<div className="mb-3[^>]*>\{greeting\}<\/div>/);
   assert.doesNotMatch(appSource, /Good morning, \{state\.profile\.name\}/);
 });
+
+test('premium coaching loop connects planning, safety, review, and family progress', () => {
+  for (const testId of ['daily-coach-plan', 'preflight-checklist', 'drive-debrief', 'progress-journey', 'offline-status']) {
+    assert.match(appSource, new RegExp(`data-testid="${testId}"`));
+  }
+  assert.match(appSource, /onClick=\{requestDriveStart\}/);
+  assert.match(appSource, /disabled=\{!preflightReady\}/);
+  assert.match(appSource, /testId="button-share-drive-summary"/);
+  assert.match(appSource, /testId="button-share-family-progress"/);
+});
