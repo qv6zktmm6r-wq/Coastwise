@@ -5,6 +5,7 @@ export type CameraRecordingResult = {
 export type RecordingFileSystem = {
   documentDirectory?: string | null;
   copyAsync: (options: { from: string; to: string }) => Promise<void>;
+  deleteAsync: (uri: string, options?: { idempotent?: boolean }) => Promise<void>;
   getInfoAsync: (uri: string) => Promise<{
     exists: boolean;
     size?: number | null;
@@ -27,12 +28,29 @@ export async function finalizeRecording(
 
   const destination = `${fileSystem.documentDirectory}${destinationName}`;
   await fileSystem.copyAsync({ from: result.uri, to: destination });
-  const info = await fileSystem.getInfoAsync(destination);
-  if (!info.exists) return null;
 
-  return {
-    uri: destination,
-    sizeBytes: info.size ?? 0,
-    modifiedAt: info.modificationTime,
+  const cleanupDestination = async () => {
+    try {
+      await fileSystem.deleteAsync(destination, { idempotent: true });
+    } catch {
+      // Cleanup is best effort and must not replace the original finalization error.
+    }
   };
+
+  try {
+    const info = await fileSystem.getInfoAsync(destination);
+    if (!info.exists) {
+      await cleanupDestination();
+      return null;
+    }
+
+    return {
+      uri: destination,
+      sizeBytes: info.size ?? 0,
+      modifiedAt: info.modificationTime,
+    };
+  } catch (error) {
+    await cleanupDestination();
+    throw error;
+  }
 }

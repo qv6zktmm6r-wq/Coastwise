@@ -21,6 +21,7 @@ export async function finalizeRecording(result: CameraRecordingResult): Promise<
   const fileSystem: RecordingFileSystem = {
     documentDirectory: FileSystem.documentDirectory,
     copyAsync: (options) => FileSystem.copyAsync(options),
+    deleteAsync: (uri, options) => FileSystem.deleteAsync(uri, options),
     getInfoAsync: async (uri) => {
       const info = await FileSystem.getInfoAsync(uri);
       if (!info.exists) return { exists: false };
