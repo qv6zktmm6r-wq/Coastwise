@@ -12,16 +12,27 @@ export type MobileDrive = {
   night: boolean;
   skills: string[];
   debrief?: DriveDebrief;
+  recordingUri?: string;
+  recordingSizeBytes?: number;
+};
+
+export type ActiveMobileDrive = MobileDrive & {
+  startedAt: string;
+  elapsedSeconds: number;
 };
 
 type MobileState = {
   drives: MobileDrive[];
   plan?: NextDrivePlan;
   acknowledgedPrivacyVersion?: string;
+  activeDrive?: ActiveMobileDrive;
 };
 
 type CoastwiseContextValue = MobileState & {
   hydrated: boolean;
+  beginActiveDrive: (drive: ActiveMobileDrive) => void;
+  updateActiveDrive: (drive: ActiveMobileDrive) => void;
+  finishActiveDrive: (drive: MobileDrive) => void;
   saveDrive: (drive: MobileDrive) => void;
   savePlan: (plan: NextDrivePlan) => void;
   acknowledgePrivacy: () => void;
@@ -49,6 +60,15 @@ export function CoastwiseProvider({ children }: { children: ReactNode }) {
   const value = useMemo<CoastwiseContextValue>(() => ({
     ...state,
     hydrated,
+    beginActiveDrive: (drive) => setState((current) => ({ ...current, activeDrive: drive })),
+    updateActiveDrive: (drive) => setState((current) => ({ ...current, activeDrive: drive })),
+    finishActiveDrive: (drive) => setState((current) => ({
+      ...current,
+      activeDrive: undefined,
+      drives: current.drives.some((item) => item.id === drive.id)
+        ? current.drives.map((item) => item.id === drive.id ? drive : item)
+        : [drive, ...current.drives].slice(0, 50),
+    })),
     saveDrive: (drive) => setState((current) => ({
       ...current,
       drives: current.drives.some((item) => item.id === drive.id)
