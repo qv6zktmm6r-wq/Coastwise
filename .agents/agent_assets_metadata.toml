@@ -1,0 +1,72 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "4zR99M5O9MDO1ceUzjdOh"
+uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/prepare-left.mp3"
+type = "audio"
+title = "coastwise prepare-left"
+description = "Text-to-speech audio: Prepare to turn left. Check your mirrors, signal, and scan the intersection."
+
+[[outputs]]
+id = "zjXZe6cj9drv6vDBcMy1O"
+uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/turn-left.mp3"
+type = "audio"
+title = "coastwise turn-left"
+description = "Text-to-speech audio: Turn left when the intersection is clear."
+
+[[outputs]]
+id = "zFPKCGFfJeWHI20XEPP9D"
+uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/continue-straight.mp3"
+type = "audio"
+title = "coastwise continue-straight"
+description = "Text-to-speech audio: Continue straight, and keep looking well ahead."
+
+[[outputs]]
+id = "R_Bcpa8QFCPgXLlzHLysJ"
+uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/drive-started.mp3"
+type = "audio"
+title = "coastwise drive-started"
+description = "Text-to-speech audio: Coastwise AI coach is active. Keep your eyes on the road, and let your supervising adult manage the phone."
+
+[[outputs]]
+id = "fW6Lc_3hULNRFcX1bd4hs"
+uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/turn-right.mp3"
+type = "audio"
+title = "coastwise turn-right"
+description = "Text-to-speech audio: Turn right when the intersection is clear."
+
+[[outputs]]
+id = "R9zVDU_0iU8d4fW-J8X2d"
+uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/prepare-right.mp3"
+type = "audio"
+title = "coastwise prepare-right"
+description = "Text-to-speech audio: Prepare to turn right. Check your mirrors, signal, and watch for people crossing."
+
+[[outputs]]
+id = "iqzvkfWndf4cI6rJxmIM3"
+uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/arrived.mp3"
+type = "audio"
+title = "coastwise arrived"
+description = "Text-to-speech audio: Route complete. Find a safe place to park before ending the drive."
+
+[[outputs]]
+id = "KP4WL3s374nJh8iDsaeZz"
+uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/route-updated.mp3"
+type = "audio"
+title = "coastwise route-updated"
+description = "Text-to-speech audio: That is okay. Continue safely while I update the route."
+
+[[outputs]]
+id = "iAs2aQfJGQVrbOnzGDjhk"
+uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/following-distance.mp3"
+type = "audio"
+title = "coastwise following-distance"
+description = "Text-to-speech audio: Check your following distance. More space gives you more time."
+
+[[outputs]]
+id = "o1T5LJ_u8Cej5fE08i-Eg"
+uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/intersection-scan.mp3"
+type = "audio"
+title = "coastwise intersection-scan"
+description = "Text-to-speech audio: Scan the next intersection for people, bicycles, signs, and changing traffic."

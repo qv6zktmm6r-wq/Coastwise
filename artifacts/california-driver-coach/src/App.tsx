@@ -41,8 +41,10 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
+import { RouteMap } from '@/components/route-map';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { requestPracticeLoop, requestReturnRoute, type PlannedRoute, type RouteCoordinate } from '@/lib/route-coach';
 import NotFound from '@/pages/not-found';
 
 type Topic = { topic: string; mastery: number; questions: number };
@@ -139,13 +141,18 @@ function formatElapsed(seconds: number) {
   return `${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`;
 }
 
-const coachingCues = [
-  'Drive started. Keep your eyes on the road and let your supervising adult manage the phone.',
-  'Look well ahead. Create space before you need it.',
-  'For your next lane change: mirror, signal, shoulder check, then move when clear.',
-  'As you approach the next intersection, scan for pedestrians, bicycles, signs, and changing traffic.',
-  'Keep your following distance comfortable. More space gives you more time.',
-];
+const coachVoice = {
+  started: new URL('./assets/coach-voice/drive-started.mp3', import.meta.url).href,
+  prepareLeft: new URL('./assets/coach-voice/prepare-left.mp3', import.meta.url).href,
+  prepareRight: new URL('./assets/coach-voice/prepare-right.mp3', import.meta.url).href,
+  turnLeft: new URL('./assets/coach-voice/turn-left.mp3', import.meta.url).href,
+  turnRight: new URL('./assets/coach-voice/turn-right.mp3', import.meta.url).href,
+  straight: new URL('./assets/coach-voice/continue-straight.mp3', import.meta.url).href,
+  updated: new URL('./assets/coach-voice/route-updated.mp3', import.meta.url).href,
+  arrived: new URL('./assets/coach-voice/arrived.mp3', import.meta.url).href,
+  distance: new URL('./assets/coach-voice/following-distance.mp3', import.meta.url).href,
+  scan: new URL('./assets/coach-voice/intersection-scan.mp3', import.meta.url).href,
+};
 
 function ActionButton({ children, onClick, href, variant = 'primary', className = '', disabled = false, type = 'button', testId }: { children: ReactNode; onClick?: () => void; href?: string; variant?: 'primary' | 'secondary' | 'quiet' | 'outline'; className?: string; disabled?: boolean; type?: 'button' | 'submit'; testId: string }) {
   const classes = `inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 ${variant === 'primary' ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-sm hover:shadow-md' : variant === 'secondary' ? 'bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))]' : variant === 'outline' ? 'border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))] hover:border-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]'} ${className}`;
@@ -305,29 +312,126 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const [recordedVideoUrl, setRecordedVideoUrl] = useState('');
   const [recordedVideoType, setRecordedVideoType] = useState('video/webm');
   const [cueIndex, setCueIndex] = useState(0);
+  const [routeMinutes, setRouteMinutes] = useState(15);
+  const [plannedRoute, setPlannedRoute] = useState<PlannedRoute | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [routeError, setRouteError] = useState('');
+  const [activeStep, setActiveStep] = useState(0);
+  const [distanceToNext, setDistanceToNext] = useState(0);
+  const [currentPosition, setCurrentPosition] = useState<RouteCoordinate | null>(null);
   const watchId = useRef<number | null>(null);
   const lastPosition = useRef<GeolocationPosition | null>(null);
   const lastPositionAt = useRef<number | null>(null);
   const cameraPreview = useRef<HTMLVideoElement | null>(null);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const videoChunks = useRef<Blob[]>([]);
+  const coachAudio = useRef<HTMLAudioElement | null>(null);
+  const routeRef = useRef<PlannedRoute | null>(null);
+  const activeStepRef = useRef(0);
+  const preparedStepRef = useRef(-1);
+  const finalStepRef = useRef(-1);
+  const offRouteSince = useRef<number | null>(null);
+  const rerouting = useRef(false);
   const total = state.sessions.reduce((sum, session) => sum + session.minutes, 0);
   const night = state.sessions.filter((session) => session.night).reduce((sum, session) => sum + session.minutes, 0);
   const completed = state.missions.filter((mission) => mission.completed).length;
   const averageSpeed = elapsedSeconds > 0 ? distanceMiles / (elapsedSeconds / 3600) : 0;
-  const speakCue = (index: number) => {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const cue = new SpeechSynthesisUtterance(coachingCues[index]);
-    cue.rate = 0.92;
-    cue.pitch = 1;
-    window.speechSynthesis.speak(cue);
-    setCueIndex((index + 1) % coachingCues.length);
+  const playCoach = (src: string) => {
+    coachAudio.current?.pause();
+    const audio = new Audio(src);
+    coachAudio.current = audio;
+    void audio.play().catch(() => undefined);
+  };
+  const buildRoute = () => {
+    if (!navigator.geolocation) {
+      setRouteError('GPS is not available in this browser.');
+      return;
+    }
+    setRouteLoading(true);
+    setRouteError('');
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      try {
+        const route = await requestPracticeLoop(position.coords.latitude, position.coords.longitude, routeMinutes);
+        setPlannedRoute(route);
+        routeRef.current = route;
+        setCurrentPosition([position.coords.longitude, position.coords.latitude]);
+        setActiveStep(0);
+        activeStepRef.current = 0;
+        preparedStepRef.current = -1;
+        finalStepRef.current = -1;
+      } catch {
+        setRouteError('I could not create a safe local loop right now. Check your connection and try again.');
+      } finally {
+        setRouteLoading(false);
+      }
+    }, () => {
+      setRouteError('Allow location access so Coastwise can build a route from where you are.');
+      setRouteLoading(false);
+    }, { enableHighAccuracy: true, timeout: 12000 });
+  };
+  const playDirection = (modifier: string, preparing: boolean) => {
+    if (modifier.includes('left')) playCoach(preparing ? coachVoice.prepareLeft : coachVoice.turnLeft);
+    else if (modifier.includes('right')) playCoach(preparing ? coachVoice.prepareRight : coachVoice.turnRight);
+    else if (!preparing) playCoach(coachVoice.straight);
+  };
+  const updateRouteProgress = (latitude: number, longitude: number, metersPerSecond: number) => {
+    const route = routeRef.current;
+    if (!route || route.steps.length === 0) return;
+    setCurrentPosition([longitude, latitude]);
+    const stepIndex = activeStepRef.current;
+    const step = route.steps[Math.min(stepIndex, route.steps.length - 1)];
+    const metersAway = distanceBetween(latitude, longitude, step.location[1], step.location[0]);
+    setDistanceToNext(metersAway);
+    const prepareDistance = Math.max(110, metersPerSecond * 13);
+    const maneuverDistance = Math.max(28, metersPerSecond * 3.5);
+    if (metersAway <= prepareDistance && preparedStepRef.current !== stepIndex) {
+      preparedStepRef.current = stepIndex;
+      playDirection(step.modifier, true);
+    }
+    if (metersAway <= maneuverDistance && finalStepRef.current !== stepIndex) {
+      finalStepRef.current = stepIndex;
+      if (stepIndex >= route.steps.length - 1) {
+        playCoach(coachVoice.arrived);
+      } else {
+        playDirection(step.modifier, false);
+        activeStepRef.current = stepIndex + 1;
+        setActiveStep(stepIndex + 1);
+      }
+    }
+    const stride = Math.max(1, Math.floor(route.coordinates.length / 120));
+    let nearest = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < route.coordinates.length; index += stride) {
+      const coordinate = route.coordinates[index];
+      nearest = Math.min(nearest, distanceBetween(latitude, longitude, coordinate[1], coordinate[0]));
+    }
+    if (nearest > 90) {
+      offRouteSince.current ??= Date.now();
+      if (Date.now() - offRouteSince.current > 10000 && !rerouting.current) {
+        rerouting.current = true;
+        playCoach(coachVoice.updated);
+        void requestReturnRoute(latitude, longitude, route.origin).then((nextRoute) => {
+          routeRef.current = nextRoute;
+          setPlannedRoute(nextRoute);
+          activeStepRef.current = 0;
+          setActiveStep(0);
+          preparedStepRef.current = -1;
+          finalStepRef.current = -1;
+          offRouteSince.current = null;
+        }).catch(() => {
+          setTrackingError('You are off the planned route. Continue safely; automatic rerouting is temporarily unavailable.');
+        }).finally(() => {
+          rerouting.current = false;
+        });
+      }
+    } else {
+      offRouteSince.current = null;
+    }
   };
   const stopTracking = () => {
     if (watchId.current !== null) navigator.geolocation.clearWatch(watchId.current);
     watchId.current = null;
     window.speechSynthesis?.cancel();
+    coachAudio.current?.pause();
     if (mediaRecorder.current?.state === 'recording') mediaRecorder.current.stop();
     cameraStream?.getTracks().forEach((track) => track.stop());
     setCameraStream(null);
@@ -339,6 +443,10 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     setTracking(false);
   };
   const startTracking = async () => {
+    if (!plannedRoute) {
+      setTrackingError('Build and review a practice route before starting the camera.');
+      return;
+    }
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
       setTrackingError('Camera recording is not available in this browser. You can still log a drive manually.');
       return;
@@ -372,8 +480,13 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       recorder.start(1000);
       setStartedAt(Date.now());
       setCueIndex(1);
+      routeRef.current = plannedRoute;
+      activeStepRef.current = 0;
+      setActiveStep(0);
+      preparedStepRef.current = -1;
+      finalStepRef.current = -1;
       setTracking(true);
-      speakCue(0);
+      playCoach(coachVoice.started);
       if (navigator.geolocation) {
         watchId.current = navigator.geolocation.watchPosition((position) => {
           const now = position.timestamp || Date.now();
@@ -389,6 +502,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
             : 0;
           const metersPerSecond = speedMetersPerSecond !== null && speedMetersPerSecond >= 0 ? speedMetersPerSecond : calculatedSpeed;
           setCurrentSpeed(Number.isFinite(metersPerSecond) ? metersPerSecond * 2.236936 : 0);
+          updateRouteProgress(position.coords.latitude, position.coords.longitude, Number.isFinite(metersPerSecond) ? metersPerSecond : 0);
           lastPosition.current = position;
           lastPositionAt.current = now;
         }, () => {
@@ -413,27 +527,39 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   }, [tracking, startedAt]);
   useEffect(() => {
     if (!tracking || elapsedSeconds === 0 || elapsedSeconds % 60 !== 0) return;
-    speakCue(cueIndex);
+    playCoach(cueIndex % 2 === 0 ? coachVoice.distance : coachVoice.scan);
+    setCueIndex((value) => value + 1);
   }, [elapsedSeconds, tracking]);
   useEffect(() => () => {
     if (watchId.current !== null && navigator.geolocation) navigator.geolocation.clearWatch(watchId.current);
     cameraStream?.getTracks().forEach((track) => track.stop());
     window.speechSynthesis?.cancel();
+    coachAudio.current?.pause();
     if (recordedVideoUrl) URL.revokeObjectURL(recordedVideoUrl);
   }, [cameraStream, recordedVideoUrl]);
   const addSession = (event: React.FormEvent) => { event.preventDefault(); const minutes = Number(form.minutes); if (!minutes || minutes < 1) return; setState({ ...state, sessions: [{ date: form.date, minutes, night: form.night, notes: form.notes || 'Practice drive' }, ...state.sessions] }); setForm({ date: new Date().toISOString().slice(0, 10), minutes: '30', night: false, notes: '' }); setShowForm(false); };
   return <div><PageHeader eyebrow="Behind the wheel" title="Every drive is a building block." copy="Choose one mission, drive with an adult, and log the time while it is fresh. Progress here is measured in minutes, not pressure." action={<ActionButton onClick={() => setShowForm(!showForm)} variant="secondary" testId="button-toggle-drive-log"><Plus size={17} />Log drive</ActionButton>} />
+    {!tracking && <section className="mb-6 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 soft-shadow md:p-6">
+      <div className="flex flex-col justify-between gap-5 md:flex-row md:items-start">
+        <div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]"><RouteIcon size={16} />GPS practice route</div><h2 className="mt-2 font-display text-3xl">Build a loop from where you are.</h2><p className="mt-2 max-w-2xl text-xs leading-5 text-[hsl(var(--muted-foreground))]">Choose a target length. Coastwise maps nearby roads, returns to your starting area, and automatically speaks every upcoming maneuver.</p></div>
+        <div className="flex flex-wrap gap-2">{[10, 15, 25, 35].map((minutes) => <button key={minutes} onClick={() => { setRouteMinutes(minutes); setPlannedRoute(null); }} className={`rounded-xl border px-3 py-2 text-xs font-bold ${routeMinutes === minutes ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : 'border-[hsl(var(--border))] bg-[hsl(var(--background))]'}`} data-testid={`button-route-${minutes}`}>{minutes === 10 ? 'Around the block' : `${minutes} min`}</button>)}</div>
+      </div>
+      <div className="mt-5"><ActionButton onClick={buildRoute} disabled={routeLoading} testId="button-build-practice-route"><Compass size={16} />{routeLoading ? 'Mapping nearby roads…' : plannedRoute ? 'Rebuild route' : 'Map my practice route'}</ActionButton></div>
+      {routeError && <div className="mt-4 rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert">{routeError}</div>}
+      {plannedRoute && <div className="mt-6 grid gap-5 border-t border-[hsl(var(--border))] pt-5 lg:grid-cols-[1.25fr_.75fr]"><RouteMap route={plannedRoute} currentPosition={currentPosition} /><div className="flex flex-col justify-center"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Route ready</div><div className="mt-3 grid grid-cols-2 gap-3"><div className="rounded-xl bg-[hsl(var(--secondary)/.55)] p-4"><div className="font-display text-3xl">{(plannedRoute.distanceMeters / 1609.344).toFixed(1)}</div><div className="mt-1 text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">miles</div></div><div className="rounded-xl bg-[hsl(var(--secondary)/.55)] p-4"><div className="font-display text-3xl">{Math.max(1, Math.round(plannedRoute.durationSeconds / 60))}</div><div className="mt-1 text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">estimated min</div></div></div><p className="mt-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">Review the route while parked. Once the drive starts, instructions and rerouting are automatic. Starting confirms parent or guardian consent to AI-generated voice guidance.</p></div></div>}
+    </section>}
     <section className={`mb-6 overflow-hidden rounded-2xl border ${tracking ? 'border-[hsl(var(--accent)/.45)] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'} p-5 md:p-6`}>
       <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
         <div className="flex items-start gap-3">
           <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${tracking ? 'bg-[hsl(var(--sidebar-primary))] text-[hsl(var(--sidebar-primary-foreground))]' : 'bg-[hsl(var(--secondary))] text-[hsl(var(--primary))]'}`}><Camera size={21} /></div>
           <div><div className={`text-xs font-bold uppercase tracking-[.15em] ${tracking ? 'text-[hsl(var(--sidebar-primary))]' : 'text-[hsl(var(--accent))]'}`}>{tracking ? 'Dashcam recording' : 'Dashcam coach mode'}</div><h2 className="mt-1 font-display text-2xl">{tracking ? 'Eyes on the road. Coastwise is recording.' : 'Record the road. Review the drive.'}</h2><p className={`mt-2 max-w-2xl text-xs leading-5 ${tracking ? 'text-white/65' : 'text-[hsl(var(--muted-foreground))]'}`}>{tracking ? 'Keep the phone mounted facing forward. Only the supervising adult should operate the screen.' : 'Coastwise records the road ahead while tracking GPS speed, miles, and time. It also gives occasional hands-free coaching cues.'}</p></div>
         </div>
-        {!tracking ? <ActionButton onClick={startTracking} variant="primary" testId="button-start-gps-drive"><Video size={15} />Start camera & GPS</ActionButton> : <ActionButton onClick={stopTracking} variant="secondary" testId="button-stop-gps-drive"><Square size={14} />Stop & review</ActionButton>}
+        {!tracking ? <ActionButton onClick={startTracking} disabled={!plannedRoute} variant="primary" testId="button-start-gps-drive"><Video size={15} />Start coached drive</ActionButton> : <ActionButton onClick={stopTracking} variant="secondary" testId="button-stop-gps-drive"><Square size={14} />Stop & review</ActionButton>}
       </div>
       {trackingError && <div className="mt-4 rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert">{trackingError}</div>}
-      {tracking && <div className="mt-6 grid gap-5 border-t border-white/10 pt-5 lg:grid-cols-[1.1fr_.9fr]"><div className="relative overflow-hidden rounded-2xl bg-black/40"><video ref={cameraPreview} autoPlay muted playsInline className="aspect-video w-full object-cover" /><div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/65 px-3 py-1.5 font-mono-ui text-[10px] uppercase tracking-[.12em] text-white"><span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />Road camera</div></div><div><div className="grid grid-cols-2 gap-4"><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Current speed</div><div className="mt-2 font-display text-3xl">{currentSpeed.toFixed(0)} <span className="font-sans text-sm font-bold text-white/55">mph</span></div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Miles tracked</div><div className="mt-2 font-display text-3xl">{distanceMiles.toFixed(1)} <span className="font-sans text-sm font-bold text-white/55">mi</span></div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Drive time</div><div className="mt-2 font-display text-3xl">{formatElapsed(elapsedSeconds)}</div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Average speed</div><div className="mt-2 font-display text-3xl">{averageSpeed.toFixed(0)} <span className="font-sans text-sm font-bold text-white/55">mph</span></div></div></div><button onClick={() => speakCue(cueIndex)} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/8 px-4 py-3 text-xs font-bold text-white hover:bg-white/12" data-testid="button-play-coach-cue"><Volume2 size={16} />Supervising adult: play next coach cue</button></div></div>}
+      {tracking && <div className="mt-6 grid gap-5 border-t border-white/10 pt-5 lg:grid-cols-[1.1fr_.9fr]"><div className="relative overflow-hidden rounded-2xl bg-black/40"><video ref={cameraPreview} autoPlay muted playsInline className="aspect-video w-full object-cover" /><div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/65 px-3 py-1.5 font-mono-ui text-[10px] uppercase tracking-[.12em] text-white"><span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />Road camera</div></div><div><div className="grid grid-cols-2 gap-4"><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Current speed</div><div className="mt-2 font-display text-3xl">{currentSpeed.toFixed(0)} <span className="font-sans text-sm font-bold text-white/55">mph</span></div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Miles tracked</div><div className="mt-2 font-display text-3xl">{distanceMiles.toFixed(1)} <span className="font-sans text-sm font-bold text-white/55">mi</span></div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Drive time</div><div className="mt-2 font-display text-3xl">{formatElapsed(elapsedSeconds)}</div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Average speed</div><div className="mt-2 font-display text-3xl">{averageSpeed.toFixed(0)} <span className="font-sans text-sm font-bold text-white/55">mph</span></div></div></div><div className="mt-5 flex items-center gap-2 rounded-xl border border-white/15 bg-white/8 px-4 py-3 text-xs font-bold text-white"><Volume2 size={16} />Natural AI coach is speaking automatically</div></div></div>}
     </section>
+    {tracking && plannedRoute && <section className="mb-6 grid gap-5 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 md:p-6 lg:grid-cols-[.7fr_1.3fr]"><div className="flex flex-col justify-center"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Next instruction · automatic</div><h2 className="mt-3 font-display text-3xl">{plannedRoute.steps[Math.min(activeStep, plannedRoute.steps.length - 1)]?.instruction ?? 'Continue safely'}</h2><div className="mt-4 font-mono-ui text-sm font-medium text-[hsl(var(--primary))]">{distanceToNext > 0 ? `${distanceToNext * 3.28084 >= 500 ? Math.round(distanceToNext * 3.28084 / 50) * 50 : Math.round(distanceToNext * 3.28084)} feet` : 'Acquiring GPS position'}</div><p className="mt-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">No taps are needed. Coastwise prepares the driver, announces the maneuver, advances to the next step, and calmly recalculates after a missed turn.</p></div><RouteMap route={plannedRoute} currentPosition={currentPosition} /></section>}
     {recordedVideoUrl && <section className="mb-6 grid gap-5 rounded-2xl border border-[hsl(var(--accent)/.35)] bg-[hsl(var(--card))] p-5 md:p-6 lg:grid-cols-[1.1fr_.9fr] animate-fade"><video src={recordedVideoUrl} controls playsInline className="aspect-video w-full rounded-xl bg-black object-cover" data-testid="video-drive-review" /><div className="flex flex-col justify-center"><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]"><CheckCircle2 size={15} />Drive ready to review</div><h2 className="mt-2 font-display text-3xl">Watch it while the details are fresh.</h2><p className="mt-3 text-xs leading-5 text-[hsl(var(--muted-foreground))]">This recording stays in this browser session unless you download it. It is not uploaded or shared automatically.</p><div className="mt-5 flex flex-wrap gap-3"><a href={recordedVideoUrl} download={`coastwise-drive-${new Date().toISOString().slice(0, 10)}.${recordedVideoType.includes('mp4') ? 'mp4' : 'webm'}`} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-bold text-[hsl(var(--primary-foreground))]" data-testid="link-download-drive"><Download size={16} />Download drive</a><ActionButton onClick={() => { URL.revokeObjectURL(recordedVideoUrl); setRecordedVideoUrl(''); }} variant="outline" testId="button-delete-drive-video">Delete recording</ActionButton></div></div></section>}
     {showForm && <form onSubmit={addSession} className="mb-6 grid gap-4 rounded-2xl border border-[hsl(var(--accent)/.35)] bg-[hsl(var(--secondary)/.4)] p-5 md:grid-cols-4 md:items-end animate-fade"><label className="text-xs font-bold">Date<input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} className="mt-2 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-sm" data-testid="input-drive-date" /></label><label className="text-xs font-bold">Minutes<input type="number" min="1" value={form.minutes} onChange={(event) => setForm({ ...form, minutes: event.target.value })} className="mt-2 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-sm" data-testid="input-drive-minutes" /></label><label className="flex items-center gap-2 pb-2 text-sm font-semibold"><input type="checkbox" checked={form.night} onChange={(event) => setForm({ ...form, night: event.target.checked })} className="h-4 w-4 accent-[hsl(var(--primary))]" data-testid="input-drive-night" />Night practice</label><ActionButton type="submit" testId="button-save-drive-log"><Check size={16} />Save session</ActionButton><label className="md:col-span-4 text-xs font-bold">Notes<textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} rows={2} placeholder="What felt different today?" className="mt-2 w-full resize-none rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-sm font-normal" data-testid="input-drive-notes" /></label></form>}
     <section className="grid gap-4 md:grid-cols-3"><div className="rounded-2xl bg-[hsl(var(--primary))] p-5 text-[hsl(var(--primary-foreground))]"><div className="text-xs font-bold uppercase tracking-[.14em] text-white/55">Total logged</div><div className="mt-3 font-display text-4xl">{Math.floor(total / 60)}h {total % 60}m</div><ProgressBar value={(total / 3000) * 100} color="bg-[hsl(var(--sidebar-primary))]" /><div className="mt-2 text-xs text-white/60">of 50 supervised hours</div></div><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5"><div className="text-xs font-bold uppercase tracking-[.14em] text-[hsl(var(--muted-foreground))]">Night practice</div><div className="mt-3 font-display text-4xl">{Math.floor(night / 60)}h {night % 60}m</div><ProgressBar value={(night / 600) * 100} color="bg-[hsl(var(--accent))]" /><div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">of 10 required hours</div></div><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5"><div className="text-xs font-bold uppercase tracking-[.14em] text-[hsl(var(--muted-foreground))]">Missions</div><div className="mt-3 font-display text-4xl">{completed}<span className="text-2xl text-[hsl(var(--muted-foreground))]">/5</span></div><div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">small skills, repeated</div></div></section>

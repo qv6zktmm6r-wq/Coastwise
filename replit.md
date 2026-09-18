@@ -38,6 +38,7 @@ A responsive study and supervised-practice coach that helps California teens pre
 - Real-world judgment scenarios
 - Supervised drive missions and a 50-hour practice log
 - Foreground dashcam recording with GPS speed, distance, elapsed time, spoken coaching cues, review, and local download
+- GPS-generated neighborhood practice loops with an interactive map, automatic natural-voice turn prompts, and calm off-route recovery
 - Parent coaching prompts and readiness summary
 - Editable profile, test dates, and support preferences
 
