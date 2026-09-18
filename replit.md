@@ -37,6 +37,7 @@ A responsive study and supervised-practice coach that helps California teens pre
 - Adaptive permit questions with explanations and topic mastery
 - Real-world judgment scenarios
 - Supervised drive missions and a 50-hour practice log
+- Foreground dashcam recording with GPS speed, distance, elapsed time, spoken coaching cues, review, and local download
 - Parent coaching prompts and readiness summary
 - Editable profile, test dates, and support preferences
 
