@@ -7,7 +7,7 @@
     "start": "expo start",
     "ios": "expo start --ios",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test lib/*.test.ts",
+    "test": "tsx --test lib/*.test.ts",
     "doctor": "expo-doctor",
     "release-check": "sh ./scripts/release-check.sh"
   },
@@ -32,7 +32,9 @@
     "react-native-screens": "~4.23.0"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
     "@types/react": "~19.2.18",
+    "tsx": "catalog:",
     "typescript": "^5.9.3"
   }
 }

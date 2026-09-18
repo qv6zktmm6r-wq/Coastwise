@@ -498,9 +498,15 @@ importers:
         specifier: ~4.23.0
         version: 4.23.0(react-native@0.83.10(@babel/core@7.29.7)(@types/react@19.2.18)(react@19.2.0))(react@19.2.0)
     devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.6
       '@types/react':
         specifier: ~19.2.18
         version: 19.2.18
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.13
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
