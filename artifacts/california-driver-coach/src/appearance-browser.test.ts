@@ -133,6 +133,41 @@ async function reloadPage() {
   }
 }
 
+async function openSecondPage() {
+  const browserVersion = await getJson<{ webSocketDebuggerUrl: string }>('http://127.0.0.1:9222/json/version');
+  const browserSocket = new WebSocket(browserVersion.webSocketDebuggerUrl);
+  await new Promise<void>((resolve, reject) => {
+    browserSocket.addEventListener('open', () => resolve());
+    browserSocket.addEventListener('error', () => reject(new Error('Could not connect to Chromium')));
+  });
+  const browser = new CdpPage(browserSocket);
+  const { targetId } = await browser.send('Target.createTarget', { url: appUrl }) as { targetId: string };
+  browser.close();
+
+  const deadline = Date.now() + 10_000;
+  let target: { webSocketDebuggerUrl: string } | undefined;
+  while (!target && Date.now() < deadline) {
+    const targets = await getJson<Array<{ id?: string; type: string; webSocketDebuggerUrl?: string }>>('http://127.0.0.1:9222/json');
+    const secondTarget = targets.find((candidate) =>
+      candidate.id === targetId
+      && candidate.webSocketDebuggerUrl
+    );
+    if (secondTarget?.webSocketDebuggerUrl) target = secondTarget as { webSocketDebuggerUrl: string };
+    if (!target) await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  if (!target) throw new Error('Timed out waiting for the second Coastwise tab');
+
+  const socket = new WebSocket(target.webSocketDebuggerUrl);
+  await new Promise<void>((resolve, reject) => {
+    socket.addEventListener('open', () => resolve());
+    socket.addEventListener('error', () => reject(new Error('Could not connect to the second tab')));
+  });
+  const secondPage = new CdpPage(socket);
+  await secondPage.send('Page.enable');
+  await secondPage.send('Runtime.enable');
+  return secondPage;
+}
+
 before(async () => {
   profileDir = await mkdtemp(join(tmpdir(), 'california-driver-coach-browser-'));
   viteProcess = spawn('pnpm', ['exec', 'vite', '--config', 'vite.config.ts', '--host', '127.0.0.1'], {
@@ -222,6 +257,58 @@ describe('appearance preferences in a real browser', { concurrency: false }, () 
     await setColorScheme('light');
     await waitFor(() => page.evaluate<boolean>("!document.documentElement.classList.contains('dark')"), true);
     assert.deepEqual(await themeSnapshot(), { dark: false, colorScheme: 'light' });
+  });
+
+  it('synchronizes Light, Dark, and Device choices across open tabs', async () => {
+    let secondPage: CdpPage | undefined;
+    try {
+      await setColorScheme('light');
+      await clickAppearance('light');
+      secondPage = await openSecondPage();
+      await waitFor(
+        () => secondPage!.evaluate<boolean>("Boolean(document.querySelector('[data-testid=\"button-header-settings\"]'))"),
+        true,
+      );
+      await secondPage.evaluate<boolean>(`(() => {
+        document.querySelector('[data-testid="button-header-settings"]')?.click();
+        return true;
+      })()`);
+      await waitFor(
+        () => secondPage!.evaluate<boolean>("Boolean(document.querySelector('[data-testid=\"button-appearance-system\"]'))"),
+        true,
+      );
+      await waitFor(
+        () => secondPage!.evaluate<boolean>("document.querySelector('[data-testid=\"button-appearance-light\"]')?.getAttribute('aria-checked') === 'true'"),
+        true,
+      );
+
+      await clickAppearance('dark');
+      await waitFor(
+        () => secondPage!.evaluate<boolean>("document.querySelector('[data-testid=\"button-appearance-dark\"]')?.getAttribute('aria-checked') === 'true'"),
+        true,
+      );
+      assert.deepEqual(await secondPage.evaluate<{ dark: boolean; colorScheme: string }>(`({
+        dark: document.documentElement.classList.contains('dark'),
+        colorScheme: document.documentElement.style.colorScheme,
+      })`), { dark: true, colorScheme: 'dark' });
+
+      await setColorScheme('light');
+      await clickAppearance('system');
+      await waitFor(
+        () => secondPage!.evaluate<boolean>("document.querySelector('[data-testid=\"button-appearance-system\"]')?.getAttribute('aria-checked') === 'true'"),
+        true,
+      );
+      await waitFor(
+        () => secondPage!.evaluate<boolean>("!document.documentElement.classList.contains('dark')"),
+        true,
+      );
+      assert.equal(
+        await secondPage.evaluate<string>("JSON.parse(localStorage.getItem('california-driver-coach') ?? '{}').settings.appearance"),
+        'system',
+      );
+    } finally {
+      secondPage?.close();
+    }
   });
 
   it('defaults an older saved profile without appearance to Device mode', async () => {

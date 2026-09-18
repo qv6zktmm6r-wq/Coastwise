@@ -131,6 +131,7 @@ const navItems: { href: string; label: string; icon: LucideIcon }[] = [
 ];
 
 const queryClient = new QueryClient();
+
 const storageKey = 'california-driver-coach';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -141,11 +142,9 @@ function isAppearance(value: unknown): value is Appearance {
   return value === 'system' || value === 'light' || value === 'dark';
 }
 
-function getStoredState(): AppState {
-  if (typeof window === 'undefined') return initialState;
+function parseStoredState(saved: string | null): AppState {
+  if (!saved) return initialState;
   try {
-    const saved = window.localStorage.getItem(storageKey);
-    if (!saved) return initialState;
     const parsed: unknown = JSON.parse(saved);
     if (!isRecord(parsed)) return initialState;
     const storedProfile = isRecord(parsed.profile) ? parsed.profile : {};
@@ -163,6 +162,11 @@ function getStoredState(): AppState {
   } catch {
     return initialState;
   }
+}
+
+function getStoredState(): AppState {
+  if (typeof window === 'undefined') return initialState;
+  return parseStoredState(window.localStorage.getItem(storageKey));
 }
 
 function ProgressBar({ value, color = 'bg-[hsl(var(--accent))]' }: { value: number; color?: string }) {
@@ -970,6 +974,14 @@ function Router() {
       // Progress and appearance remain usable when storage is blocked or full.
     }
   }, [state]);
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== storageKey || (event.storageArea && event.storageArea !== window.localStorage)) return;
+      setState(parseStoredState(event.newValue));
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
   useEffect(() => {
     const media = typeof window.matchMedia === 'function'
       ? window.matchMedia('(prefers-color-scheme: dark)')
