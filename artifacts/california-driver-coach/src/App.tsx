@@ -53,6 +53,15 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { questionBank } from '@/data/question-bank';
 import { RouteMap } from '@/components/route-map';
 import { requestPracticeLoop, requestReturnRoute, type PlannedRoute, type RouteCoordinate } from '@/lib/route-coach';
+import {
+  appendCoachEvent,
+  deleteCoachEvent,
+  deleteDriveRecording,
+  eventAtPlaybackTime,
+  seekReviewVideo,
+  type CoachEvent,
+  type CoachEventKind,
+} from '@/lib/drive-review';
 import NotFound from '@/pages/not-found';
 type Topic = { topic: string; mastery: number; questions: number };
 type PracticeQuestion = { prompt: string; options: string[]; answer: number; explanation: string; topic: string };
@@ -61,7 +70,6 @@ type DriveMission = { title: string; detail: string; category: string; minutes: 
 type DriveSession = { date: string; minutes: number; night: boolean; notes: string; distanceMiles?: number; skills?: string[]; routeTitle?: string };
 type ParentPrompt = { title: string; copy: string; done: boolean };
 
-type CoachEventKind = 'start' | 'prompt' | 'maneuver' | 'safety';
 type AppState = {
   profile: { name: string; permitDate: string; targetTestDate: string };
   topics: Topic[];
@@ -428,7 +436,8 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       stepIndex,
     };
     eventSequence.current += 1;
-    const nextEvents = [...coachEventsRef.current, event];
+    const nextEvents = appendCoachEvent(coachEventsRef.current, event);
+    if (nextEvents === coachEventsRef.current) return;
     coachEventsRef.current = nextEvents;
     setCoachEvents(nextEvents);
   };
@@ -734,30 +743,28 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     setSelectedEventId(event.id);
     if (!reviewVideo.current) return;
     const wasPlaying = !reviewVideo.current.paused;
-    reviewVideo.current.currentTime = event.timestamp;
+    seekReviewVideo(reviewVideo.current, event);
     if (wasPlaying) void reviewVideo.current.play().catch(() => undefined);
   };
   const followReviewPlayback = () => {
     if (!reviewVideo.current || coachEvents.length === 0) return;
     const currentTime = reviewVideo.current.currentTime;
-    const latest = coachEvents.reduce<CoachEvent | null>((found, event) => event.timestamp <= currentTime + 0.25 ? event : found, null);
+    const latest = eventAtPlaybackTime(coachEvents, currentTime);
     if (latest && latest.id !== selectedEventId) setSelectedEventId(latest.id);
   };
   const deleteReviewEvent = (eventId: string) => {
-    const deletedIndex = coachEventsRef.current.findIndex((event) => event.id === eventId);
-    const nextEvents = coachEventsRef.current.filter((event) => event.id !== eventId);
-    coachEventsRef.current = nextEvents;
-    setCoachEvents(nextEvents);
-    if (selectedEventId === eventId) {
-      setSelectedEventId(nextEvents[Math.min(Math.max(deletedIndex, 0), nextEvents.length - 1)]?.id ?? null);
-    }
+    const next = deleteCoachEvent({ recordedVideoUrl, coachEvents: coachEventsRef.current, selectedEventId }, eventId);
+    coachEventsRef.current = next.coachEvents;
+    setCoachEvents(next.coachEvents);
+    setSelectedEventId(next.selectedEventId);
   };
   const deleteRecording = () => {
     if (recordedVideoUrl) URL.revokeObjectURL(recordedVideoUrl);
-    setRecordedVideoUrl('');
-    coachEventsRef.current = [];
-    setCoachEvents([]);
-    setSelectedEventId(null);
+    const cleared = deleteDriveRecording();
+    setRecordedVideoUrl(cleared.recordedVideoUrl);
+    coachEventsRef.current = cleared.coachEvents;
+    setCoachEvents(cleared.coachEvents);
+    setSelectedEventId(cleared.selectedEventId);
   };
   const togglePause = () => {
     const next = !paused;
@@ -899,16 +906,4 @@ const coachVoice = {
   arrived: new URL('./assets/coach-voice/arrived.mp3', import.meta.url).href,
   distance: new URL('./assets/coach-voice/following-distance.mp3', import.meta.url).href,
   scan: new URL('./assets/coach-voice/intersection-scan.mp3', import.meta.url).href,
-};
-
-type CoachEvent = {
-  id: string;
-  timestamp: number;
-  kind: CoachEventKind;
-  title: string;
-  detail: string;
-  speedMph: number | null;
-  position: RouteCoordinate | null;
-  distanceToNext: number | null;
-  stepIndex: number | null;
 };
