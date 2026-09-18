@@ -3,7 +3,7 @@ import { CameraView, useCameraPermissions, useMicrophonePermissions, type Camera
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, Text, View } from 'react-native';
 import { ActionButton, Body, Card, Eyebrow, Screen, Title, usePalette, styles } from '@/components/ui';
 import { useCoastwise, type MobileDrive } from '@/lib/coastwise-context';
 
@@ -13,6 +13,23 @@ const WEAK_TOPICS = [
   { topic: 'Signs & signals', mastery: 0 },
   { topic: 'Safe speed', mastery: 0 },
 ];
+
+function explainPermission(title: string, permission: { granted: boolean; canAskAgain?: boolean } | null | undefined) {
+  if (permission?.granted) return;
+  const canAskAgain = permission?.canAskAgain !== false;
+  Alert.alert(
+    `${title} permission needed`,
+    canAskAgain
+      ? `Allow ${title.toLowerCase()} access to use this optional drive feature.`
+      : `Enable ${title.toLowerCase()} access in ${Platform.OS === 'android' ? 'Android' : 'device'} Settings to use this optional drive feature.`,
+    canAskAgain
+      ? [{ text: 'OK' }]
+      : [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => void Linking.openSettings().catch(() => undefined) },
+      ],
+  );
+}
 
 export default function DriveScreen() {
   const palette = usePalette();
@@ -44,7 +61,10 @@ export default function DriveScreen() {
 
   const startDrive = async () => {
     const location = await Location.requestForegroundPermissionsAsync();
-    if (location.status !== Location.PermissionStatus.GRANTED) return;
+    if (location.status !== Location.PermissionStatus.GRANTED) {
+      explainPermission('Location', location);
+      return;
+    }
     setLocationReady(true);
     setActive(true);
     setElapsed(0);
@@ -81,7 +101,15 @@ export default function DriveScreen() {
   const startRecording = async () => {
     const camera = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
     const microphone = microphonePermission?.granted ? microphonePermission : await requestMicrophonePermission();
-    if (!camera.granted || !cameraRef.current) return;
+    if (!camera.granted) {
+      explainPermission('Camera', camera);
+      return;
+    }
+    if (!microphone.granted) {
+      explainPermission('Microphone', microphone);
+      return;
+    }
+    if (!cameraRef.current) return;
     setRecording(true);
     try {
       const result = await cameraRef.current.recordAsync({ maxDuration: 3600 });
