@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Card, Body, Eyebrow, Screen, Title, usePalette, styles } from '@/components/ui';
+import { colors } from '@/theme';
+import { Ionicons } from '@expo/vector-icons';
 
 const questions = [
   { prompt: 'At a four-way stop, you arrive at the same time as another driver on your right. Who goes first?', options: ['You, because you are already rolling', 'The driver on your right', 'Whoever waves first'], answer: 1, explanation: 'When arrival is simultaneous, yield to the driver on your right.' },
@@ -12,6 +14,113 @@ export default function PracticeScreen() {
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const question = questions[index];
-  const choose = (option: number) => setSelected(option);
-  return <Screen><Eyebrow>Permit & knowledge</Eyebrow><Title>Practice one calm question.</Title><Body muted>No streaks or pressure. Learn the reason, then try another.</Body><Card><Text style={[styles.eyebrow, { color: '#0084FF' }]}>Question {index + 1} of {questions.length}</Text><Text style={[styles.title, { color: palette.text }]}>{question.prompt}</Text>{question.options.map((option, optionIndex) => <Pressable key={option} onPress={() => choose(optionIndex)} accessibilityRole="radio" accessibilityState={{ selected: selected === optionIndex }} style={{ borderWidth: 1, borderColor: selected === optionIndex ? '#0084FF' : palette.border, borderRadius: 14, padding: 15, marginTop: 10, backgroundColor: selected === optionIndex ? palette.soft : palette.card }}><Text style={{ color: palette.text, fontSize: 15, lineHeight: 20, fontWeight: '600' }}>{option}</Text></Pressable>)}{selected !== null && <View style={{ marginTop: 18 }}><Text style={{ color: selected === question.answer ? palette.success : palette.warning, fontWeight: '800' }}>{selected === question.answer ? 'Good call.' : 'Try the safer principle.'}</Text><Body muted>{question.explanation}</Body><Pressable onPress={() => { setIndex((index + 1) % questions.length); setSelected(null); }} style={{ marginTop: 16 }}><Text style={{ color: '#0084FF', fontWeight: '800' }}>Next question →</Text></Pressable></View>}</Card></Screen>;
+  
+  const choose = (option: number) => {
+    if (selected === null) {
+      setSelected(option);
+    }
+  };
+  
+  const handleNext = () => {
+    setIndex((index + 1) % questions.length);
+    setSelected(null);
+  };
+
+  return (
+    <Screen>
+      <View style={{ marginTop: 12, marginBottom: 24 }}>
+        <Eyebrow>Permit & knowledge</Eyebrow>
+        <Title large>Practice one calm question.</Title>
+        <Body muted>No streaks or pressure. Learn the reason, then try another.</Body>
+      </View>
+      
+      <Card padding={24}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <Text style={[styles.eyebrow, { color: colors.primary, marginBottom: 0 }]}>Question {index + 1} of {questions.length}</Text>
+          <Ionicons name="book" size={20} color={colors.primary} />
+        </View>
+        
+        <Text style={[styles.title, { color: palette.text, fontSize: 22, lineHeight: 30, marginBottom: 24 }]}>{question.prompt}</Text>
+        
+        <View style={{ gap: 12 }}>
+          {question.options.map((option, optionIndex) => {
+            const isSelected = selected === optionIndex;
+            const isCorrectAnswer = selected !== null && optionIndex === question.answer;
+            const isWrongSelection = isSelected && optionIndex !== question.answer;
+            
+            let bgColor: string = palette.card;
+            let borderColor: string = palette.border;
+            let textColor: string = palette.text;
+            let iconName: keyof typeof Ionicons.glyphMap = 'ellipse-outline';
+            let iconColor: string = palette.muted;
+
+            let opacity = 1;
+
+            if (selected !== null) {
+              if (isCorrectAnswer) {
+                bgColor = `${palette.success}18`;
+                borderColor = palette.success;
+                textColor = palette.success;
+                iconName = 'checkmark-circle';
+                iconColor = palette.success;
+              } else if (isWrongSelection) {
+                bgColor = `${palette.warning}18`;
+                borderColor = palette.warning;
+                textColor = palette.warning;
+                iconName = 'close-circle';
+                iconColor = palette.warning;
+              } else {
+                opacity = 0.5;
+              }
+            } else if (isSelected) {
+              bgColor = palette.soft;
+              borderColor = colors.primary;
+            }
+
+            return (
+              <Pressable 
+                key={option} 
+                onPress={() => choose(optionIndex)} 
+                disabled={selected !== null}
+                accessibilityRole="radio" 
+                accessibilityState={{ selected: isSelected }} 
+                style={({ pressed }) => [
+                  { 
+                    borderWidth: 1.5, 
+                    borderColor: pressed && selected === null ? colors.primary : borderColor, 
+                    borderRadius: 16, 
+                    padding: 16, 
+                    backgroundColor: pressed && selected === null ? palette.soft : bgColor,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 16,
+                    opacity: opacity
+                  }
+                ]}
+              >
+                <Ionicons name={iconName} size={24} color={iconColor} />
+                <Text style={{ color: textColor, fontSize: 16, lineHeight: 22, fontWeight: '600', flex: 1 }}>{option}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        
+        {selected !== null && (
+          <View style={{ marginTop: 32, padding: 20, backgroundColor: palette.soft, borderRadius: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <Ionicons name={selected === question.answer ? "checkmark-circle" : "alert-circle"} size={22} color={selected === question.answer ? palette.success : palette.warning} />
+              <Text style={{ color: selected === question.answer ? palette.success : palette.warning, fontWeight: '800', fontSize: 18 }}>
+                {selected === question.answer ? 'Good call.' : 'Try the safer principle.'}
+              </Text>
+            </View>
+            <Body muted>{question.explanation}</Body>
+            <Pressable onPress={handleNext} style={({ pressed }) => [{ marginTop: 24, flexDirection: 'row', alignItems: 'center', gap: 6, opacity: pressed ? 0.7 : 1 }]}>
+              <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 16 }}>Next question</Text>
+              <Ionicons name="arrow-forward" size={18} color={colors.primary} />
+            </Pressable>
+          </View>
+        )}
+      </Card>
+    </Screen>
+  );
 }

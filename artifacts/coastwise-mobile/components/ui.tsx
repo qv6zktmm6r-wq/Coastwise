@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { ReactNode } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { colors } from '@/theme';
+import { useRef, useCallback } from 'react';
 
 export function usePalette() {
   const dark = useColorScheme() === 'dark';
@@ -12,13 +13,12 @@ export function usePalette() {
 export function Screen({ children, scroll = true }: { children: ReactNode; scroll?: boolean }) {
   const palette = usePalette();
   const insets = useSafeAreaInsets();
-  const content = <View style={[styles.container, { backgroundColor: palette.background, paddingTop: insets.top + 18, paddingBottom: insets.bottom + 100 }]}>{children}</View>;
+  const content = <View style={[styles.container, { backgroundColor: palette.background, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 100 }]}>{children}</View>;
   return scroll ? <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>{content}</ScrollView> : content;
 }
 
-export function Eyebrow({ children }: { children: ReactNode }) {
-  const palette = usePalette();
-  return <Text style={[styles.eyebrow, { color: colors.primary }]}>{children}</Text>;
+export function Eyebrow({ children, style }: { children: ReactNode; style?: any }) {
+  return <Text style={[styles.eyebrow, { color: colors.primary }, style]}>{children}</Text>;
 }
 
 export function Title({ children, large = false }: { children: ReactNode; large?: boolean }) {
@@ -31,31 +31,89 @@ export function Body({ children, muted = false }: { children: ReactNode; muted?:
   return <Text style={[styles.body, { color: muted ? palette.muted : palette.text }]}>{children}</Text>;
 }
 
-export function Card({ children, accent = false }: { children: ReactNode; accent?: boolean }) {
+export function Card({ children, accent = false, padding = 20 }: { children: ReactNode; accent?: boolean; padding?: number }) {
   const palette = usePalette();
-  return <View style={[styles.card, { backgroundColor: palette.card, borderColor: accent ? `${colors.primary}55` : palette.border }]}>{children}</View>;
+  return <View style={[styles.card, { backgroundColor: palette.card, borderColor: accent ? `${colors.primary}44` : palette.border, padding }]}>{children}</View>;
 }
 
-export function ActionButton({ children, onPress, secondary = false, disabled = false }: { children: ReactNode; onPress: () => void; secondary?: boolean; disabled?: boolean }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.button, { backgroundColor: secondary ? 'transparent' : colors.primary, borderColor: secondary ? colors.primary : colors.primary, opacity: disabled ? 0.55 : pressed ? 0.8 : 1 }]}><Text style={[styles.buttonText, secondary && { color: colors.primary }]}>{children}</Text></Pressable>;
+export function ActionButton({ children, onPress, secondary = false, destructive = false, disabled = false }: { children: ReactNode; onPress: () => void; secondary?: boolean; destructive?: boolean; disabled?: boolean }) {
+  const palette = usePalette();
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = useCallback(() => {
+    Animated.spring(scale, {
+      toValue: 0.96,
+      useNativeDriver: true,
+      speed: 20,
+      bounciness: 10,
+    }).start();
+  }, [scale]);
+
+  const handlePressOut = useCallback(() => {
+    Animated.spring(scale, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 20,
+      bounciness: 10,
+    }).start();
+  }, [scale]);
+
+  const bgColor = secondary ? 'transparent' : destructive ? palette.destructive : colors.primary;
+  const borderColor = destructive ? palette.destructive : secondary ? palette.border : colors.primary;
+  const textColor = secondary ? destructive ? palette.destructive : palette.text : '#FFFFFF';
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+    >
+      {({ pressed }) => (
+        <Animated.View style={[
+          styles.button,
+          { 
+            backgroundColor: bgColor, 
+            borderColor: borderColor, 
+            opacity: disabled ? 0.5 : pressed && secondary ? 0.7 : 1,
+            transform: [{ scale }]
+          }
+        ]}>
+          <Text style={[styles.buttonText, { color: textColor }]}>{children}</Text>
+        </Animated.View>
+      )}
+    </Pressable>
+  );
 }
 
-export function IconRow({ icon, title, detail }: { icon: keyof typeof Ionicons.glyphMap; title: string; detail: string }) {
+export function IconRow({ icon, title, detail, accent = false }: { icon: keyof typeof Ionicons.glyphMap; title: string; detail: string; accent?: boolean }) {
   const palette = usePalette();
-  return <View style={styles.iconRow}><View style={[styles.iconCircle, { backgroundColor: palette.soft }]}><Ionicons name={icon} size={20} color={colors.primary} /></View><View style={{ flex: 1 }}><Text style={[styles.rowTitle, { color: palette.text }]}>{title}</Text><Text style={[styles.rowDetail, { color: palette.muted }]}>{detail}</Text></View></View>;
+  return (
+    <View style={styles.iconRow}>
+      <View style={[styles.iconCircle, { backgroundColor: accent ? `${colors.primary}18` : palette.soft }]}>
+        <Ionicons name={icon} size={22} color={accent ? colors.primary : palette.text} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.rowTitle, { color: palette.text }]}>{title}</Text>
+        <Text style={[styles.rowDetail, { color: palette.muted }]}>{detail}</Text>
+      </View>
+    </View>
+  );
 }
 
 export const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 20 },
-  eyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 1.4, textTransform: 'uppercase', marginBottom: 8 },
-  titleLarge: { fontSize: 36, lineHeight: 40, fontWeight: '800', letterSpacing: -1.1, marginBottom: 10 },
-  title: { fontSize: 25, lineHeight: 31, fontWeight: '800', letterSpacing: -0.5, marginBottom: 8 },
-  body: { fontSize: 15, lineHeight: 22 },
-  card: { borderWidth: 1, borderRadius: 20, padding: 18, marginTop: 14 },
-  button: { minHeight: 50, borderWidth: 1, borderRadius: 14, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center', marginTop: 14 },
-  buttonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
-  iconRow: { flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 10 },
-  iconCircle: { width: 42, height: 42, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  rowTitle: { fontSize: 15, fontWeight: '800' },
-  rowDetail: { fontSize: 13, lineHeight: 19, marginTop: 2 },
+  container: { flex: 1, paddingHorizontal: 24 },
+  eyebrow: { fontSize: 12, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 10 },
+  titleLarge: { fontSize: 40, lineHeight: 46, fontWeight: '800', letterSpacing: -1.2, marginBottom: 12 },
+  title: { fontSize: 26, lineHeight: 32, fontWeight: '800', letterSpacing: -0.6, marginBottom: 10 },
+  body: { fontSize: 16, lineHeight: 24 },
+  card: { borderWidth: 1, borderRadius: 24, marginTop: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 1 },
+  button: { minHeight: 56, borderWidth: 1, borderRadius: 18, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center', marginTop: 16 },
+  buttonText: { fontSize: 16, fontWeight: '700', letterSpacing: -0.2 },
+  iconRow: { flexDirection: 'row', gap: 16, alignItems: 'center', paddingVertical: 12 },
+  iconCircle: { width: 48, height: 48, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  rowTitle: { fontSize: 16, fontWeight: '700', letterSpacing: -0.2 },
+  rowDetail: { fontSize: 14, lineHeight: 20, marginTop: 4 },
 });

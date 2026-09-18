@@ -13,6 +13,8 @@ import {
   listLocalRecordings,
   type LocalRecording,
 } from '@/lib/recordings';
+import { Ionicons } from '@expo/vector-icons';
+import { colors } from '@/theme';
 
 const DRIVE_SKILLS = ['turns', 'intersections'];
 const WEAK_TOPICS = [
@@ -371,15 +373,224 @@ export default function DriveScreen() {
   };
 
   if (active) {
-    return <Screen scroll={false}><Eyebrow>Active coached drive</Eyebrow><Title>Keep your attention on the road.</Title><Body muted>Coastwise is using location while this drive is active. Do not touch the phone while moving. Pull over before stopping, reviewing, or recording.</Body><Card accent><View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><View><Eyebrow>Drive time</Eyebrow><Text style={{ color: palette.text, fontSize: 34, fontWeight: '800' }}>{Math.max(1, Math.round(elapsed / 60))}<Text style={{ fontSize: 15 }}> min</Text></Text></View><View><Eyebrow>Location</Eyebrow><Text style={{ color: palette.success, fontSize: 15, fontWeight: '800' }}>{locationReady ? 'Active' : 'Waiting'}</Text></View></View><ActionButton onPress={stopDrive} secondary>Stop drive while parked</ActionButton></Card>{cameraPermission?.granted && <View style={{ marginTop: 16, overflow: 'hidden', borderRadius: 18, backgroundColor: '#0B1117' }}><CameraView ref={cameraRef} mode="video" style={{ height: 210 }} mute={!microphonePermission?.granted} /><Pressable onPress={recording ? () => cameraRef.current?.stopRecording() : () => void startRecording()} accessibilityRole="button" style={{ position: 'absolute', bottom: 14, left: 14, right: 14, borderRadius: 12, padding: 13, alignItems: 'center', backgroundColor: recording ? '#B64242' : '#FFFFFF' }}><Text style={{ color: recording ? '#FFFFFF' : '#17212B', fontWeight: '800' }}>{recording ? 'Stop local recording' : 'Record optional local review'}</Text></Pressable></View>}<ActionButton onPress={() => void startRecording()} disabled={recording} secondary>{cameraPermission?.granted ? 'Open local camera review' : 'Allow optional camera review'}</ActionButton><Body muted>Recordings remain in this device’s app storage. They are never included in AI requests.</Body></Screen>;
+    return (
+      <Screen scroll={false}>
+        <View style={{ flex: 1, paddingBottom: 24 }}>
+          <View style={{ marginTop: 12, marginBottom: 24 }}>
+            <Eyebrow>Active coached drive</Eyebrow>
+            <Title large>Keep your attention on the road.</Title>
+            <Body muted>Coastwise is using location while this drive is active. Do not touch the phone while moving. Pull over before stopping or reviewing.</Body>
+          </View>
+          
+          <Card accent padding={32}>
+            <View style={{ alignItems: 'center', marginBottom: 32 }}>
+              <Eyebrow>Drive time</Eyebrow>
+              <Text style={{ color: palette.text, fontSize: 64, fontWeight: '800', fontVariant: ['tabular-nums'], letterSpacing: -2 }}>
+                {Math.max(1, Math.floor(elapsed / 60))}
+                <Text style={{ fontSize: 24, color: palette.muted, fontWeight: '700', letterSpacing: 0 }}> min</Text>
+              </Text>
+            </View>
+            
+            <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12, marginBottom: 32 }}>
+              <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: locationReady ? palette.success : palette.warning }} />
+              <Text style={{ color: locationReady ? palette.success : palette.warning, fontSize: 16, fontWeight: '700' }}>
+                {locationReady ? 'Location active' : 'Waiting for GPS...'}
+              </Text>
+            </View>
+            
+            <ActionButton onPress={stopDrive} destructive>Stop drive while parked</ActionButton>
+          </Card>
+          
+          <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+            {cameraPermission?.granted ? (
+              <View style={{ marginTop: 24, overflow: 'hidden', borderRadius: 24, backgroundColor: '#0B1117', borderWidth: 1, borderColor: palette.border }}>
+                <CameraView ref={cameraRef} mode="video" style={{ height: 220 }} mute={!microphonePermission?.granted} />
+                <View style={{ position: 'absolute', top: 16, right: 16, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                  {recording && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF3B30' }} />}
+                  <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>{recording ? 'RECORDING' : 'READY'}</Text>
+                </View>
+                <View style={{ position: 'absolute', bottom: 16, left: 16, right: 16 }}>
+                  <ActionButton onPress={recording ? () => cameraRef.current?.stopRecording() : () => void startRecording()} secondary={!recording} destructive={recording}>
+                    {recording ? 'Stop local recording' : 'Record optional local review'}
+                  </ActionButton>
+                </View>
+              </View>
+            ) : (
+              <View style={{ marginTop: 24 }}>
+                <ActionButton onPress={() => void startRecording()} secondary>Allow optional camera review</ActionButton>
+                <Text style={{ textAlign: 'center', marginTop: 12, fontSize: 13, color: palette.muted, paddingHorizontal: 20 }}>
+                  Recordings remain in this device's app storage. They are never included in AI requests.
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Screen>
+    );
   }
 
   const totalRecordingBytes = recordings.reduce((total, item) => total + item.sizeBytes, 0);
-  return <Screen><Eyebrow>Driving exam</Eyebrow><Title>Practice with a supervising adult.</Title><Body muted>Location coaching is foreground-only. Coastwise pauses when the app leaves the foreground, and AI is never active during a drive.</Body>
-    {recoveryPending && activeDrive && <Card accent><Eyebrow>Unfinished drive recovered</Eyebrow><Title>{Math.max(1, Math.round(activeDrive.elapsedSeconds / 60))} minutes saved</Title><Body muted>Location and recording were paused when Coastwise was interrupted. Resume only while parked and ready, or save the session as it is.</Body><ActionButton onPress={() => void resumeDrive()}>Resume coached drive</ActionButton><ActionButton onPress={stopDrive} secondary>End and save drive</ActionButton><Pressable onPress={discardRecoveredDrive} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center', alignItems: 'center', marginTop: 8 }}><Text style={{ color: palette.warning, fontWeight: '800' }}>Discard unfinished drive</Text></Pressable></Card>}
-    {!recoveryPending && <Card accent><Eyebrow>Before you start</Eyebrow><Body>Choose a quiet route, agree on one skill, and let the supervising adult handle the phone. Save the debrief for when you are parked.</Body><ActionButton onPress={() => void startDrive()}>Start coached drive</ActionButton></Card>}
-    {drive && !recoveryPending && <Card><Eyebrow>Drive saved locally</Eyebrow><Title>{drive.durationMinutes} minute drive</Title><Body muted>{drive.night ? 'Night practice' : 'Day practice'} · {drive.distanceMiles.toFixed(1)} miles · {drive.skills.join(' and ')}</Body>{drive.recordingSizeBytes !== undefined && <Body muted>Local recording: {formatStorageSize(drive.recordingSizeBytes)}</Body>}{drive.debrief ? <><Text style={{ color: palette.text, fontSize: 19, fontWeight: '800', marginTop: 14 }}>{drive.debrief.headline}</Text><Body>{drive.debrief.nextStep}</Body></> : <><ActionButton onPress={generateDebrief} disabled={createDebrief.isPending}>{createDebrief.isPending ? <ActivityIndicator color="#FFFFFF" /> : 'Generate private debrief'}</ActionButton>{debriefError && <Body muted>The debrief is unavailable right now. Your drive is still saved locally.</Body>}</>}</Card>}
-    <Card><Eyebrow>Local recordings</Eyebrow><Title>{storageLoading ? 'Checking storage…' : `${recordings.length} recording${recordings.length === 1 ? '' : 's'}`}</Title><Body muted>{recordings.length > 0 ? `${formatStorageSize(totalRecordingBytes)} used in Coastwise app storage. Recordings never enter AI requests or family sync.` : 'No drive videos are stored on this device.'}</Body>{recordings.map((item) => <View key={item.uri} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: palette.border }}><View style={{ flex: 1 }}><Text style={{ color: palette.text, fontWeight: '800' }}>{recordingDate(item)}</Text><Text style={{ color: palette.muted, marginTop: 3 }}>{formatStorageSize(item.sizeBytes)}</Text></View><Pressable onPress={() => removeRecording(item)} accessibilityRole="button" accessibilityLabel={`Delete recording from ${recordingDate(item)}`} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: palette.warning, fontWeight: '800' }}>Delete</Text></Pressable></View>)}{recordings.length > 0 && <ActionButton onPress={removeAllRecordings} secondary>Delete all recordings</ActionButton>}</Card>
-    {drives.length > 0 && <Body muted>{drives.length} saved drive{drives.length === 1 ? '' : 's'} on this device.</Body>}
-  </Screen>;
+
+  return (
+    <Screen>
+      <View style={{ marginTop: 12, marginBottom: 24 }}>
+        <Eyebrow>Driving exam</Eyebrow>
+        <Title large>Practice with a supervising adult.</Title>
+        <Body muted>Location coaching is foreground-only. Coastwise pauses when the app leaves the foreground, and AI is never active during a drive.</Body>
+      </View>
+      
+      {recoveryPending && activeDrive && (
+        <Card padding={24} accent>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: `${palette.warning}18`, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="pause" size={24} color={palette.warning} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Eyebrow style={{ color: palette.warning }}>Drive recovered</Eyebrow>
+              <Title>{Math.max(1, Math.round(activeDrive.elapsedSeconds / 60))} min saved</Title>
+            </View>
+          </View>
+          <Body>Location and recording were paused when Coastwise was interrupted. Resume only while parked and ready.</Body>
+          <View style={{ marginTop: 24, gap: 12 }}>
+            <ActionButton onPress={() => void resumeDrive()}>Resume drive</ActionButton>
+            <ActionButton onPress={stopDrive} secondary>End and save drive</ActionButton>
+            <Pressable onPress={discardRecoveredDrive} style={({ pressed }) => [{ minHeight: 48, justifyContent: 'center', alignItems: 'center', opacity: pressed ? 0.7 : 1, marginTop: 8 }]}>
+              <Text style={{ color: palette.destructive, fontWeight: '700', fontSize: 15 }}>Discard unfinished drive</Text>
+            </Pressable>
+          </View>
+        </Card>
+      )}
+
+      {!recoveryPending && (
+        <Card padding={24} accent>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: `${colors.primary}18`, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="car" size={24} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Eyebrow>Before you start</Eyebrow>
+              <Title>Ready to go?</Title>
+            </View>
+          </View>
+          <Body>Choose a quiet route, agree on one skill, and let the supervising adult handle the phone. Save the debrief for when you are parked.</Body>
+          <View style={{ marginTop: 24 }}>
+            <ActionButton onPress={() => void startDrive()}>Start coached drive</ActionButton>
+          </View>
+        </Card>
+      )}
+
+      {drive && !recoveryPending && (
+        <Card padding={24}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: `${palette.success}18`, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="checkmark-done" size={24} color={palette.success} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Eyebrow style={{ color: palette.success }}>Saved locally</Eyebrow>
+              <Title>{drive.durationMinutes} min drive</Title>
+            </View>
+          </View>
+          
+          <View style={{ backgroundColor: palette.soft, borderRadius: 16, padding: 16, marginBottom: 20 }}>
+            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+              <Ionicons name={drive.night ? "moon" : "sunny"} size={16} color={palette.text} />
+              <Text style={{ color: palette.text, fontWeight: '600' }}>{drive.night ? 'Night practice' : 'Day practice'}</Text>
+              <Text style={{ color: palette.muted }}>·</Text>
+              <Text style={{ color: palette.text, fontWeight: '600' }}>{drive.distanceMiles.toFixed(1)} miles</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+              <Ionicons name="git-merge" size={16} color={palette.text} />
+              <Text style={{ color: palette.text, fontWeight: '600' }}>{drive.skills.join(' and ')}</Text>
+            </View>
+            {drive.recordingSizeBytes !== undefined && (
+              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 8 }}>
+                <Ionicons name="videocam" size={16} color={palette.text} />
+                <Text style={{ color: palette.text, fontWeight: '600' }}>{formatStorageSize(drive.recordingSizeBytes)} video saved</Text>
+              </View>
+            )}
+          </View>
+          
+          {drive.debrief ? (
+            <View style={{ backgroundColor: `${colors.primary}10`, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: `${colors.primary}20` }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <Ionicons name="sparkles" size={18} color={colors.primary} />
+                <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' }}>AI Debrief</Text>
+              </View>
+              <Text style={{ color: palette.text, fontSize: 20, fontWeight: '800', marginBottom: 8, lineHeight: 26 }}>{drive.debrief.headline}</Text>
+              <Text style={{ color: palette.text, fontSize: 15, lineHeight: 22 }}>{drive.debrief.nextStep}</Text>
+            </View>
+          ) : (
+            <View style={{ gap: 12 }}>
+              <ActionButton onPress={generateDebrief} disabled={createDebrief.isPending}>
+                {createDebrief.isPending ? <ActivityIndicator color="#FFFFFF" /> : 'Generate private AI debrief'}
+              </ActionButton>
+              {debriefError && (
+                <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: 4 }}>
+                  <Ionicons name="warning" size={16} color={palette.warning} />
+                  <Text style={{ color: palette.warning, fontSize: 13, fontWeight: '600' }}>Debrief unavailable. Try again later.</Text>
+                </View>
+              )}
+            </View>
+          )}
+        </Card>
+      )}
+
+      <Card padding={24}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: palette.soft, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="folder" size={24} color={palette.text} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Eyebrow>Local recordings</Eyebrow>
+            <Title>{storageLoading ? 'Checking...' : `${recordings.length} saved`}</Title>
+          </View>
+        </View>
+        
+        {recordings.length > 0 ? (
+          <>
+            <Text style={{ color: palette.muted, fontSize: 14, lineHeight: 20, marginBottom: 16 }}>
+              {formatStorageSize(totalRecordingBytes)} used. Recordings never enter AI requests or family sync.
+            </Text>
+            <View style={{ backgroundColor: palette.soft, borderRadius: 16, overflow: 'hidden' }}>
+              {recordings.map((item, index) => (
+                <View key={item.uri} style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: index < recordings.length - 1 ? 1 : 0, borderBottomColor: palette.border }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: palette.card, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                    <Ionicons name="videocam" size={18} color={palette.text} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: palette.text, fontWeight: '700', fontSize: 16 }}>{recordingDate(item)}</Text>
+                    <Text style={{ color: palette.muted, marginTop: 2, fontSize: 13 }}>{formatStorageSize(item.sizeBytes)}</Text>
+                  </View>
+                  <Pressable 
+                    onPress={() => removeRecording(item)} 
+                    accessibilityRole="button" 
+                    accessibilityLabel={`Delete recording from ${recordingDate(item)}`} 
+                    style={({ pressed }) => [{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: pressed ? `${palette.destructive}18` : 'transparent' }]}
+                  >
+                    <Ionicons name="trash" size={20} color={palette.destructive} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+            <View style={{ marginTop: 16 }}>
+              <ActionButton onPress={removeAllRecordings} secondary destructive>Delete all recordings</ActionButton>
+            </View>
+          </>
+        ) : (
+          <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+            <Ionicons name="videocam-outline" size={48} color={palette.border} style={{ marginBottom: 16 }} />
+            <Text style={{ color: palette.muted, textAlign: 'center', fontSize: 15, lineHeight: 22 }}>
+              No drive videos are stored on this device.
+            </Text>
+          </View>
+        )}
+      </Card>
+
+      {drives.length > 0 && (
+        <Text style={{ color: palette.muted, textAlign: 'center', marginTop: 16, marginBottom: 8, fontSize: 14 }}>
+          {drives.length} saved drive{drives.length === 1 ? '' : 's'} on this device.
+        </Text>
+      )}
+    </Screen>
+  );
 }
