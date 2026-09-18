@@ -1,2 +1,3 @@
 - [Generated web API clients](generated-web-api-clients.md) — generated browser clients require DOM iterable types when the generator emits Headers iteration.
 - [Playwright on Nix](playwright-on-nix.md) — browser binaries need host libraries; Ubuntu WebKit builds may require sonames unavailable from current Nix packages.
+- [Coastwise brand](coastwise-brand.md) — keep the approved name and route-shaped C logo consistent in future product work.
