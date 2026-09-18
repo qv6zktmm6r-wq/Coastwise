@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "California Teen Driver Coach"
+description = "A supportive California teen driver readiness app with adaptive permit practice, scenario coaching, supervised-drive missions, and a parent-friendly readiness dashboard."
+version = "1.0.0"
+id = "artifacts/california-driver-coach"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20453
+
+[services.development]
+run = "pnpm --filter @workspace/california-driver-coach run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/california-driver-coach", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/california-driver-coach/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20453"
+BASE_PATH = "/"
