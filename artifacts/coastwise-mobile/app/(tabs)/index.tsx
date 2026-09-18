@@ -44,6 +44,16 @@ export default function TodayScreen() {
 
   const generatePlan = () => createPlan.mutate({ data: buildNextDrivePlanInput(drives) }, { onSuccess: savePlan });
   
+  const now = new Date();
+  const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+  
+  const weeklyDrives = drives.filter(d => {
+    const date = new Date(d.date);
+    return date >= weekStart && date <= now;
+  });
+  const weeklyMinutes = weeklyDrives.reduce((sum, d) => sum + d.durationMinutes, 0);
+  const weeklyDistance = weeklyDrives.reduce((sum, d) => sum + d.distanceMiles, 0);
+
   return (
     <Screen>
       <View style={{ marginTop: 12, marginBottom: 24 }}>
@@ -52,8 +62,40 @@ export default function TodayScreen() {
         <Body muted>One clear goal makes supervised practice calmer and more useful.</Body>
       </View>
       
-      <Card accent padding={24}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: plan ? 20 : 0 }}>
+      {drives.length > 0 ? (
+        <Card accent padding={24}>
+          <Eyebrow>This Week</Eyebrow>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
+            <View>
+              <Text style={{ fontSize: 32, fontWeight: '800', color: palette.text, letterSpacing: -1 }}>{weeklyMinutes}</Text>
+              <Text style={{ fontSize: 14, color: palette.muted, fontWeight: '600' }}>minutes</Text>
+            </View>
+            <View>
+              <Text style={{ fontSize: 32, fontWeight: '800', color: palette.text, letterSpacing: -1 }}>{weeklyDrives.length}</Text>
+              <Text style={{ fontSize: 14, color: palette.muted, fontWeight: '600' }}>drives</Text>
+            </View>
+            <View>
+              <Text style={{ fontSize: 32, fontWeight: '800', color: palette.text, letterSpacing: -1 }}>{weeklyDistance.toFixed(1)}</Text>
+              <Text style={{ fontSize: 14, color: palette.muted, fontWeight: '600' }}>miles</Text>
+            </View>
+          </View>
+        </Card>
+      ) : (
+        <View style={{ marginTop: 16, marginBottom: 16 }}>
+          <Eyebrow>Your path</Eyebrow>
+          <Card padding={8}>
+            <IconRow icon="book" title="Permit & knowledge" detail="Practice the handbook and revisit weak topics." />
+            <View style={{ height: 1, backgroundColor: palette.border, marginLeft: 64 }} />
+            <IconRow icon="car" title="Coached drive" detail="Use native location and camera features only when you choose." />
+            <View style={{ height: 1, backgroundColor: palette.border, marginLeft: 64 }} />
+            <IconRow icon="people" title="Parent conversation" detail="Review wins and choose one next step together." />
+          </Card>
+        </View>
+      )}
+      
+      <View style={{ marginTop: drives.length > 0 ? 32 : 16 }}>
+        <Card padding={24}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: plan ? 20 : 0 }}>
           <View style={{ flex: 1, paddingRight: 16 }}>
             <Eyebrow>Next supervised drive</Eyebrow>
             <Title>{plan?.skillFocus ?? 'Build a simple plan'}</Title>
@@ -91,16 +133,6 @@ export default function TodayScreen() {
           {createPlan.isPending ? <ActivityIndicator color="#FFFFFF" /> : plan ? 'Refresh plan' : 'Create my plan'}
         </ActionButton>
       </Card>
-      
-      <View style={{ marginTop: 32, marginBottom: 16 }}>
-        <Eyebrow>Your path</Eyebrow>
-        <Card padding={8}>
-          <IconRow icon="book" title="Permit & knowledge" detail="Practice the handbook and revisit weak topics." />
-          <View style={{ height: 1, backgroundColor: palette.border, marginLeft: 64 }} />
-          <IconRow icon="car" title="Coached drive" detail="Use native location and camera features only when you choose." />
-          <View style={{ height: 1, backgroundColor: palette.border, marginLeft: 64 }} />
-          <IconRow icon="people" title="Parent conversation" detail="Review wins and choose one next step together." />
-        </Card>
       </View>
       
       <View style={{ marginTop: 8, marginBottom: 24 }}>

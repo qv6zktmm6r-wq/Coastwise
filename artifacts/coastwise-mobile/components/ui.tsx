@@ -36,7 +36,7 @@ export function Card({ children, accent = false, padding = 20 }: { children: Rea
   return <View style={[styles.card, { backgroundColor: palette.card, borderColor: accent ? `${colors.primary}44` : palette.border, padding }]}>{children}</View>;
 }
 
-export function ActionButton({ children, onPress, secondary = false, destructive = false, disabled = false }: { children: ReactNode; onPress: () => void; secondary?: boolean; destructive?: boolean; disabled?: boolean }) {
+export function ActionButton({ children, onPress, secondary = false, destructive = false, disabled = false, selected }: { children: ReactNode; onPress: () => void; secondary?: boolean; destructive?: boolean; disabled?: boolean; selected?: boolean }) {
   const palette = usePalette();
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -65,7 +65,7 @@ export function ActionButton({ children, onPress, secondary = false, destructive
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled }}
+      accessibilityState={{ disabled, selected }}
       disabled={disabled}
       onPress={onPress}
       onPressIn={handlePressIn}

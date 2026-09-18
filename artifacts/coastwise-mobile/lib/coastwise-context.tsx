@@ -19,6 +19,7 @@ export type MobileDrive = {
 export type ActiveMobileDrive = MobileDrive & {
   startedAt: string;
   elapsedSeconds: number;
+  recordingRequested?: boolean;
 };
 
 type MobileState = {
@@ -26,10 +27,18 @@ type MobileState = {
   plan?: NextDrivePlan;
   acknowledgedPrivacyVersion?: string;
   activeDrive?: ActiveMobileDrive;
+  role?: 'unselected' | 'teen' | 'parent';
+  hasCompletedOnboarding?: boolean;
+  recordingRetentionDays?: number | 'forever';
+  parentGoal?: { targetMinutes: number; skill: string };
 };
 
 type CoastwiseContextValue = MobileState & {
   hydrated: boolean;
+  setRole: (role: 'teen' | 'parent') => void;
+  completeOnboarding: () => void;
+  setRecordingRetention: (days: number | 'forever') => void;
+  setParentGoal: (goal: { targetMinutes: number; skill: string }) => void;
   beginActiveDrive: (drive: ActiveMobileDrive) => void;
   updateActiveDrive: (drive: ActiveMobileDrive) => void;
   finishActiveDrive: (drive: MobileDrive) => void;
@@ -63,6 +72,10 @@ export function CoastwiseProvider({ children }: { children: ReactNode }) {
   const value = useMemo<CoastwiseContextValue>(() => ({
     ...state,
     hydrated,
+    setRole: (role) => setState((current) => ({ ...current, role })),
+    completeOnboarding: () => setState((current) => ({ ...current, hasCompletedOnboarding: true })),
+    setRecordingRetention: (days) => setState((current) => ({ ...current, recordingRetentionDays: days })),
+    setParentGoal: (goal) => setState((current) => ({ ...current, parentGoal: goal })),
     beginActiveDrive: (drive) => setState((current) => ({ ...current, activeDrive: drive })),
     updateActiveDrive: (drive) => setState((current) => ({ ...current, activeDrive: drive })),
     finishActiveDrive: (drive) => setState((current) => ({

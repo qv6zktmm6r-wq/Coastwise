@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View, AccessibilityInfo } from 'react-native';
 import { Card, Body, Eyebrow, Screen, Title, usePalette, styles } from '@/components/ui';
 import { colors } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +18,11 @@ export default function PracticeScreen() {
   const choose = (option: number) => {
     if (selected === null) {
       setSelected(option);
+      if (option === question.answer) {
+        AccessibilityInfo.announceForAccessibility("Correct. Good call.");
+      } else {
+        AccessibilityInfo.announceForAccessibility("Incorrect. Try the safer principle.");
+      }
     }
   };
   

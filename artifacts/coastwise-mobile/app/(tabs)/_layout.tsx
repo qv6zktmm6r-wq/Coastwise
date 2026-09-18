@@ -1,11 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
+import { Tabs, Redirect } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import { colors } from '@/theme';
+import { useCoastwise } from '@/lib/coastwise-context';
 
 export default function TabLayout() {
+  const { hydrated, hasCompletedOnboarding } = useCoastwise();
   const scheme = useColorScheme();
   const dark = scheme === 'dark';
+
+  if (!hydrated) return null;
+  if (!hasCompletedOnboarding) return <Redirect href="/onboarding" />;
+
   return (
     <Tabs
       screenOptions={{

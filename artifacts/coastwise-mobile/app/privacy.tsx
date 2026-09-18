@@ -29,7 +29,7 @@ export default function PrivacyScreen() {
             </View>
             <Eyebrow style={{ marginBottom: 0 }}>On this device</Eyebrow>
           </View>
-          <Body>Drive video, precise route details, coaching positions, recordings, and family notes stay in app storage on this device.</Body>
+          <Body>Drive video, precise route details, coaching positions, recordings, and family notes stay in app storage on this device. If you choose a retention period, older recordings are deleted automatically while drive summaries remain.</Body>
         </Card>
         
         <Card padding={24}>
@@ -42,6 +42,16 @@ export default function PrivacyScreen() {
           <Body>If you choose Generate private debrief, Coastwise sends only duration, distance, night status, selected skills, coach-event text, and up to three low-mastery topics to the managed AI service. Video, routes, coordinates, speeds, identity, notes, recording metadata, and raw answers are excluded.</Body>
         </Card>
         
+        <Card padding={24}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: `${palette.success}18`, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="share" size={20} color={palette.success} />
+            </View>
+            <Eyebrow style={{ marginBottom: 0, color: palette.success }}>Export & Sharing</Eyebrow>
+          </View>
+          <Body>Family summaries contain only weekly totals, practiced skills, goal status, and dates. They never include recordings, exact routes, coordinates, AI debrief text, or metadata. DMV exports are plain CSV files for your personal records only.</Body>
+        </Card>
+
         <Card padding={24}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
             <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: `${palette.warning}18`, alignItems: 'center', justifyContent: 'center' }}>

@@ -39,6 +39,20 @@ export async function deleteAllLocalRecordings() {
   await Promise.all(recordings.map((recording) => deleteLocalRecording(recording.uri)));
 }
 
+export async function cleanupLocalRecordings(retentionDays: number | 'forever'): Promise<string[]> {
+  if (retentionDays === 'forever') return [];
+  const recordings = await listLocalRecordings();
+  const now = Date.now() / 1000;
+  const cutoff = now - retentionDays * 24 * 60 * 60;
+  
+  const toDelete = recordings.filter(r => r.modifiedAt !== undefined && r.modifiedAt < cutoff);
+  await Promise.all(toDelete.map(r => deleteLocalRecording(r.uri)));
+  
+  return toDelete.map(r => r.uri);
+}
+
+export const STORAGE_WARNING_BYTES = 500 * 1024 * 1024;
+
 export function formatStorageSize(bytes: number) {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(bytes >= 100 * 1024 * 1024 ? 0 : 1)} MB`;
