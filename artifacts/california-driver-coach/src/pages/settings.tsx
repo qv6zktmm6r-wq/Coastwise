@@ -7,6 +7,7 @@ import { Link, useLocation } from 'wouter';
 import { mergeStates } from '../lib/sync';
 import { clearDriveRecordings } from '../lib/route-coach';
 import { Settings, SunMedium, Moon, HardDrive, Download, Upload, ShieldCheck, LockKeyhole, Pencil, Check, RefreshCw, AlertTriangle, Link as LinkIcon, Trash2, ChevronRight } from 'lucide-react';
+import { currentMaterialPolicyNotice, type PolicyAcknowledgement } from '../lib/policy-notice';
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -42,7 +43,7 @@ function InstallCoastwise() {
   return <ActionButton onClick={() => void install()} variant="secondary" testId="button-install-coastwise"><Download size={16} />Install Coastwise</ActionButton>;
 }
 
-export default function SettingsPage({ state, setState, syncManager }: { state: AppState; setState: (next: AppState) => void; syncManager: any }) {
+export default function SettingsPage({ state, setState, syncManager, policyAcknowledgement }: { state: AppState; setState: (next: AppState) => void; syncManager: any; policyAcknowledgement: PolicyAcknowledgement | null }) {
   const { user, isLoaded, isSignedIn } = useUser();
   const { signOut } = useClerk();
   const [location] = useLocation();
@@ -208,6 +209,18 @@ export default function SettingsPage({ state, setState, syncManager }: { state: 
           <div className="grid gap-3 sm:grid-cols-2">
             <Link href="/privacy" className="flex min-h-11 items-center justify-between rounded-xl border border-[hsl(var(--border))] px-4 py-3 text-sm font-bold hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--secondary)/.35)]" data-testid="link-settings-privacy">Privacy Policy<ChevronRight size={17} /></Link>
             <Link href="/terms" className="flex min-h-11 items-center justify-between rounded-xl border border-[hsl(var(--border))] px-4 py-3 text-sm font-bold hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--secondary)/.35)]" data-testid="link-settings-terms">Terms &amp; Safety<ChevronRight size={17} /></Link>
+          </div>
+          <div className="mt-5 rounded-xl bg-[hsl(var(--secondary)/.45)] p-4" data-testid="policy-acknowledgement-history">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-extrabold">Latest material update</h3>
+              <span className="font-mono-ui text-[11px] text-[hsl(var(--muted-foreground))]">Version {currentMaterialPolicyNotice.version}</span>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{currentMaterialPolicyNotice.summary}</p>
+            <p className="mt-3 text-xs font-bold text-[hsl(var(--primary))]">
+              {policyAcknowledgement?.version === currentMaterialPolicyNotice.version
+                ? `Acknowledged on ${new Date(policyAcknowledgement.acknowledgedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} on this device`
+                : 'Acknowledgement required on this device'}
+            </p>
           </div>
         </section>
         

@@ -2,3 +2,4 @@
 - [Playwright on Nix](playwright-on-nix.md) — browser binaries need host libraries; Ubuntu WebKit builds may require sonames unavailable from current Nix packages.
 - [Coastwise brand](coastwise-brand.md) — keep the approved name and route-shaped C logo consistent in future product work.
 - [Coastwise family sharing](coastwise-family-sharing.md) — accounts are optional for family progress sync; drive recordings remain device-local.
+- [Policy acknowledgements](policy-acknowledgements.md) — material privacy and safety acceptance is device-local and must not travel through backup or family sync.

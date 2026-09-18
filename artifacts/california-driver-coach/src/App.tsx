@@ -73,6 +73,14 @@ import NotFound from '@/pages/not-found';
 import { AppState, createDriveSessionId, getStoredState, initialState, isRecord, parseStoredState, storageKey, type Appearance, type DriveSession, type PracticeQuestion, type Scenario, type Topic } from '@/lib/state';
 import { ActionButton, PageHeader, SafetyNote } from '@/components/shared';
 import SettingsPage from '@/pages/settings';
+import {
+  currentMaterialPolicyNotice,
+  getPolicyAcknowledgement,
+  policyAcknowledgementStorageKey,
+  requiresCurrentPolicyAcknowledgement,
+  saveCurrentPolicyAcknowledgement,
+  type PolicyAcknowledgement,
+} from '@/lib/policy-notice';
 
 const navItems: { href: string; label: string; testId: string; icon: LucideIcon }[] = [
   { href: '/', label: 'Today', testId: 'today', icon: Home },
@@ -270,6 +278,51 @@ function Shell({ children, state, setState, persistenceWarning }: { children: Re
         </footer>
       </div>
     </main>
+  </div>;
+}
+
+function MaterialPolicyNoticeDialog({ onAcknowledge }: { onAcknowledge: () => void }) {
+  const headingRef = useRef<HTMLHeadingElement | null>(null);
+  const dialogRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    headingRef.current?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const keepFocusInside = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === headingRef.current)) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener('keydown', keepFocusInside);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', keepFocusInside);
+    };
+  }, []);
+  return <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-[hsl(var(--foreground)/.5)] p-4 backdrop-blur-sm" role="presentation">
+    <section ref={dialogRef} role="alertdialog" aria-modal="true" aria-labelledby="material-policy-title" aria-describedby="material-policy-summary" className="my-auto w-full max-w-2xl rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-2xl md:p-8" data-testid="material-policy-notice">
+      <div className="flex size-11 items-center justify-center rounded-2xl bg-[hsl(var(--secondary))] text-[hsl(var(--primary))]"><ShieldCheck aria-hidden="true" size={22} /></div>
+      <div className="mt-5 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Important update · Effective {currentMaterialPolicyNotice.effectiveDate}</div>
+      <h2 ref={headingRef} tabIndex={-1} id="material-policy-title" className="mt-2 font-display text-3xl leading-tight outline-none md:text-4xl">{currentMaterialPolicyNotice.title}</h2>
+      <p id="material-policy-summary" className="mt-3 text-sm leading-6 text-[hsl(var(--muted-foreground))]">{currentMaterialPolicyNotice.summary}</p>
+      <ul className="mt-5 space-y-3">
+        {currentMaterialPolicyNotice.changes.map((change) => <li key={change} className="flex gap-3 text-sm leading-6"><CheckCircle2 aria-hidden="true" size={18} className="mt-1 shrink-0 text-[hsl(var(--primary))]" /><span>{change}</span></li>)}
+      </ul>
+      <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 border-t border-[hsl(var(--border))] pt-5 text-sm">
+        <Link href="/privacy" target="_blank" rel="noreferrer" className="font-bold text-[hsl(var(--primary))] hover:underline" data-testid="link-notice-privacy">Read Privacy Policy <span className="sr-only">(opens in a new tab)</span></Link>
+        <Link href="/terms" target="_blank" rel="noreferrer" className="font-bold text-[hsl(var(--primary))] hover:underline" data-testid="link-notice-terms">Read Terms &amp; Safety <span className="sr-only">(opens in a new tab)</span></Link>
+      </div>
+      <button type="button" onClick={onAcknowledge} className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))] hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2" data-testid="button-acknowledge-policy">I understand and agree to continue</button>
+      <p className="mt-3 text-center text-xs leading-5 text-[hsl(var(--muted-foreground))]">Your acknowledgement is saved only on this device. You can review it later in Settings.</p>
+    </section>
   </div>;
 }
 
@@ -1203,6 +1256,7 @@ import LegalPage from '@/pages/legal';
 function Router() {
   const [state, setState] = useState<AppState>(getStoredState);
   const syncManager = useSyncManager(state, setState);
+  const [policyAcknowledgement, setPolicyAcknowledgement] = useState<PolicyAcknowledgement | null>(getPolicyAcknowledgement);
 
   const [persistenceWarning, setPersistenceWarning] = useState('');
   useEffect(() => {
@@ -1220,6 +1274,14 @@ function Router() {
     };
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+  useEffect(() => {
+    const handlePolicyStorage = (event: StorageEvent) => {
+      if (event.key !== policyAcknowledgementStorageKey || (event.storageArea && event.storageArea !== window.localStorage)) return;
+      setPolicyAcknowledgement(getPolicyAcknowledgement());
+    };
+    window.addEventListener('storage', handlePolicyStorage);
+    return () => window.removeEventListener('storage', handlePolicyStorage);
   }, []);
   useEffect(() => {
     const media = typeof window.matchMedia === 'function'
@@ -1248,12 +1310,19 @@ function Router() {
             <Route path="/scenarios"><Scenarios state={state} setState={setState} /></Route>
             <Route path="/drive"><Drive state={state} setState={setState} /></Route>
             <Route path="/parent"><Parent state={state} setState={setState} /></Route>
-            <Route path="/settings"><SettingsPage state={state} setState={setState} syncManager={syncManager} /></Route>
+            <Route path="/settings"><SettingsPage state={state} setState={setState} syncManager={syncManager} policyAcknowledgement={policyAcknowledgement} /></Route>
             <Route path="/privacy"><LegalPage kind="privacy" /></Route>
             <Route path="/terms"><LegalPage kind="terms" /></Route>
             <Route component={NotFound} />
           </Switch>
         </Shell>
+        {requiresCurrentPolicyAcknowledgement(policyAcknowledgement) && <MaterialPolicyNoticeDialog onAcknowledge={() => {
+          try {
+            setPolicyAcknowledgement(saveCurrentPolicyAcknowledgement());
+          } catch {
+            setPersistenceWarning('This browser could not save your privacy and safety acknowledgement. Check browser storage settings before continuing.');
+          }
+        }} />}
       </Route>
     </Switch>
   );
