@@ -5,9 +5,8 @@ import test from 'node:test';
 const appSource = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('./index.css', import.meta.url), 'utf8');
 const mapSource = readFileSync(new URL('./components/route-map.tsx', import.meta.url), 'utf8');
-
 test('mobile navigation exposes every core destination with names and active state', () => {
-  for (const destination of ['Today', 'Permit & knowledge', 'Driving exam', 'Parent view']) {
+  for (const destination of ['Today', 'Permit & knowledge', 'Driving exam', 'Parent view', 'Settings']) {
     assert.match(appSource, new RegExp(`label: '${destination}'`));
   }
   assert.match(appSource, /data-testid="button-header-settings"/);

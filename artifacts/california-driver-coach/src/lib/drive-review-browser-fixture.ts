@@ -3,6 +3,7 @@ import type { PlannedRoute } from './route-coach';
 
 type DriveReviewBrowserFixture = {
   recordedVideoUrl: string;
+  recordedVideoType: string;
   plannedRoute: PlannedRoute;
   coachEvents: CoachEvent[];
 };
@@ -65,10 +66,22 @@ const coachEvents: CoachEvent[] = [
 
 export function getDriveReviewBrowserFixture(): DriveReviewBrowserFixture | null {
   if (!import.meta.env.DEV) return null;
-  if (new URLSearchParams(window.location.search).get('reviewFixture') !== '1') return null;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('reviewFixture') !== '1') return null;
+  const format = params.get('reviewFormat') ?? 'webm';
+
+  if (format === 'unsupported') {
+    return {
+      recordedVideoUrl: `${import.meta.env.BASE_URL}drive-review-fixture.webm`,
+      recordedVideoType: 'video/quicktime',
+      plannedRoute,
+      coachEvents,
+    };
+  }
 
   return {
-    recordedVideoUrl: `${import.meta.env.BASE_URL}drive-review-fixture.webm`,
+    recordedVideoUrl: `${import.meta.env.BASE_URL}${format === 'mp4' ? 'drive-review-fixture.mp4' : 'drive-review-fixture.webm'}`,
+    recordedVideoType: format === 'mp4' ? 'video/mp4;codecs=avc1.42E01E' : 'video/webm;codecs=vp8',
     plannedRoute,
     coachEvents,
   };

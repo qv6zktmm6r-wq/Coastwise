@@ -64,6 +64,7 @@ import {
   type CoachEventKind,
 } from '@/lib/drive-review';
 import { getDriveReviewBrowserFixture } from '@/lib/drive-review-browser-fixture';
+import { canPlayRecording, chooseRecordingMimeType, describeRecordingFormat, getRecordingBrowser } from '@/lib/drive-recording';
 import NotFound from '@/pages/not-found';
 type Topic = { topic: string; mastery: number; questions: number };
 type PracticeQuestion = { prompt: string; options: string[]; answer: number; explanation: string; topic: string };
@@ -136,6 +137,7 @@ const mobileNavItems = [
   navItems[1],
   navItems[2],
   navItems[3],
+  { href: '/settings', label: 'Settings', icon: Settings },
 ];
 const queryClient = new QueryClient();
 
@@ -457,7 +459,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState(reviewFixture?.recordedVideoUrl ?? '');
-  const [recordedVideoType, setRecordedVideoType] = useState('video/webm');
+  const [recordedVideoType, setRecordedVideoType] = useState(reviewFixture?.recordedVideoType ?? 'video/webm');
   const [cueIndex, setCueIndex] = useState(0);
   const [routeMinutes, setRouteMinutes] = useState(15);
   const [plannedRoute, setPlannedRoute] = useState<PlannedRoute | null>(reviewFixture?.plannedRoute ?? null);
@@ -471,6 +473,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const [selectedEventId, setSelectedEventId] = useState<string | null>(reviewFixture?.coachEvents[0]?.id ?? null);
   const [openReviewId, setOpenReviewId] = useState<string | null>(null);
   const [reviewError, setReviewError] = useState('');
+  const [reviewPlaybackError, setReviewPlaybackError] = useState('');
   const watchId = useRef<number | null>(null);
   const lastPosition = useRef<GeolocationPosition | null>(null);
   const lastPositionAt = useRef<number | null>(null);
@@ -816,12 +819,18 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       });
       setCameraStream(stream);
       videoChunks.current = [];
-      const preferredType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : '';
-      const recorder = preferredType ? new MediaRecorder(stream, { mimeType: preferredType }) : new MediaRecorder(stream);
+      const preferredType = chooseRecordingMimeType((mimeType) => MediaRecorder.isTypeSupported(mimeType), getRecordingBrowser(navigator.userAgent));
+      if (!preferredType) {
+        stream.getTracks().forEach((track) => track.stop());
+        setCameraStream(null);
+        setTrackingError('This browser can access the camera, but it cannot create a review video in a supported format. You can still log a drive manually.');
+        return;
+      }
+      const recorder = new MediaRecorder(stream, { mimeType: preferredType });
       mediaRecorder.current = recorder;
       recorder.ondataavailable = (event) => { if (event.data.size > 0) videoChunks.current.push(event.data); };
       recorder.onstop = () => {
-        const videoType = recorder.mimeType || 'video/webm';
+        const videoType = recorder.mimeType || preferredType;
         const blob = new Blob(videoChunks.current, { type: videoType });
         setRecordedVideoType(videoType);
         if (blob.size > 0 && routeRef.current) {
@@ -976,6 +985,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       if (recordedVideoUrl) URL.revokeObjectURL(recordedVideoUrl);
       setRecordedVideoUrl(URL.createObjectURL(blob));
       setRecordedVideoType(session.review.videoType);
+      setReviewPlaybackError('');
       setOpenReviewId(session.review.id);
       setElapsedSeconds(session.review.durationSeconds);
       setPlannedRoute(session.review.route);
@@ -988,6 +998,22 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       setReviewError('This local recording could not be opened. Try again in this browser.');
     }
   };
+  const handleReviewVideoError = () => {
+    setReviewPlaybackError(`This recording uses ${describeRecordingFormat(recordedVideoType)}, which this browser cannot play. Download it to review it in the browser that recorded the drive.`);
+  };
+  const handleReviewVideoMetadata = () => {
+    if (!reviewVideo.current || !canPlayRecording(recordedVideoType, (mimeType) => reviewVideo.current?.canPlayType(mimeType) ?? '')) {
+      handleReviewVideoError();
+      return;
+    }
+    setReviewPlaybackError('');
+  };
+  useEffect(() => {
+    if (!recordedVideoUrl || !reviewVideo.current) return;
+    if (!canPlayRecording(recordedVideoType, (mimeType) => reviewVideo.current?.canPlayType(mimeType) ?? '')) {
+      handleReviewVideoError();
+    }
+  }, [recordedVideoType, recordedVideoUrl]);
   const togglePause = () => {
     const next = !paused;
     setPaused(next);
@@ -1027,14 +1053,15 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     </section>
     {tracking && plannedRoute && <section className="mb-6 grid gap-5 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 md:p-6 lg:grid-cols-[.7fr_1.3fr]"><div className="flex flex-col justify-center"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Next instruction · automatic</div><h2 className="mt-3 font-display text-3xl">{plannedRoute.steps[Math.min(activeStep, plannedRoute.steps.length - 1)]?.instruction ?? 'Continue safely'}</h2><div className="mt-4 font-mono-ui text-sm font-medium text-[hsl(var(--primary))]">{distanceToNext > 0 ? `${distanceToNext * 3.28084 >= 500 ? Math.round(distanceToNext * 3.28084 / 50) * 50 : Math.round(distanceToNext * 3.28084)} feet` : 'Acquiring GPS position'}</div><p className="mt-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">No taps are needed. Coastwise prepares the driver, announces the maneuver, advances to the next step, and calmly recalculates after a missed turn.</p></div><RouteMap route={plannedRoute} currentPosition={currentPosition} /></section>}
      {reviewError && <div className="mb-6 rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert">{reviewError}</div>}
-     {recordedVideoUrl && <section className="mb-6 rounded-2xl border border-[hsl(var(--accent)/.35)] bg-[hsl(var(--card))] p-5 md:p-6 animate-fade">
+      {recordedVideoUrl && <section className="mb-6 rounded-2xl border border-[hsl(var(--accent)/.35)] bg-[hsl(var(--card))] p-5 md:p-6 animate-fade">
        <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
          <div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]"><CheckCircle2 size={15} />Drive ready to review</div><h2 className="mt-2 font-display text-3xl">Replay the moments that mattered.</h2><p className="mt-2 max-w-2xl text-xs leading-5 text-[hsl(var(--muted-foreground))]">Select a turn or safety prompt to jump the recording to that moment. The annotations and video stay local to this browser.</p></div>
          <div className="flex shrink-0 items-center gap-2 rounded-xl bg-[hsl(var(--secondary)/.6)] px-3 py-2 text-xs font-bold text-[hsl(var(--primary))]"><MapPin size={15} />{coachEvents.length} coached moments</div>
        </div>
        <div className="grid gap-6 lg:grid-cols-[1.08fr_.92fr]">
          <div>
-           <video ref={reviewVideo} src={recordedVideoUrl} controls playsInline onTimeUpdate={followReviewPlayback} className="aspect-video w-full rounded-xl bg-black object-cover" data-testid="video-drive-review" />
+            {reviewPlaybackError ? <div className="flex aspect-video w-full items-center justify-center rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-6 text-center text-sm font-semibold text-[hsl(var(--destructive))]" role="alert" data-testid="review-playback-error">{reviewPlaybackError}</div> : <video ref={reviewVideo} src={recordedVideoUrl} controls playsInline onError={handleReviewVideoError} onLoadedMetadata={handleReviewVideoMetadata} onTimeUpdate={followReviewPlayback} className="aspect-video w-full rounded-xl bg-black object-cover" data-testid="video-drive-review" />}
+            <div className="mt-3 flex items-center gap-2 text-xs leading-5 text-[hsl(var(--muted-foreground))]" data-testid="text-drive-review-format"><Video size={14} className="shrink-0 text-[hsl(var(--primary))]" />Recorded as {describeRecordingFormat(recordedVideoType)}. Playback is supported when the browser can decode this format.</div>
             <div className="mt-3 flex items-center gap-2 text-xs leading-5 text-[hsl(var(--muted-foreground))]"><LockKeyhole size={14} className="shrink-0 text-[hsl(var(--primary))]" />Stored only in this browser on this device. Deleting removes the recording and all annotations together.</div>
          </div>
          <div className="min-w-0">
