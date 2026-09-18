@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 import {
+  AlertTriangle,
   ArrowRight,
   Award,
   Bell,
@@ -14,6 +15,7 @@ import {
   Compass,
   Download,
   Gauge,
+  HardDrive,
   HeartHandshake,
   Home,
   Info,
@@ -38,6 +40,7 @@ import {
   Target,
   Timer,
   Trash2,
+  Upload,
   UserRound,
   Video,
   Volume2,
@@ -127,8 +130,8 @@ const initialState: AppState = {
 
 const navItems: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/', label: 'Today', icon: Home },
-  { href: '/practice', label: 'Permit practice', icon: BookOpen },
-  { href: '/drive', label: 'Drive practice', icon: RouteIcon },
+  { href: '/practice', label: 'Permit & knowledge', icon: BookOpen },
+  { href: '/drive', label: 'Driving exam', icon: RouteIcon },
   { href: '/parent', label: 'Parent view', icon: HeartHandshake },
 ];
 
@@ -137,11 +140,23 @@ const mobileNavItems = [
   navItems[1],
   navItems[2],
   navItems[3],
-  { href: '/settings', label: 'Settings', icon: Settings },
 ];
 const queryClient = new QueryClient();
 
 const storageKey = 'california-driver-coach';
+const criticalRecordingStorageBytes = 100 * 1024 * 1024;
+const lowRecordingStorageBytes = 250 * 1024 * 1024;
+
+type StorageEstimate = {
+  usage: number;
+  quota: number;
+  available: number;
+};
+
+function formatStorageBytes(bytes: number) {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+  return `${Math.max(0, Math.round(bytes / 1024 ** 2))} MB`;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -175,7 +190,11 @@ function parseStoredState(saved: string | null): AppState {
 
 function getStoredState(): AppState {
   if (typeof window === 'undefined') return initialState;
-  return parseStoredState(window.localStorage.getItem(storageKey));
+  try {
+    return parseStoredState(window.localStorage.getItem(storageKey));
+  } catch {
+    return initialState;
+  }
 }
 
 function ProgressBar({ value, color = 'bg-[hsl(var(--accent))]' }: { value: number; color?: string }) {
@@ -227,7 +246,7 @@ function PageHeader({ eyebrow, title, copy, action }: { eyebrow: string; title: 
   </header>;
 }
 
-function Shell({ children, state, setState }: { children: ReactNode; state: AppState; setState: (next: AppState) => void }) {
+function Shell({ children, state, setState, persistenceWarning }: { children: ReactNode; state: AppState; setState: (next: AppState) => void; persistenceWarning: string }) {
   const [location, setLocation] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const isMobile = useIsMobile();
@@ -321,6 +340,7 @@ function Shell({ children, state, setState }: { children: ReactNode; state: AppS
             <Link href="/settings" className="inline-flex size-11 items-center justify-center rounded-lg text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]" aria-label="Open settings" data-testid="button-header-settings"><Settings size={19} /></Link>
           </div>
         </div>
+        {persistenceWarning && <div className="mt-5 flex gap-3 rounded-2xl border border-[hsl(var(--warning)/.45)] bg-[hsl(var(--warning)/.1)] p-4 text-sm leading-6" role="alert" data-testid="local-progress-warning"><AlertTriangle size={18} className="mt-0.5 shrink-0 text-[hsl(var(--warning-foreground))]" /><div><strong>Progress is not being saved.</strong> {persistenceWarning}</div></div>}
         <div className="page-transition pt-8">{children}</div>
       </div>
     </main>
@@ -474,6 +494,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const [openReviewId, setOpenReviewId] = useState<string | null>(null);
   const [reviewError, setReviewError] = useState('');
   const [reviewPlaybackError, setReviewPlaybackError] = useState('');
+  const [storageEstimate, setStorageEstimate] = useState<StorageEstimate | null>(null);
   const watchId = useRef<number | null>(null);
   const lastPosition = useRef<GeolocationPosition | null>(null);
   const lastPositionAt = useRef<number | null>(null);
@@ -508,6 +529,24 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     parking: 'Coach cue: confirm a legal, safe practice space, then move slowly and check all around the vehicle.',
     'speed-control': 'Coach cue: keep a steady speed with enough space to stop smoothly.',
   };
+  const refreshStorageEstimate = async () => {
+    if (!navigator.storage?.estimate) return;
+    try {
+      const estimate = await navigator.storage.estimate();
+      if (!estimate.quota) return;
+      const usage = estimate.usage ?? 0;
+      setStorageEstimate({
+        usage,
+        quota: estimate.quota,
+        available: Math.max(0, estimate.quota - usage),
+      });
+    } catch {
+      // Storage estimates are optional; recording still has explicit save errors.
+    }
+  };
+  useEffect(() => {
+    void refreshStorageEstimate();
+  }, []);
   const speak = (message: string) => {
     setCurrentCue(message);
     if (!('speechSynthesis' in window)) return;
@@ -794,6 +833,10 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       setTrackingError('Build and review a practice route before starting the camera.');
       return;
     }
+    if (storageEstimate && storageEstimate.available < criticalRecordingStorageBytes) {
+      startGuidanceWithoutCamera(`Only ${formatStorageBytes(storageEstimate.available)} of browser storage is available. Route coaching has started without video so this drive does not fill the device.`);
+      return;
+    }
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
       startGuidanceWithoutCamera('Camera recording is unavailable. Route coaching has started without video.');
       return;
@@ -852,6 +895,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
                 review: { id: reviewId, durationSeconds, eventCount: reviewEvents.length, events: reviewEvents, route: reviewRoute, videoType },
               }, ...state.sessions],
             });
+            void refreshStorageEstimate();
           }).catch(() => setReviewError('The review could not be saved in this browser. Download it before leaving this page.'));
         }
         videoChunks.current = [];
@@ -1049,6 +1093,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
          {!tracking ? <ActionButton onClick={startTracking} disabled={!plannedRoute} variant="primary" testId="button-start-gps-drive"><Video size={15} />Start coached drive</ActionButton> : <div className="flex gap-2"><ActionButton onClick={togglePause} variant="outline" className="border-white/20 bg-white/10 text-white" testId="button-pause-route">{paused ? <Play size={14} /> : <Pause size={14} />}{paused ? 'Resume' : 'Pause'}</ActionButton><ActionButton onClick={stopTracking} variant="secondary" testId="button-stop-gps-drive"><Square size={14} />Stop & review</ActionButton></div>}
       </div>
       {trackingError && <div className="mt-4 rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert">{trackingError}</div>}
+      {storageEstimate && storageEstimate.available < lowRecordingStorageBytes && <div className="mt-4 flex gap-3 rounded-xl border border-[hsl(var(--warning)/.4)] bg-[hsl(var(--warning)/.1)] p-4 text-xs leading-5" role="status" data-testid="drive-storage-warning"><HardDrive size={17} className="mt-0.5 shrink-0 text-[hsl(var(--warning-foreground))]" /><div><strong>{formatStorageBytes(storageEstimate.available)} available for this browser.</strong> Download or delete older drive recordings before starting another long recording. Below {formatStorageBytes(criticalRecordingStorageBytes)}, Coastwise continues without video.</div></div>}
        {tracking && <div className="mt-6 grid gap-5 border-t border-white/10 pt-5 lg:grid-cols-[1.1fr_.9fr]"><div className="relative overflow-hidden rounded-2xl bg-black/40"><video ref={cameraPreview} autoPlay muted playsInline className="aspect-video w-full object-cover" /><div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/65 px-3 py-1.5 font-mono-ui text-[10px] uppercase tracking-[.12em] text-white"><span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />Road camera</div></div><div><div className="grid grid-cols-2 gap-4"><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Current speed</div><div className="mt-2 font-display text-3xl">{currentSpeed.toFixed(0)} <span className="font-sans text-sm font-bold text-white/55">mph</span></div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Miles tracked</div><div className="mt-2 font-display text-3xl">{distanceMiles.toFixed(1)} <span className="font-sans text-sm font-bold text-white/55">mi</span></div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Drive time</div><div className="mt-2 font-display text-3xl">{formatElapsed(elapsedSeconds)}</div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Average speed</div><div className="mt-2 font-display text-3xl">{averageSpeed.toFixed(0)} <span className="font-sans text-sm font-bold text-white/55">mph</span></div></div></div><div className="mt-5 flex items-start gap-2 rounded-xl border border-white/15 bg-white/8 px-4 py-3 text-xs text-white"><Volume2 size={16} className="mt-0.5 shrink-0" /><span><span className="block font-bold">{paused ? 'Coaching paused' : 'Natural coach is speaking automatically'}</span><span className="mt-1 block text-white/70" data-testid="text-current-voice-cue">{currentCue}</span></span></div></div></div>}
     </section>
     {tracking && plannedRoute && <section className="mb-6 grid gap-5 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 md:p-6 lg:grid-cols-[.7fr_1.3fr]"><div className="flex flex-col justify-center"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Next instruction · automatic</div><h2 className="mt-3 font-display text-3xl">{plannedRoute.steps[Math.min(activeStep, plannedRoute.steps.length - 1)]?.instruction ?? 'Continue safely'}</h2><div className="mt-4 font-mono-ui text-sm font-medium text-[hsl(var(--primary))]">{distanceToNext > 0 ? `${distanceToNext * 3.28084 >= 500 ? Math.round(distanceToNext * 3.28084 / 50) * 50 : Math.round(distanceToNext * 3.28084)} feet` : 'Acquiring GPS position'}</div><p className="mt-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">No taps are needed. Coastwise prepares the driver, announces the maneuver, advances to the next step, and calmly recalculates after a missed turn.</p></div><RouteMap route={plannedRoute} currentPosition={currentPosition} /></section>}
@@ -1110,25 +1155,81 @@ function Parent({ state, setState }: { state: AppState; setState: (next: AppStat
 
 function SettingsPage({ state, setState }: { state: AppState; setState: (next: AppState) => void }) {
   const [name, setName] = useState(state.profile.name);
+  const [backupMessage, setBackupMessage] = useState('');
   const saveProfile = (event: React.FormEvent) => { event.preventDefault(); if (name.trim()) setState({ ...state, profile: { ...state.profile, name: name.trim() } }); };
   const toggle = (key: 'parentMode' | 'reminders' | 'sounds') => setState({ ...state, settings: { ...state.settings, [key]: !state.settings[key] } });
+  const exportProgress = () => {
+    const exportableState: AppState = {
+      ...state,
+      sessions: state.sessions.map((session) => session.review ? {
+        date: session.date,
+        minutes: session.minutes,
+        night: session.night,
+        notes: session.notes,
+        distanceMiles: session.distanceMiles,
+        skills: session.skills,
+        routeTitle: session.routeTitle,
+      } : session),
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(exportableState, null, 2)], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `coastwise-progress-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    setBackupMessage('Progress backup downloaded. Drive videos are not included.');
+  };
+  const importProgress = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const contents = await file.text();
+      const candidate: unknown = JSON.parse(contents);
+      if (!isRecord(candidate) || !isRecord(candidate.profile) || !Array.isArray(candidate.sessions) || !Array.isArray(candidate.topics)) {
+        throw new Error('Invalid Coastwise backup');
+      }
+      const restored = parseStoredState(contents);
+      const restoredWithoutVideos = {
+        ...restored,
+        sessions: restored.sessions.map((session) => session.review ? {
+          date: session.date,
+          minutes: session.minutes,
+          night: session.night,
+          notes: session.notes,
+          distanceMiles: session.distanceMiles,
+          skills: session.skills,
+          routeTitle: session.routeTitle,
+        } : session),
+      };
+      setState(restoredWithoutVideos);
+      setName(restoredWithoutVideos.profile.name);
+      setBackupMessage('Progress restored. Drive videos remain only in the browser where they were recorded.');
+    } catch {
+      setBackupMessage('That file could not be restored. Choose a Coastwise progress backup.');
+    }
+  };
   const appearanceChoices: { value: Appearance; title: string; copy: string; icon: LucideIcon }[] = [
     { value: 'system', title: 'Device', copy: 'Match this phone or computer.', icon: Settings },
     { value: 'light', title: 'Light', copy: 'Use bright, calm surfaces.', icon: SunMedium },
     { value: 'dark', title: 'Dark', copy: 'Reduce glare in low light.', icon: Moon },
   ];
   return <div><PageHeader eyebrow="Settings" title="Make the plan yours." copy="Your details stay on this device. Adjust the profile and the way Coastwise supports practice." />
-    <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]"><section className="space-y-5"><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 md:p-7"><div className="mb-5"><h2 className="font-display text-2xl">Appearance</h2><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Choose what feels comfortable. Device follows your system setting automatically.</p></div><div className="grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Appearance">{appearanceChoices.map((choice) => { const Icon = choice.icon; const selected = state.settings.appearance === choice.value; return <button key={choice.value} type="button" role="radio" aria-checked={selected} onClick={() => setState({ ...state, settings: { ...state.settings, appearance: choice.value } })} className={`rounded-xl border p-4 text-left ${selected ? 'border-[hsl(var(--primary))] bg-[hsl(var(--secondary))] ring-2 ring-[hsl(var(--primary)/.18)]' : 'border-[hsl(var(--border))] bg-[hsl(var(--background))] hover:border-[hsl(var(--primary)/.55)]'}`} data-testid={`button-appearance-${choice.value}`}><span className={`flex h-9 w-9 items-center justify-center rounded-lg ${selected ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}><Icon size={17} /></span><span className="mt-3 block text-sm font-extrabold">{choice.title}</span><span className="mt-1 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">{choice.copy}</span></button>; })}</div></div><form onSubmit={saveProfile} className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 md:p-7"><div className="mb-6 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[hsl(var(--secondary))]"><UserRound size={19} className="text-[hsl(var(--primary))]" /></div><div><h2 className="font-display text-2xl">Student profile</h2><p className="text-xs text-[hsl(var(--muted-foreground))]">A little context keeps the dashboard relevant.</p></div></div><label className="block text-xs font-bold">Teen name<input value={name} onChange={(event) => setName(event.target.value)} className="mt-2 w-full rounded-xl border border-[hsl(var(--input))] bg-[hsl(var(--background))] px-4 py-3 text-sm outline-none focus:border-[hsl(var(--primary))]" data-testid="input-student-name" /></label><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-xs font-bold">Permit date<input type="date" value={state.profile.permitDate} onChange={(event) => setState({ ...state, profile: { ...state.profile, permitDate: event.target.value } })} className="mt-2 w-full rounded-xl border border-[hsl(var(--input))] bg-[hsl(var(--background))] px-4 py-3 text-sm" data-testid="input-permit-date" /></label><label className="text-xs font-bold">Target test date<input type="date" value={state.profile.targetTestDate} onChange={(event) => setState({ ...state, profile: { ...state.profile, targetTestDate: event.target.value } })} className="mt-2 w-full rounded-xl border border-[hsl(var(--input))] bg-[hsl(var(--background))] px-4 py-3 text-sm" data-testid="input-test-date" /></label></div><ActionButton type="submit" className="mt-5" testId="button-save-profile"><Check size={16} />Save profile</ActionButton></form><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6"><div className="mb-5 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[hsl(var(--secondary))]"><Bell size={19} className="text-[hsl(var(--primary))]" /></div><div><h2 className="font-display text-2xl">Support preferences</h2><p className="text-xs text-[hsl(var(--muted-foreground))]">Gentle nudges, no pressure.</p></div></div>{[{ key: 'parentMode' as const, title: 'Parent view by default', copy: 'Open the shared coaching view first.' }, { key: 'reminders' as const, title: 'Practice reminders', copy: 'Show a reminder when a small next step is ready.' }, { key: 'sounds' as const, title: 'Completion sounds', copy: 'Keep confirmations quiet or turn them on.' }].map((item) => <button key={item.key} onClick={() => toggle(item.key)} className="flex w-full items-center justify-between border-b border-[hsl(var(--border))] py-4 text-left last:border-0" data-testid={`button-toggle-${item.key}`}><span><span className="block text-sm font-extrabold">{item.title}</span><span className="mt-1 block text-xs text-[hsl(var(--muted-foreground))]">{item.copy}</span></span><span className={`relative h-6 w-11 rounded-full ${state.settings[item.key] ? 'bg-[hsl(var(--primary))]' : 'bg-[hsl(var(--muted))]'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-[hsl(var(--card))] transition-transform ${state.settings[item.key] ? 'translate-x-6' : 'translate-x-1'}`} /></span></button>)}</div></section><aside className="space-y-5"><div className="rounded-2xl bg-[hsl(var(--primary))] p-6 text-[hsl(var(--primary-foreground))]"><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--sidebar-primary))]"><ShieldCheck size={15} />Built for safe progress</div><h3 className="mt-4 font-display text-3xl">No account. No noise.</h3><p className="mt-3 text-sm leading-6 text-[hsl(var(--primary-foreground)/.68)]">Your progress is stored locally in this browser, so the plan stays simple and private.</p><div className="mt-6 flex items-center gap-2 text-xs font-bold text-[hsl(var(--primary-foreground)/.78)]"><LockKeyhole size={14} />Local-only progress</div></div><SafetyNote /><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5"><div className="flex items-center gap-2 text-sm font-extrabold"><Pencil size={16} className="text-[hsl(var(--accent))]" />California essentials</div><ul className="mt-4 space-y-3 text-xs leading-5 text-[hsl(var(--muted-foreground))]"><li className="flex gap-2"><Check size={14} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" />Permit held at least 6 months before the drive test.</li><li className="flex gap-2"><Check size={14} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" />50 supervised practice hours, including 10 at night.</li><li className="flex gap-2"><Check size={14} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" />6 hours of professional driver instruction.</li></ul></div></aside></div>
+    <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]"><section className="space-y-5"><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 md:p-7"><div className="mb-5"><h2 className="font-display text-2xl">Appearance</h2><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Choose what feels comfortable. Device follows your system setting automatically.</p></div><div className="grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Appearance">{appearanceChoices.map((choice) => { const Icon = choice.icon; const selected = state.settings.appearance === choice.value; return <button key={choice.value} type="button" role="radio" aria-checked={selected} onClick={() => setState({ ...state, settings: { ...state.settings, appearance: choice.value } })} className={`rounded-xl border p-4 text-left ${selected ? 'border-[hsl(var(--primary))] bg-[hsl(var(--secondary))] ring-2 ring-[hsl(var(--primary)/.18)]' : 'border-[hsl(var(--border))] bg-[hsl(var(--background))] hover:border-[hsl(var(--primary)/.55)]'}`} data-testid={`button-appearance-${choice.value}`}><span className={`flex h-9 w-9 items-center justify-center rounded-lg ${selected ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}><Icon size={17} /></span><span className="mt-3 block text-sm font-extrabold">{choice.title}</span><span className="mt-1 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">{choice.copy}</span></button>; })}</div></div><form onSubmit={saveProfile} className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 md:p-7"><div className="mb-6 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[hsl(var(--secondary))]"><UserRound size={19} className="text-[hsl(var(--primary))]" /></div><div><h2 className="font-display text-2xl">Student profile</h2><p className="text-xs text-[hsl(var(--muted-foreground))]">A little context keeps the dashboard relevant.</p></div></div><label className="block text-xs font-bold">Teen name<input value={name} onChange={(event) => setName(event.target.value)} className="mt-2 w-full rounded-xl border border-[hsl(var(--input))] bg-[hsl(var(--background))] px-4 py-3 text-sm outline-none focus:border-[hsl(var(--primary))]" data-testid="input-student-name" /></label><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-xs font-bold">Permit date<input type="date" value={state.profile.permitDate} onChange={(event) => setState({ ...state, profile: { ...state.profile, permitDate: event.target.value } })} className="mt-2 w-full rounded-xl border border-[hsl(var(--input))] bg-[hsl(var(--background))] px-4 py-3 text-sm" data-testid="input-permit-date" /></label><label className="text-xs font-bold">Target test date<input type="date" value={state.profile.targetTestDate} onChange={(event) => setState({ ...state, profile: { ...state.profile, targetTestDate: event.target.value } })} className="mt-2 w-full rounded-xl border border-[hsl(var(--input))] bg-[hsl(var(--background))] px-4 py-3 text-sm" data-testid="input-test-date" /></label></div><ActionButton type="submit" className="mt-5" testId="button-save-profile"><Check size={16} />Save profile</ActionButton></form><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6"><div className="mb-5 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[hsl(var(--secondary))]"><Bell size={19} className="text-[hsl(var(--primary))]" /></div><div><h2 className="font-display text-2xl">Support preferences</h2><p className="text-xs text-[hsl(var(--muted-foreground))]">Gentle nudges, no pressure.</p></div></div>{[{ key: 'parentMode' as const, title: 'Parent view by default', copy: 'Open the shared coaching view first.' }, { key: 'reminders' as const, title: 'Practice reminders', copy: 'Show a reminder when a small next step is ready.' }, { key: 'sounds' as const, title: 'Completion sounds', copy: 'Keep confirmations quiet or turn them on.' }].map((item) => <button key={item.key} onClick={() => toggle(item.key)} className="flex w-full items-center justify-between border-b border-[hsl(var(--border))] py-4 text-left last:border-0" data-testid={`button-toggle-${item.key}`}><span><span className="block text-sm font-extrabold">{item.title}</span><span className="mt-1 block text-xs text-[hsl(var(--muted-foreground))]">{item.copy}</span></span><span className={`relative h-6 w-11 rounded-full ${state.settings[item.key] ? 'bg-[hsl(var(--primary))]' : 'bg-[hsl(var(--muted))]'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-[hsl(var(--card))] transition-transform ${state.settings[item.key] ? 'translate-x-6' : 'translate-x-1'}`} /></span></button>)}</div><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6"><div className="mb-5 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[hsl(var(--secondary))]"><HardDrive size={19} className="text-[hsl(var(--primary))]" /></div><div><h2 className="font-display text-2xl">Progress backup</h2><p className="text-xs text-[hsl(var(--muted-foreground))]">Move permit progress and drive logs between browsers.</p></div></div><p className="text-xs leading-5 text-[hsl(var(--muted-foreground))]">Backups include your profile, practice answers, settings, and drive log. Private drive videos stay only in the browser that recorded them.</p><div className="mt-5 flex flex-wrap gap-3"><ActionButton onClick={exportProgress} testId="button-export-progress"><Download size={16} />Download backup</ActionButton><label className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-2.5 text-sm font-bold hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--secondary)/.35)]"><Upload size={16} />Restore backup<input type="file" accept="application/json,.json" onChange={(event) => void importProgress(event)} className="sr-only" data-testid="input-import-progress" /></label></div>{backupMessage && <p className="mt-4 text-xs font-semibold text-[hsl(var(--primary))]" role="status" data-testid="progress-backup-status">{backupMessage}</p>}</div></section><aside className="space-y-5"><div className="rounded-2xl bg-[hsl(var(--primary))] p-6 text-[hsl(var(--primary-foreground))]"><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--sidebar-primary))]"><ShieldCheck size={15} />Built for safe progress</div><h3 className="mt-4 font-display text-3xl">No account. No noise.</h3><p className="mt-3 text-sm leading-6 text-[hsl(var(--primary-foreground)/.68)]">Your progress is stored locally in this browser, so the plan stays simple and private.</p><div className="mt-6 flex items-center gap-2 text-xs font-bold text-[hsl(var(--primary-foreground)/.78)]"><LockKeyhole size={14} />Local-only progress</div></div><SafetyNote /><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5"><div className="flex items-center gap-2 text-sm font-extrabold"><Pencil size={16} className="text-[hsl(var(--accent))]" />California essentials</div><ul className="mt-4 space-y-3 text-xs leading-5 text-[hsl(var(--muted-foreground))]"><li className="flex gap-2"><Check size={14} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" />Permit held at least 6 months before the drive test.</li><li className="flex gap-2"><Check size={14} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" />50 supervised practice hours, including 10 at night.</li><li className="flex gap-2"><Check size={14} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" />6 hours of professional driver instruction.</li></ul></div></aside></div>
   </div>;
 }
 
 function Router() {
   const [state, setState] = useState<AppState>(getStoredState);
+  const [persistenceWarning, setPersistenceWarning] = useState('');
   useEffect(() => {
     try {
       window.localStorage.setItem(storageKey, JSON.stringify(state));
+      setPersistenceWarning('');
     } catch {
-      // Progress and appearance remain usable when storage is blocked or full.
+      setPersistenceWarning('This browser is blocking or has run out of local storage. Keep this tab open and download a backup from Settings before leaving.');
     }
   }, [state]);
   useEffect(() => {
@@ -1153,7 +1254,7 @@ function Router() {
     media.addEventListener('change', applyAppearance);
     return () => media.removeEventListener('change', applyAppearance);
   }, [state.settings.appearance]);
-  return <Shell state={state} setState={setState}><Switch><Route path="/"><Dashboard state={state} setState={setState} /></Route><Route path="/practice"><Practice state={state} setState={setState} /></Route><Route path="/scenarios"><Scenarios state={state} setState={setState} /></Route><Route path="/drive"><Drive state={state} setState={setState} /></Route><Route path="/parent"><Parent state={state} setState={setState} /></Route><Route path="/settings"><SettingsPage state={state} setState={setState} /></Route><Route component={NotFound} /></Switch></Shell>;
+  return <Shell state={state} setState={setState} persistenceWarning={persistenceWarning}><Switch><Route path="/"><Dashboard state={state} setState={setState} /></Route><Route path="/practice"><Practice state={state} setState={setState} /></Route><Route path="/scenarios"><Scenarios state={state} setState={setState} /></Route><Route path="/drive"><Drive state={state} setState={setState} /></Route><Route path="/parent"><Parent state={state} setState={setState} /></Route><Route path="/settings"><SettingsPage state={state} setState={setState} /></Route><Route component={NotFound} /></Switch></Shell>;
 }
 
 function App() {

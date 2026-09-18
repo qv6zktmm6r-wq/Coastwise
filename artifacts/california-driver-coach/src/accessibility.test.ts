@@ -5,8 +5,9 @@ import test from 'node:test';
 const appSource = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('./index.css', import.meta.url), 'utf8');
 const mapSource = readFileSync(new URL('./components/route-map.tsx', import.meta.url), 'utf8');
+const documentSource = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 test('mobile navigation exposes every core destination with names and active state', () => {
-  for (const destination of ['Today', 'Permit & knowledge', 'Driving exam', 'Parent view', 'Settings']) {
+  for (const destination of ['Today', 'Permit & knowledge', 'Driving exam', 'Parent view']) {
     assert.match(appSource, new RegExp(`label: '${destination}'`));
   }
   assert.match(appSource, /data-testid="button-header-settings"/);
@@ -40,4 +41,17 @@ test('page and route-map movement honor reduced motion', () => {
   assert.match(styles, /\.page-transition\s*\{\s*animation:\s*none !important/);
   assert.match(mapSource, /matchMedia\('\(prefers-reduced-motion: reduce\)'\)/);
   assert.match(mapSource, /animate: !reduceMotion\(\)/);
+});
+
+test('web beta surfaces local-data safeguards', () => {
+  assert.match(appSource, /data-testid="local-progress-warning"/);
+  assert.match(appSource, /data-testid="drive-storage-warning"/);
+  assert.match(appSource, /testId="button-export-progress"/);
+  assert.match(appSource, /data-testid="input-import-progress"/);
+  assert.match(appSource, /Route coaching has started without video/);
+});
+
+test('web beta metadata describes Coastwise without starter copy', () => {
+  assert.match(documentSource, /<title>Coastwise — California Teen Driver Coach<\/title>/);
+  assert.doesNotMatch(documentSource, /built on Replit|Update this description/i);
 });
