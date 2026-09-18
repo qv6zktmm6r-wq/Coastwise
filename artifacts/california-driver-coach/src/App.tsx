@@ -218,7 +218,10 @@ function Shell({ children, state, setState }: { children: ReactNode; state: AppS
       </div>
     </aside>
     {mobileOpen && <button className="fixed inset-0 z-30 bg-[hsl(var(--foreground)/.35)] md:hidden" onClick={() => setMobileOpen(false)} aria-label="Close menu" data-testid="button-mobile-overlay" />}
-    <main className="md:pl-[248px]">
+    <nav className="fixed inset-x-0 bottom-0 z-30 flex items-stretch justify-around border-t border-[hsl(var(--border)/.8)] bg-[hsl(var(--card)/.9)] pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_hsl(var(--foreground)/.06)] backdrop-blur-xl md:hidden" aria-label="Primary navigation">
+      {navItems.map((item) => { const Icon = item.icon; const active = location === item.href; return <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} className={`flex min-w-0 flex-1 flex-col items-center gap-1 px-1 pb-2 pt-2.5 text-[10px] font-semibold ${active ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'}`} data-testid={`link-mobile-nav-${item.label.toLowerCase().replaceAll(' ', '-')}`}><Icon size={18} strokeWidth={active ? 2.5 : 2} /><span className="max-w-full truncate">{item.label.replace('Real-world scenarios', 'Scenarios').replace('Permit practice', 'Practice').replace('Drive practice', 'Drive')}</span></Link>; })}
+    </nav>
+    <main className="pb-20 md:pl-[248px] md:pb-0">
       <div className="mx-auto max-w-[1380px] px-5 pb-12 md:px-10">
         <div className="flex h-[76px] items-center justify-between border-b border-[hsl(var(--border))]">
           <div className="flex items-center gap-3"><button className="rounded-lg p-2 hover:bg-[hsl(var(--muted))] md:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation" data-testid="button-open-navigation"><Menu size={21} /></button><span className="text-sm font-semibold text-[hsl(var(--muted-foreground))]">{current}</span></div>
