@@ -86,6 +86,11 @@ export function PracticeHub({ answers, onAnswer }: Props) {
     const reviewAt = answers[question.id]?.nextReviewAt;
     return reviewAt && new Date(reviewAt).getTime() <= Date.now();
   });
+  const recommendedMode: PracticeMode = missedQuestions.length > 0 ? 'missed' : 'daily';
+  const recommendedTitle = missedQuestions.length > 0 ? 'Review what needs another look' : 'Start your Daily 10';
+  const recommendedCopy = missedQuestions.length > 0
+    ? `${missedQuestions.length} missed ${missedQuestions.length === 1 ? 'question is' : 'questions are'} ready for a quick retry.`
+    : 'Ten focused questions selected from unseen, due, and developing topics.';
   const currentQuestion = queue[questionIndex];
   const currentSelection = currentQuestion ? sessionAnswers[currentQuestion.id] : undefined;
   const sessionCorrect = useMemo(() => queue.filter((question) => sessionAnswers[question.id] === question.answer).length, [queue, sessionAnswers]);
@@ -180,15 +185,15 @@ export function PracticeHub({ answers, onAnswer }: Props) {
               const answered = currentSelection !== undefined;
               const correctOption = answered && optionIndex === currentQuestion.answer;
               const chosenWrong = answered && currentSelection === optionIndex && !correctOption;
-              return <button key={option} onClick={() => choose(optionIndex)} disabled={answered} className={`flex w-full items-start gap-3 rounded-xl border p-4 text-left text-sm font-semibold ${correctOption ? 'border-[hsl(var(--primary))] bg-[hsl(var(--secondary))] text-[hsl(var(--primary))]' : chosenWrong ? 'border-[hsl(var(--accent))] bg-[hsl(var(--accent)/.08)]' : 'border-[hsl(var(--border))] hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--secondary)/.4)] disabled:opacity-100'}`} data-testid={`button-answer-${currentQuestion.id}-${optionIndex}`}>
-                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border font-mono-ui text-[11px] ${correctOption ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-white' : 'border-[hsl(var(--border))]'}`}>{String.fromCharCode(65 + optionIndex)}</span>
+              return <button key={option} onClick={() => choose(optionIndex)} disabled={answered} className={`flex w-full items-start gap-3 rounded-xl border p-4 text-left text-sm font-semibold ${correctOption ? 'border-[hsl(var(--chart-3))] bg-[hsl(var(--chart-3)/.09)] text-[hsl(var(--chart-3))]' : chosenWrong ? 'border-[hsl(var(--destructive))] bg-[hsl(var(--destructive)/.07)]' : 'border-[hsl(var(--border))] hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--secondary)/.4)] disabled:opacity-100'}`} data-testid={`button-answer-${currentQuestion.id}-${optionIndex}`}>
+                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border font-mono-ui text-[11px] ${correctOption ? 'border-[hsl(var(--chart-3))] bg-[hsl(var(--chart-3))] text-white' : 'border-[hsl(var(--border))]'}`}>{String.fromCharCode(65 + optionIndex)}</span>
                 <span>{option}</span>
                 {correctOption && <Check size={16} className="ml-auto shrink-0" />}
               </button>;
             })}
           </div>
           {currentSelection !== undefined && <div className="mt-6 rounded-2xl bg-[hsl(var(--secondary)/.65)] p-5 animate-fade">
-            <div className="flex items-center gap-2 text-sm font-extrabold text-[hsl(var(--primary))]">{selectedCorrectly ? <CheckCircle2 size={18} /> : <CircleHelp size={18} />}{selectedCorrectly ? 'Good call.' : 'Review this one before moving on.'}</div>
+            <div className={`flex items-center gap-2 text-sm font-extrabold ${selectedCorrectly ? 'text-[hsl(var(--chart-3))]' : 'text-[hsl(var(--destructive))]'}`}>{selectedCorrectly ? <CheckCircle2 size={18} /> : <CircleHelp size={18} />}{selectedCorrectly ? 'Good call.' : 'Review this one before moving on.'}</div>
             <p className="mt-2 text-sm leading-6 text-[hsl(var(--muted-foreground))]">{currentQuestion.explanation}</p>
             <div className="mt-4 border-t border-[hsl(var(--border))] pt-3 text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">Source: {currentQuestion.source}</div>
           </div>}
@@ -206,26 +211,40 @@ export function PracticeHub({ answers, onAnswer }: Props) {
   }
 
   return <div>
-    <header className="mb-8 flex flex-col justify-between gap-5 md:flex-row md:items-end">
-      <div className="max-w-2xl"><div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[.18em] text-[hsl(var(--accent))]"><span className="h-px w-7 bg-[hsl(var(--accent))]" />California handbook practice</div><h1 className="font-display text-4xl leading-[1.05] tracking-[-.03em] md:text-5xl">Learn every section. Keep the weak ones close.</h1><p className="mt-3 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">{questionBank.length} reviewed questions span the major knowledge areas in the California Driver’s Handbook. Sessions prioritize unseen and previously missed material.</p></div>
-      <div className="flex items-center gap-2 rounded-xl bg-[hsl(var(--secondary))] px-3 py-2 text-xs font-bold text-[hsl(var(--primary))]"><Gauge size={16} />{overallCoverage}% covered</div>
+    <header className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+      <div className="max-w-2xl"><div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[.14em] text-[hsl(var(--primary))]"><BookOpen size={15} />California handbook</div><h1 className="font-display text-4xl font-bold leading-[1.04] tracking-[-.035em] md:text-5xl">Ready for five focused minutes?</h1><p className="mt-3 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">Coastwise chooses the most useful next questions so you can spend less time deciding what to study.</p></div>
+      <div className="flex items-center gap-2 rounded-full bg-[hsl(var(--secondary))] px-3 py-2 text-xs font-bold text-[hsl(var(--primary))]"><Gauge size={16} />{overallCoverage}% covered</div>
     </header>
-    <section className="grid gap-4 md:grid-cols-3">
-      <div className="rounded-2xl bg-[hsl(var(--primary))] p-5 text-[hsl(var(--primary-foreground))]"><div className="text-xs font-bold uppercase tracking-[.14em] text-white/55">Handbook coverage</div><div className="mt-3 font-display text-4xl">{answeredCount}<span className="text-xl text-white/50">/{questionBank.length}</span></div><div className="mt-4"><ProgressBar value={overallCoverage} /></div></div>
-      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5"><div className="text-xs font-bold uppercase tracking-[.14em] text-[hsl(var(--muted-foreground))]">Accuracy</div><div className="mt-3 font-display text-4xl">{overallAccuracy}%</div><div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{correctCount} currently mastered</div></div>
-      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5"><div className="text-xs font-bold uppercase tracking-[.14em] text-[hsl(var(--muted-foreground))]">Needs review</div><div className="mt-3 font-display text-4xl">{missedQuestions.length}</div><div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{dueQuestions.length} due · {unseenQuestions.length} unseen</div></div>
+    <section className="relative overflow-hidden rounded-[26px] bg-[hsl(var(--primary))] p-6 text-[hsl(var(--primary-foreground))] shadow-[0_18px_50px_hsl(var(--primary)/.2)] md:p-8">
+      <div className="absolute -right-12 -top-16 h-52 w-52 rounded-full border-[28px] border-white/10" />
+      <div className="relative max-w-2xl">
+        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.14em] text-white/65"><Sparkles size={15} />Recommended next</div>
+        <h2 className="mt-3 font-display text-3xl font-bold tracking-[-.025em] md:text-4xl">{recommendedTitle}</h2>
+        <p className="mt-3 max-w-lg text-sm leading-6 text-white/72">{recommendedCopy}</p>
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <button onClick={() => startSession(recommendedMode)} className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-extrabold text-[hsl(var(--primary))] shadow-sm active:scale-[.98]" data-testid={`button-mode-${recommendedMode}`}>Start session<ArrowRight size={16} /></button>
+          <span className="text-xs font-semibold text-white/60">{recommendedMode === 'daily' ? '10 questions · about 5 minutes' : `${missedQuestions.length} ready to review`}</span>
+        </div>
+      </div>
     </section>
-    <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+    <section className="mt-4 grid grid-cols-3 gap-2 md:gap-4">
+      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4"><div className="text-[10px] font-bold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">Covered</div><div className="mt-1 font-display text-2xl font-bold">{answeredCount}<span className="text-sm font-semibold text-[hsl(var(--muted-foreground))]">/{questionBank.length}</span></div></div>
+      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4"><div className="text-[10px] font-bold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">Accuracy</div><div className="mt-1 font-display text-2xl font-bold">{overallAccuracy}%</div></div>
+      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4"><div className="text-[10px] font-bold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">Review</div><div className="mt-1 font-display text-2xl font-bold">{missedQuestions.length}</div></div>
+    </section>
+    <section className="mt-8">
+      <div className="mb-4"><div className="text-xs font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">More ways to practice</div></div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {[
-        { mode: 'daily' as const, title: 'Daily 10', copy: 'New and weak questions', icon: Sparkles },
         { mode: 'continue' as const, title: 'Continue', copy: 'Next 15 handbook questions', icon: BookOpen },
         { mode: 'missed' as const, title: 'Review missed', copy: `${missedQuestions.length} waiting`, icon: RotateCcw, disabled: missedQuestions.length === 0 },
         { mode: 'exam' as const, title: 'Test simulation', copy: '30 randomized questions', icon: Award },
         { mode: 'full' as const, title: 'Full handbook', copy: `All ${questionBank.length} questions`, icon: Layers3 },
       ].map((item) => {
         const Icon = item.icon;
-        return <button key={item.mode} onClick={() => startSession(item.mode)} disabled={item.disabled} className="group rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-left hover:-translate-y-1 hover:border-[hsl(var(--primary))] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0" data-testid={`button-mode-${item.mode}`}><Icon size={20} className="text-[hsl(var(--accent))]" /><div className="mt-5 text-sm font-extrabold">{item.title}</div><div className="mt-1 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{item.copy}</div></button>;
+        return <button key={item.mode} onClick={() => startSession(item.mode)} disabled={item.disabled} className="group flex items-center gap-4 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 text-left hover:border-[hsl(var(--primary)/.45)] hover:shadow-sm active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-mode-${item.mode}`}><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--secondary))] text-[hsl(var(--primary))]"><Icon size={19} /></span><span><span className="block text-sm font-extrabold">{item.title}</span><span className="mt-0.5 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">{item.copy}</span></span></button>;
       })}
+      </div>
     </section>
     <section className="mt-9">
       <div className="mb-5 flex items-end justify-between gap-4"><div><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Handbook coverage</div><h2 className="mt-1 font-display text-3xl">Practice by section.</h2></div><span className="font-mono-ui text-xs text-[hsl(var(--muted-foreground))]">{handbookSections.length} sections</span></div>
