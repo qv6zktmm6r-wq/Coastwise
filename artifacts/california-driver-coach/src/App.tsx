@@ -62,6 +62,7 @@ import {
   type CoachEvent,
   type CoachEventKind,
 } from '@/lib/drive-review';
+import { getDriveReviewBrowserFixture } from '@/lib/drive-review-browser-fixture';
 import NotFound from '@/pages/not-found';
 type Topic = { topic: string; mastery: number; questions: number };
 type PracticeQuestion = { prompt: string; options: string[]; answer: number; explanation: string; topic: string };
@@ -358,6 +359,7 @@ function Scenarios({ state, setState }: { state: AppState; setState: (next: AppS
 }
 
 function Drive({ state, setState }: { state: AppState; setState: (next: AppState) => void }) {
+  const reviewFixture = useMemo(() => getDriveReviewBrowserFixture(), []);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), minutes: '30', night: false, notes: '' });
   const [routeOptions, setRouteOptions] = useState<{ durationMinutes: 20 | 35 | 50; difficulty: 'beginner' | 'intermediate' | 'advanced'; skills: Array<'turns' | 'lane-changes' | 'intersections' | 'parking' | 'speed-control'> }>({ durationMinutes: 35, difficulty: 'beginner', skills: ['turns', 'intersections'] });
@@ -369,19 +371,19 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-  const [recordedVideoUrl, setRecordedVideoUrl] = useState('');
+  const [recordedVideoUrl, setRecordedVideoUrl] = useState(reviewFixture?.recordedVideoUrl ?? '');
   const [recordedVideoType, setRecordedVideoType] = useState('video/webm');
   const [cueIndex, setCueIndex] = useState(0);
   const [routeMinutes, setRouteMinutes] = useState(15);
-  const [plannedRoute, setPlannedRoute] = useState<PlannedRoute | null>(null);
+  const [plannedRoute, setPlannedRoute] = useState<PlannedRoute | null>(reviewFixture?.plannedRoute ?? null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState('');
   const [activeStep, setActiveStep] = useState(0);
   const [distanceToNext, setDistanceToNext] = useState(0);
   const [currentPosition, setCurrentPosition] = useState<RouteCoordinate | null>(null);
   const [currentCue, setCurrentCue] = useState('Route ready. Start only when the supervising adult says it is safe.');
-  const [coachEvents, setCoachEvents] = useState<CoachEvent[]>([]);
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [coachEvents, setCoachEvents] = useState<CoachEvent[]>(reviewFixture?.coachEvents ?? []);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(reviewFixture?.coachEvents[0]?.id ?? null);
   const [openReviewId, setOpenReviewId] = useState<string | null>(null);
   const [reviewError, setReviewError] = useState('');
   const watchId = useRef<number | null>(null);
@@ -404,7 +406,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const recordingClockStartedAt = useRef<number | null>(null);
   const finalElapsedSecondsRef = useRef(0);
   const eventSequence = useRef(0);
-  const coachEventsRef = useRef<CoachEvent[]>([]);
+  const coachEventsRef = useRef<CoachEvent[]>(reviewFixture?.coachEvents ?? []);
   const createRoute = useCreatePracticeRoute();
   const total = state.sessions.reduce((sum, session) => sum + session.minutes, 0);
   const night = state.sessions.filter((session) => session.night).reduce((sum, session) => sum + session.minutes, 0);
@@ -888,7 +890,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
              </div>;
            })}</div> : <div className="rounded-xl border border-dashed border-[hsl(var(--border))] p-5 text-xs leading-5 text-[hsl(var(--muted-foreground))]">No coached moments remain. The recording is still available.</div>}
            {selectedEvent && plannedRoute && <div className="mt-4 overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--secondary)/.35)]">
-             <div className="p-4"><div className="text-[10px] font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Selected moment</div><div className="mt-1 flex items-center justify-between gap-3"><h4 className="font-display text-2xl">{selectedEvent.title}</h4><span className="font-mono-ui text-xs text-[hsl(var(--primary))]">{formatElapsed(Math.floor(selectedEvent.timestamp))}</span></div><p className="mt-2 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{selectedEvent.detail}</p></div>
+             <div className="p-4" data-testid="review-selected-event"><div className="text-[10px] font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Selected moment</div><div className="mt-1 flex items-center justify-between gap-3"><h4 className="font-display text-2xl">{selectedEvent.title}</h4><span className="font-mono-ui text-xs text-[hsl(var(--primary))]">{formatElapsed(Math.floor(selectedEvent.timestamp))}</span></div><p className="mt-2 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{selectedEvent.detail}</p></div>
              <div className="grid grid-cols-2 gap-px border-y border-[hsl(var(--border))] bg-[hsl(var(--border))]"><div className="bg-[hsl(var(--card))] p-4"><div className="font-mono-ui text-[10px] uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Speed</div><div className="mt-1 font-display text-2xl">{selectedEvent.speedMph === null ? '—' : selectedEvent.speedMph} <span className="font-sans text-xs font-bold text-[hsl(var(--muted-foreground))]">{selectedEvent.speedMph === null ? 'unavailable' : 'mph'}</span></div></div><div className="bg-[hsl(var(--card))] p-4"><div className="font-mono-ui text-[10px] uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Route position</div><div className="mt-1 font-display text-2xl">{routeProgressPercent(plannedRoute, selectedEvent.position) === null ? '—' : `${routeProgressPercent(plannedRoute, selectedEvent.position)}%`} <span className="font-sans text-xs font-bold text-[hsl(var(--muted-foreground))]">{selectedEvent.position ? 'of route' : 'unavailable'}</span></div></div></div>
              <RouteMap route={plannedRoute} currentPosition={selectedEvent.position} />
              <div className="flex items-center gap-2 px-4 py-3 text-xs text-[hsl(var(--muted-foreground))]"><MapPin size={14} className="text-[hsl(var(--primary))]" />{selectedEvent.position ? `Captured at ${selectedEvent.position[1].toFixed(4)}, ${selectedEvent.position[0].toFixed(4)}` : 'GPS position was unavailable for this moment.'}</div>
