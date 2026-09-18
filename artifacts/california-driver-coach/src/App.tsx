@@ -56,7 +56,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { questionBank } from '@/data/question-bank';
 import { RouteMap } from '@/components/route-map';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { deleteDriveRecording as deleteSavedDriveRecording, loadDriveRecording, requestPracticeLoop, requestReturnRoute, saveDriveRecording, type PlannedRoute, type RouteCoordinate } from '@/lib/route-coach';
+import { clearDriveRecordings, deleteDriveRecording as deleteSavedDriveRecording, loadDriveRecording, requestPracticeLoop, requestReturnRoute, saveDriveRecording, type PlannedRoute, type RouteCoordinate } from '@/lib/route-coach';
 import {
   appendCoachEvent,
   deleteCoachEvent,
@@ -240,6 +240,35 @@ function ActionButton({ children, onClick, href, variant = 'primary', className 
   const classes = `inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 ${variant === 'primary' ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-sm hover:shadow-md' : variant === 'secondary' ? 'bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary)/.75)]' : variant === 'outline' ? 'border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))] hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--secondary)/.35)]' : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]'} ${className}`;
   if (href) return <Link href={href} className={classes} data-testid={testId}>{children}</Link>;
   return <button type={type} onClick={onClick} disabled={disabled} className={classes} data-testid={testId}>{children}</button>;
+}
+
+function InstallCoastwise() {
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [installed, setInstalled] = useState(false);
+  useEffect(() => {
+    const handleBeforeInstall = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+    const handleInstalled = () => {
+      setInstalled(true);
+      setInstallPrompt(null);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('appinstalled', handleInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleInstalled);
+    };
+  }, []);
+  if (installed) return <p className="text-xs font-semibold text-[hsl(var(--success))]" role="status">Coastwise is installed on this device.</p>;
+  if (!installPrompt) return <p className="text-xs leading-5 text-[hsl(var(--muted-foreground))]">On iPhone or iPad, use Share → Add to Home Screen. On Android or desktop, use the browser’s Install or Add to Home Screen option.</p>;
+  const install = async () => {
+    await installPrompt.prompt();
+    await installPrompt.userChoice;
+    setInstallPrompt(null);
+  };
+  return <ActionButton onClick={() => void install()} variant="secondary" testId="button-install-coastwise"><Download size={16} />Install Coastwise</ActionButton>;
 }
 
 function PageHeader({ eyebrow, title, copy, action }: { eyebrow: string; title: string; copy: string; action?: ReactNode }) {

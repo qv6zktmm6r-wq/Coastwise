@@ -65,6 +65,17 @@ export async function deleteDriveRecording(id: string): Promise<void> {
   database.close();
 }
 
+export async function clearDriveRecordings(): Promise<void> {
+  const database = await openDriveRecordingsDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction(DRIVE_RECORDINGS_STORE, 'readwrite');
+    transaction.objectStore(DRIVE_RECORDINGS_STORE).clear();
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error('Could not clear saved drive recordings'));
+  });
+  database.close();
+}
+
 type OsrmStep = {
   distance: number;
   name?: string;
