@@ -62,6 +62,39 @@ let viteProcess: ChildProcess;
 let browserProcess: ChildProcess;
 let profileDir: string;
 let page: CdpPage;
+let pageTargetId: string;
+
+async function connectToPageTarget(targetId?: string) {
+  const deadline = Date.now() + 15_000;
+  let target: { id: string; webSocketDebuggerUrl: string } | undefined;
+  while (!target && Date.now() < deadline) {
+    try {
+      const targets = await getJson<Array<{ id?: string; type: string; webSocketDebuggerUrl?: string }>>('http://127.0.0.1:9222/json');
+      const pageTarget = targets.find((candidate) =>
+        candidate.type === 'page'
+        && candidate.webSocketDebuggerUrl
+        && (!targetId || candidate.id === targetId)
+      );
+      if (pageTarget?.id && pageTarget.webSocketDebuggerUrl) {
+        target = { id: pageTarget.id, webSocketDebuggerUrl: pageTarget.webSocketDebuggerUrl };
+      }
+    } catch {
+      // Chromium or the reloaded page target is still starting.
+    }
+    if (!target) await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  if (!target) throw new Error('Timed out waiting for Chromium DevTools');
+
+  const socket = new WebSocket(target.webSocketDebuggerUrl);
+  await new Promise<void>((resolve, reject) => {
+    socket.addEventListener('open', () => resolve());
+    socket.addEventListener('error', () => reject(new Error('Could not connect to Chromium DevTools')));
+  });
+  const connectedPage = new CdpPage(socket);
+  await connectedPage.send('Page.enable');
+  await connectedPage.send('Runtime.enable');
+  return { connectedPage, targetId: target.id };
+}
 
 async function waitForServer() {
   const deadline = Date.now() + 15_000;
@@ -131,6 +164,9 @@ async function reloadPage() {
   } catch (error) {
     if (!String(error).includes('Inspected target navigated or closed')) throw error;
   }
+  page.close();
+  const reconnected = await connectToPageTarget(pageTargetId);
+  page = reconnected.connectedPage;
 }
 
 async function openSecondPage() {
@@ -187,28 +223,9 @@ before(async () => {
     'about:blank',
   ], { stdio: 'ignore' });
 
-  const deadline = Date.now() + 15_000;
-  let target: { webSocketDebuggerUrl: string } | undefined;
-  while (!target && Date.now() < deadline) {
-    try {
-      const targets = await getJson<Array<{ type: string; webSocketDebuggerUrl?: string }>>('http://127.0.0.1:9222/json');
-      const pageTarget = targets.find((candidate) => candidate.type === 'page' && candidate.webSocketDebuggerUrl);
-      if (pageTarget?.webSocketDebuggerUrl) target = pageTarget as { webSocketDebuggerUrl: string };
-    } catch {
-      // Chromium is still starting.
-    }
-    if (!target) await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  if (!target) throw new Error('Timed out waiting for Chromium DevTools');
-
-  const socket = new WebSocket(target.webSocketDebuggerUrl);
-  await new Promise<void>((resolve, reject) => {
-    socket.addEventListener('open', () => resolve());
-    socket.addEventListener('error', () => reject(new Error('Could not connect to Chromium DevTools')));
-  });
-  page = new CdpPage(socket);
-  await page.send('Page.enable');
-  await page.send('Runtime.enable');
+  const connected = await connectToPageTarget();
+  page = connected.connectedPage;
+  pageTargetId = connected.targetId;
   await page.send('Page.navigate', { url: appUrl });
   await waitFor(() => page.evaluate<boolean>("Boolean(document.querySelector('[data-testid=\"button-header-settings\"]'))"), true);
 });
@@ -320,6 +337,7 @@ describe('appearance preferences in a real browser', { concurrency: false }, () 
       return true;
     })()`);
     await reloadPage();
+    await setColorScheme('dark');
     await waitForSettings();
 
     await waitFor(

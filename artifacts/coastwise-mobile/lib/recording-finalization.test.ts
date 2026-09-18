@@ -24,14 +24,9 @@ async function rejectionMessage(action: () => Promise<unknown>) {
 test('does not save metadata when camera completion has no URI', async () => {
   let copied = false;
   const result = await finalizeRecording(
-    { uri: 'file:///cache/camera.mp4' },
-    fileSystem({
-      deleteAsync: async () => {
-        deleted = true;
-      },
-      getInfoAsync: async () => ({ exists: false }),
-    }),
-    'coastwise-drive-missing-destination.mp4',
+    {},
+    fileSystem({ copyAsync: async () => { copied = true; } }),
+    'coastwise-drive-no-uri.mp4',
   );
 
   assert.equal(result, null);
@@ -77,52 +72,43 @@ test('does not produce recording metadata when copying the camera file fails', a
     () => finalizeRecording(
       { uri: 'file:///cache/camera.mp4' },
       fileSystem({
-        deleteAsync: async () => {
-          throw new Error('cleanup failed');
-        },
-        getInfoAsync: async () => {
-          throw new Error('metadata unavailable');
+        copyAsync: async () => {
+          throw new Error('storage full');
         },
       }),
-      'coastwise-drive-cleanup-failure.mp4',
-      (failure) => {
-        cleanupFailures.push(failure);
-      },
+      'coastwise-drive-copy-failure.mp4',
     ),
   );
 
-  const cleanupFailures: Array<{ uri: string; error: unknown }> = [];
-
-  assert.equal(message, 'metadata unavailable');
-  assert.equal(cleanupFailures.length, 1);
-  assert.equal(cleanupFailures[0]?.uri, 'file:///documents/coastwise-drive-cleanup-failure.mp4');
-  assert.equal(
-    cleanupFailures[0]?.error instanceof Error ? cleanupFailures[0].error.message : undefined,
-    'cleanup failed',
-  );
+  assert.equal(message, 'storage full');
 });
 
-test('does not attach metadata when the copied destination is missing', async () => {
+test('removes the copied destination when metadata inspection fails', async () => {
   let deleted = false;
   const message = await rejectionMessage(
     () => finalizeRecording(
       { uri: 'file:///cache/camera.mp4' },
       fileSystem({
-        deleteAsync: async () => {
-          throw new Error('cleanup failed');
+        deleteAsync: async (uri, options) => {
+          assert.equal(uri, 'file:///documents/coastwise-drive-metadata-failure.mp4');
+          assert.deepEqual(options, { idempotent: true });
+          deleted = true;
         },
         getInfoAsync: async () => {
           throw new Error('metadata unavailable');
         },
       }),
-      'coastwise-drive-cleanup-failure.mp4',
-      (failure) => {
-        cleanupFailures.push(failure);
-      },
+      'coastwise-drive-metadata-failure.mp4',
     ),
   );
 
+  assert.equal(message, 'metadata unavailable');
+  assert.equal(deleted, true);
+});
+
+test('reports cleanup failure without replacing the finalization error', async () => {
   const cleanupFailures: Array<{ uri: string; error: unknown }> = [];
+
   const message = await rejectionMessage(
     () => finalizeRecording(
       { uri: 'file:///cache/camera.mp4' },
@@ -140,8 +126,6 @@ test('does not attach metadata when the copied destination is missing', async ()
       },
     ),
   );
-
-  const cleanupFailures: Array<{ uri: string; error: unknown }> = [];
 
   assert.equal(message, 'metadata unavailable');
   assert.equal(cleanupFailures.length, 1);
@@ -167,4 +151,29 @@ test('does not attach metadata when the copied destination is missing', async ()
 
   assert.equal(result, null);
   assert.equal(deleted, true);
+});
+
+test('reports cleanup failure when a copied destination cannot be verified or removed', async () => {
+  const cleanupFailures: Array<{ uri: string; error: unknown }> = [];
+  const result = await finalizeRecording(
+    { uri: 'file:///cache/camera.mp4' },
+    fileSystem({
+      deleteAsync: async () => {
+        throw new Error('cleanup failed');
+      },
+      getInfoAsync: async () => ({ exists: false }),
+    }),
+    'coastwise-drive-missing-cleanup-failure.mp4',
+    (failure) => {
+      cleanupFailures.push(failure);
+    },
+  );
+
+  assert.equal(result, null);
+  assert.equal(cleanupFailures.length, 1);
+  assert.equal(cleanupFailures[0]?.uri, 'file:///documents/coastwise-drive-missing-cleanup-failure.mp4');
+  assert.equal(
+    cleanupFailures[0]?.error instanceof Error ? cleanupFailures[0].error.message : undefined,
+    'cleanup failed',
+  );
 });
