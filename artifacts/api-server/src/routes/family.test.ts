@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import test from "node:test";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { db, families, familyInvites, familyMembers, familySync } from "@workspace/db";
-import { claimFamilyInvite, saveFamilySync } from "./family";
+import { claimFamilyInvite, sanitizeFamilySyncState, saveFamilySync } from "./family";
 
 const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
 
@@ -47,6 +47,30 @@ test("two initial revision-zero writes produce one save and one conflict", async
   } finally {
     await db.delete(families).where(eq(families.id, family.id));
   }
+});
+
+test("server sanitizer accepts a client-sanitized reviewed drive without video metadata", () => {
+  const sanitizedState = {
+    prompts: [],
+    settings: { parentMode: false },
+    sessions: [{
+      date: "2026-09-18",
+      minutes: 20,
+      night: false,
+      notes: "Reviewed drive",
+      review: {
+        id: "review-1",
+        durationSeconds: 120,
+        eventCount: 0,
+        events: [],
+        route: { coordinates: [], distanceMeters: 0, durationSeconds: 0, origin: [0, 0], steps: [] },
+      },
+    }],
+  };
+
+  const accepted = sanitizeFamilySyncState(sanitizedState) as any;
+  assert.equal(accepted.sessions[0].review.id, "review-1");
+  assert.equal("videoType" in accepted.sessions[0].review, false);
 });
 
 test("one account can concurrently join only one active family", async () => {

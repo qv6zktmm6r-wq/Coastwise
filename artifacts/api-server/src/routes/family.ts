@@ -23,7 +23,7 @@ async function membership(userId: string) {
   return member;
 }
 
-function sanitize(value: unknown, key = ""): unknown {
+export function sanitizeFamilySyncState(value: unknown, key = ""): unknown {
   if (key.toLowerCase().includes("video") || key.toLowerCase().includes("blob") || key.toLowerCase().includes("bytes")) {
     throw new Error("Video data is device-local and cannot be synced.");
   }
@@ -33,11 +33,11 @@ function sanitize(value: unknown, key = ""): unknown {
   }
   if (Array.isArray(value)) {
     if (value.length > 10_000) throw new Error("Synced list is too large.");
-    return value.map((item) => sanitize(item));
+    return value.map((item) => sanitizeFamilySyncState(item));
   }
   if (value && typeof value === "object") {
     const output: Record<string, unknown> = {};
-    for (const [childKey, child] of Object.entries(value)) output[childKey] = sanitize(child, childKey);
+    for (const [childKey, child] of Object.entries(value)) output[childKey] = sanitizeFamilySyncState(child, childKey);
     return output;
   }
   return value;
@@ -96,7 +96,7 @@ export async function saveFamilySync(userId: string, revision: number, unsafeSta
   if (!member) return { status: 403 as const, error: "You are not a member of this family." };
   let state: unknown;
   try {
-    state = sanitize(unsafeState);
+    state = sanitizeFamilySyncState(unsafeState);
   } catch (error) {
     return { status: 400 as const, error: error instanceof Error ? error.message : "Unsafe sync document." };
   }

@@ -73,7 +73,6 @@ import NotFound from '@/pages/not-found';
 import { AppState, createDriveSessionId, getStoredState, initialState, isRecord, parseStoredState, storageKey, type Appearance, type DriveSession, type PracticeQuestion, type Scenario, type Topic } from '@/lib/state';
 import { ActionButton, PageHeader, SafetyNote } from '@/components/shared';
 import SettingsPage from '@/pages/settings';
-import { PrivacyPage, TermsPage } from '@/pages/legal';
 
 const navItems: { href: string; label: string; testId: string; icon: LucideIcon }[] = [
   { href: '/', label: 'Today', testId: 'today', icon: Home },
@@ -160,9 +159,9 @@ function Shell({ children, state, setState, persistenceWarning }: { children: Re
   const current = location === '/scenarios'
     ? 'Driving exam'
     : location === '/privacy'
-      ? 'Privacy'
+      ? 'Privacy Policy'
       : location === '/terms'
-        ? 'Terms & safety'
+        ? 'Terms & Safety'
         : navItems.find((item) => item.href === location)?.label ?? 'Settings';
   const initials = state.profile.name.slice(0, 1).toUpperCase();
   const toggleParent = () => {
@@ -262,6 +261,13 @@ function Shell({ children, state, setState, persistenceWarning }: { children: Re
         {persistenceWarning && <div className="mt-5 flex gap-3 rounded-2xl border border-[hsl(var(--warning)/.45)] bg-[hsl(var(--warning)/.1)] p-4 text-sm leading-6" role="alert" data-testid="local-progress-warning"><AlertTriangle size={18} className="mt-0.5 shrink-0 text-[hsl(var(--warning-foreground))]" /><div><strong>Progress is not being saved.</strong> {persistenceWarning}</div></div>}
         {!online && <div className="mt-5 flex gap-3 rounded-2xl border border-[hsl(var(--warning)/.45)] bg-[hsl(var(--warning)/.1)] p-4 text-sm leading-6" role="status" data-testid="offline-status"><AlertTriangle size={18} className="mt-0.5 shrink-0 text-[hsl(var(--warning-foreground))]" /><div><strong>Coastwise is offline.</strong> Saved practice and loaded drive reviews still work. Connect before building a new GPS route.</div></div>}
         <div className="page-transition pt-8">{children}</div>
+        <footer className="mt-12 flex flex-col gap-3 border-t border-[hsl(var(--border))] py-6 text-xs text-[hsl(var(--muted-foreground))] sm:flex-row sm:items-center sm:justify-between">
+          <p>© 2026 Coastwise. Educational guidance for supervised practice.</p>
+          <nav aria-label="Legal" className="flex flex-wrap gap-x-5 gap-y-2">
+            <Link href="/privacy" className="font-semibold hover:text-[hsl(var(--foreground))]" data-testid="link-footer-privacy">Privacy Policy</Link>
+            <Link href="/terms" className="font-semibold hover:text-[hsl(var(--foreground))]" data-testid="link-footer-terms">Terms &amp; Safety</Link>
+          </nav>
+        </footer>
       </div>
     </main>
   </div>;
@@ -839,7 +845,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
             setState({
               ...state,
               sessions: [{
-                id: reviewId,
+                id: createDriveSessionId(),
                 date: new Date(startedAt ?? Date.now()).toISOString().slice(0, 10),
                 minutes: Math.max(1, Math.round(durationSeconds / 60)),
                 night: false,
@@ -1192,6 +1198,7 @@ import { useSyncManager } from '@/lib/use-sync-manager';
 import { AppClerkProvider } from '@/components/clerk-provider-with-routes';
 import SignInPage from '@/pages/sign-in';
 import SignUpPage from '@/pages/sign-up';
+import LegalPage from '@/pages/legal';
 
 function Router() {
   const [state, setState] = useState<AppState>(getStoredState);
@@ -1242,8 +1249,8 @@ function Router() {
             <Route path="/drive"><Drive state={state} setState={setState} /></Route>
             <Route path="/parent"><Parent state={state} setState={setState} /></Route>
             <Route path="/settings"><SettingsPage state={state} setState={setState} syncManager={syncManager} /></Route>
-            <Route path="/privacy"><PrivacyPage /></Route>
-            <Route path="/terms"><TermsPage /></Route>
+            <Route path="/privacy"><LegalPage kind="privacy" /></Route>
+            <Route path="/terms"><LegalPage kind="terms" /></Route>
             <Route component={NotFound} />
           </Switch>
         </Shell>

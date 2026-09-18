@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useUser, useClerk } from '@clerk/react';
 import { AppState, Appearance, isRecord, parseStoredState, storageKey } from '../lib/state';
-import { Settings, SunMedium, Moon, HardDrive, Download, Upload, ShieldCheck, LockKeyhole, Pencil, Check, RefreshCw, AlertTriangle, Link as LinkIcon, Trash2 } from 'lucide-react';
 import { ActionButton, PageHeader, SafetyNote } from '../components/shared';
 import { useCreateFamilyInvite, useGetFamilyMembership, useRevokeFamilyMember, useAcceptFamilyInvite, getGetFamilyMembershipQueryKey } from '@workspace/api-client-react';
 import { Link, useLocation } from 'wouter';
 import { mergeStates } from '../lib/sync';
 import { clearDriveRecordings } from '../lib/route-coach';
+import { Settings, SunMedium, Moon, HardDrive, Download, Upload, ShieldCheck, LockKeyhole, Pencil, Check, RefreshCw, AlertTriangle, Link as LinkIcon, Trash2, ChevronRight } from 'lucide-react';
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -197,8 +197,18 @@ export default function SettingsPage({ state, setState, syncManager }: { state: 
     <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
       <section className="space-y-5">
         <section className="grid gap-5 sm:grid-cols-2" aria-label="App ownership and local data">
-          <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6" data-testid="install-settings-card"><h2 className="font-display text-2xl">Install Coastwise</h2><p className="mb-5 mt-1 text-xs text-[hsl(var(--muted-foreground))]">Use local coaching without an account, or sign in for family sync.</p><InstallCoastwise /><div className="mt-5 border-t border-[hsl(var(--border))] pt-4" data-testid="legal-links-card"><p className="text-xs leading-5 text-[hsl(var(--muted-foreground))]">Review camera, location, recording, local storage, and optional sync before installing.</p><div className="mt-3 flex flex-wrap gap-2"><Link href="/privacy" className="text-xs font-bold text-[hsl(var(--primary))] hover:underline" data-testid="link-privacy">Privacy Policy</Link><span aria-hidden="true" className="text-[hsl(var(--border))]">•</span><Link href="/terms" className="text-xs font-bold text-[hsl(var(--primary))] hover:underline" data-testid="link-terms">Terms & safety</Link></div></div></div>
+          <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6" data-testid="install-settings-card"><h2 className="font-display text-2xl">Install Coastwise</h2><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Use local coaching without an account, or sign in for family sync.</p><div className="my-5 border-y border-[hsl(var(--border))] py-4" data-testid="legal-links-card"><p className="text-xs leading-5 text-[hsl(var(--muted-foreground))]">Before installing, review how Coastwise uses camera and location access, stores recordings locally, and optionally syncs family progress.</p><div className="mt-3 flex flex-wrap gap-2"><Link href="/privacy" className="text-xs font-bold text-[hsl(var(--primary))] hover:underline" data-testid="link-privacy">Privacy Policy</Link><span aria-hidden="true" className="text-[hsl(var(--border))]">•</span><Link href="/terms" className="text-xs font-bold text-[hsl(var(--primary))] hover:underline" data-testid="link-terms">Terms & safety</Link></div></div><InstallCoastwise /></div>
           <div className="rounded-2xl border border-[hsl(var(--destructive)/.25)] bg-[hsl(var(--destructive)/.04)] p-6" data-testid="reset-progress-card"><h2 className="font-display text-2xl">Reset this device</h2><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Delete local progress, annotations, and saved videos. Cloud family progress is not deleted.</p>{!resetConfirming ? <ActionButton onClick={() => setResetConfirming(true)} variant="outline" className="mt-5" testId="button-reset-progress">Reset local progress</ActionButton> : <div className="mt-5"><p className="text-sm font-bold">This cannot be undone without a backup.</p><div className="mt-3 flex flex-wrap gap-2"><ActionButton onClick={() => void resetProgress()} disabled={resetting} testId="button-confirm-reset">{resetting ? 'Resetting…' : 'Yes, reset this device'}</ActionButton><ActionButton onClick={() => setResetConfirming(false)} variant="quiet" testId="button-cancel-reset">Cancel</ActionButton></div></div>}</div>
+        </section>
+        <section className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 md:p-7" aria-labelledby="privacy-safety-heading">
+          <div className="mb-5">
+            <h2 id="privacy-safety-heading" className="font-display text-2xl">Privacy and safety</h2>
+            <p className="mt-1 text-xs leading-5 text-[hsl(var(--muted-foreground))]">Review how Coastwise uses permissions, keeps local data, and supports supervised practice.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Link href="/privacy" className="flex min-h-11 items-center justify-between rounded-xl border border-[hsl(var(--border))] px-4 py-3 text-sm font-bold hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--secondary)/.35)]" data-testid="link-settings-privacy">Privacy Policy<ChevronRight size={17} /></Link>
+            <Link href="/terms" className="flex min-h-11 items-center justify-between rounded-xl border border-[hsl(var(--border))] px-4 py-3 text-sm font-bold hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--secondary)/.35)]" data-testid="link-settings-terms">Terms &amp; Safety<ChevronRight size={17} /></Link>
+          </div>
         </section>
         
         {/* Account and Family Section */}
