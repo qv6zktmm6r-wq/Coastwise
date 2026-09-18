@@ -52,6 +52,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { questionBank } from '@/data/question-bank';
 import { RouteMap } from '@/components/route-map';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { deleteDriveRecording as deleteSavedDriveRecording, loadDriveRecording, requestPracticeLoop, requestReturnRoute, saveDriveRecording, type PlannedRoute, type RouteCoordinate } from '@/lib/route-coach';
 import {
   appendCoachEvent,
@@ -130,6 +131,13 @@ const navItems: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/parent', label: 'Parent view', icon: HeartHandshake },
 ];
 
+const mobileNavItems = [
+  navItems[0],
+  navItems[1],
+  navItems[3],
+  navItems[4],
+  { href: '/settings', label: 'Settings', icon: Settings },
+];
 const queryClient = new QueryClient();
 
 const storageKey = 'california-driver-coach';
@@ -221,6 +229,11 @@ function PageHeader({ eyebrow, title, copy, action }: { eyebrow: string; title: 
 function Shell({ children, state, setState }: { children: ReactNode; state: AppState; setState: (next: AppState) => void }) {
   const [location, setLocation] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const isMobile = useIsMobile();
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const mobileNavigationRef = useRef<HTMLElement | null>(null);
+  const restoreMenuButtonFocus = useRef(false);
   const current = location === '/scenarios' ? 'Driving exam' : navItems.find((item) => item.href === location)?.label ?? 'Settings';
   const initials = state.profile.name.slice(0, 1).toUpperCase();
   const toggleParent = () => {
@@ -228,45 +241,86 @@ function Shell({ children, state, setState }: { children: ReactNode; state: AppS
     setState({ ...state, settings: { ...state.settings, parentMode: next } });
     setLocation(next ? '/parent' : '/');
   };
+  useEffect(() => {
+    if (!isMobile || !mobileOpen) return;
+    closeButtonRef.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        restoreMenuButtonFocus.current = true;
+        setMobileOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab' || !mobileNavigationRef.current) return;
+      const focusable = Array.from(mobileNavigationRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled])'));
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [isMobile, mobileOpen]);
+  const closeMobileNavigation = () => {
+    restoreMenuButtonFocus.current = true;
+    setMobileOpen(false);
+  };
+  const navigateFromMobileDrawer = () => {
+    setMobileOpen(false);
+    requestAnimationFrame(() => {
+      const heading = document.querySelector<HTMLElement>('main h1');
+      heading?.setAttribute('tabindex', '-1');
+      heading?.focus();
+    });
+  };
+  useEffect(() => {
+    if (mobileOpen || !restoreMenuButtonFocus.current) return;
+    restoreMenuButtonFocus.current = false;
+    requestAnimationFrame(() => menuButtonRef.current?.focus());
+  }, [mobileOpen]);
   return <div className="min-h-[100dvh] bg-[hsl(var(--background))]">
-    <aside className={`fixed inset-y-0 left-0 z-40 flex w-[248px] flex-col border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar))] px-5 py-6 text-[hsl(var(--sidebar-foreground))] shadow-[8px_0_24px_hsl(215_30%_20%/.03)] transition-transform duration-300 md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+    <aside ref={mobileNavigationRef} id="mobile-navigation" aria-label="Main navigation" aria-hidden={isMobile && !mobileOpen} inert={isMobile && !mobileOpen} className={`fixed inset-y-0 left-0 z-40 flex w-[248px] flex-col border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar))] px-5 py-6 text-[hsl(var(--sidebar-foreground))] shadow-[8px_0_24px_hsl(215_30%_20%/.03)] transition-transform duration-300 md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="mb-10 flex items-center justify-between px-2">
-        <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-3" data-testid="link-brand">
+        <Link href="/" onClick={navigateFromMobileDrawer} className="flex items-center gap-3" data-testid="link-brand">
           <div className="flex h-10 w-10 items-center justify-center rounded-[13px] bg-[hsl(var(--sidebar-primary))] text-[hsl(var(--sidebar-primary-foreground))]"><RouteIcon size={21} strokeWidth={2.5} /></div>
           <div><div className="font-display text-[17px] leading-none">coastwise</div><div className="mt-1 font-mono-ui text-[9px] uppercase tracking-[.18em] text-[hsl(var(--muted-foreground))]">driver coach</div></div>
         </Link>
-        <button className="text-[hsl(var(--muted-foreground))] md:hidden" onClick={() => setMobileOpen(false)} aria-label="Close navigation" data-testid="button-close-navigation"><X size={20} /></button>
+        <button ref={closeButtonRef} className="inline-flex size-11 items-center justify-center text-[hsl(var(--muted-foreground))] md:hidden" onClick={closeMobileNavigation} aria-label="Close navigation" data-testid="button-close-navigation"><X size={20} /></button>
       </div>
       <div className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.18em] text-[hsl(var(--muted-foreground))]">Your path</div>
       <nav className="space-y-1">
-        {navItems.map((item) => { const Icon = item.icon; const active = location === item.href || (item.href === '/drive' && location === '/scenarios'); return <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} className={`group flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold ${active ? 'bg-[hsl(var(--sidebar-accent))] text-[hsl(var(--sidebar-accent-foreground))]' : 'text-[hsl(var(--sidebar-foreground)/.64)] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--sidebar-foreground))]'}`} data-testid={`link-nav-${item.label.toLowerCase().replaceAll(' ', '-')}`}><Icon size={18} className={active ? 'text-[hsl(var(--sidebar-primary))]' : 'text-[hsl(var(--sidebar-foreground)/.45)]'} /><span>{item.label}</span>{active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[hsl(var(--sidebar-primary))]" />}</Link>; })}
+          {navItems.map((item) => { const Icon = item.icon; const active = location === item.href; return <Link key={item.href} href={item.href} onClick={navigateFromMobileDrawer} aria-current={active ? 'page' : undefined} className={`group flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold ${active ? 'bg-[hsl(var(--sidebar-accent))] text-[hsl(var(--sidebar-accent-foreground))]' : 'text-[hsl(var(--sidebar-foreground)/.64)] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--sidebar-foreground))]'}`} data-testid={`link-nav-${item.label.toLowerCase().replaceAll(' ', '-')}`}><Icon aria-hidden="true" size={18} className={active ? 'text-[hsl(var(--sidebar-primary))]' : 'text-[hsl(var(--sidebar-foreground)/.45)]'} /><span>{item.label}</span>{active && <span aria-hidden="true" className="ml-auto h-1.5 w-1.5 rounded-full bg-[hsl(var(--sidebar-primary))]" />}</Link>; })}
       </nav>
       <div className="mt-auto">
         <div className="mb-4 rounded-2xl border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--secondary)/.5)] p-4">
           <div className="mb-2 flex items-center gap-2 text-xs font-bold"><ShieldCheck size={15} className="text-[hsl(var(--sidebar-primary))]" />Safe progress</div>
           <p className="text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Small, repeatable practice beats one stressful cram session.</p>
         </div>
-        <Link href="/settings" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-[hsl(var(--sidebar-foreground)/.64)] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--sidebar-foreground))]" data-testid="link-settings"><Settings size={18} />Settings</Link>
+        <Link href="/settings" onClick={navigateFromMobileDrawer} aria-current={location === '/settings' ? 'page' : undefined} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-[hsl(var(--sidebar-foreground)/.64)] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--sidebar-foreground))]" data-testid="link-settings"><Settings aria-hidden="true" size={18} />Settings</Link>
         <div className="mt-4 flex items-center gap-3 border-t border-[hsl(var(--sidebar-border))] pt-4">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[hsl(var(--sidebar-primary))] text-sm font-extrabold text-[hsl(var(--sidebar-primary-foreground))]" data-testid="avatar-student">{initials}</div>
           <div className="min-w-0"><div className="truncate text-sm font-bold" data-testid="text-sidebar-name">{state.profile.name}</div><div className="text-[10px] text-[hsl(var(--muted-foreground))]">Student plan</div></div>
         </div>
       </div>
     </aside>
-    {mobileOpen && <button className="fixed inset-0 z-30 bg-[hsl(var(--foreground)/.35)] md:hidden" onClick={() => setMobileOpen(false)} aria-label="Close menu" data-testid="button-mobile-overlay" />}
-     <nav className="fixed inset-x-0 bottom-0 z-30 flex items-stretch justify-around border-t border-[hsl(var(--border)/.8)] bg-[hsl(var(--card)/.9)] pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_hsl(var(--foreground)/.06)] backdrop-blur-xl md:hidden" aria-label="Primary navigation">
-       {navItems.map((item) => { const Icon = item.icon; const active = location === item.href || (item.href === '/drive' && location === '/scenarios'); return <Link key={item.href} href={item.href} onClick={() => { setMobileOpen(false); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }} className={`flex min-w-0 flex-1 flex-col items-center gap-1 px-1 pb-2 pt-2.5 text-[10px] font-semibold ${active ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'}`} data-testid={`link-mobile-nav-${item.label.toLowerCase().replaceAll(' ', '-')}`}><Icon size={18} strokeWidth={active ? 2.5 : 2} /><span className="max-w-full truncate">{item.href === '/practice' ? 'Permit' : item.href === '/drive' ? 'Driving' : item.href === '/parent' ? 'Parent' : item.label}</span></Link>; })}
+    {mobileOpen && <div aria-hidden="true" className="fixed inset-0 z-30 bg-[hsl(var(--foreground)/.35)] md:hidden" onClick={closeMobileNavigation} data-testid="button-mobile-overlay" />}
+    <nav className="fixed inset-x-0 bottom-0 z-30 flex items-stretch justify-around border-t border-[hsl(var(--border)/.8)] bg-[hsl(var(--card)/.9)] pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_hsl(var(--foreground)/.06)] backdrop-blur-xl md:hidden" aria-label="Primary navigation" aria-hidden={mobileOpen} inert={mobileOpen}>
+      {mobileNavItems.map((item) => { const Icon = item.icon; const active = location === item.href; return <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} aria-label={item.label} aria-current={active ? 'page' : undefined} className={`flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-semibold ${active ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'}`} data-testid={`link-mobile-nav-${item.label.toLowerCase().replaceAll(' ', '-')}`}><Icon aria-hidden="true" size={18} strokeWidth={active ? 2.5 : 2} /><span className="max-w-full truncate">{item.label.replace('Permit practice', 'Practice').replace('Drive practice', 'Drive').replace('Parent view', 'Parent')}</span></Link>; })}
     </nav>
-    <main className="pb-20 md:pl-[248px] md:pb-0">
+    <main className="pb-20 md:pl-[248px] md:pb-0" aria-hidden={isMobile && mobileOpen} inert={isMobile && mobileOpen}>
       <div className="mx-auto max-w-[1380px] px-5 pb-12 md:px-10">
         <div className="flex h-[76px] items-center justify-between border-b border-[hsl(var(--border))]">
-          <div className="flex items-center gap-3"><button className="rounded-lg p-2 hover:bg-[hsl(var(--muted))] md:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation" data-testid="button-open-navigation"><Menu size={21} /></button><span className="text-sm font-semibold text-[hsl(var(--muted-foreground))]">{current}</span></div>
+          <div className="flex items-center gap-3"><button ref={menuButtonRef} className="inline-flex size-11 items-center justify-center rounded-lg hover:bg-[hsl(var(--muted))] md:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation" aria-expanded={mobileOpen} aria-controls="mobile-navigation" data-testid="button-open-navigation"><Menu aria-hidden="true" size={21} /></button><span className="text-sm font-semibold text-[hsl(var(--muted-foreground))]">{current}</span></div>
           <div className="flex items-center gap-2">
             <button onClick={toggleParent} className="hidden items-center gap-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-xs font-bold text-[hsl(var(--foreground))] hover:border-[hsl(var(--primary))] sm:flex" data-testid="button-toggle-parent-view"><HeartHandshake size={15} className="text-[hsl(var(--accent))]" />{state.settings.parentMode ? 'Student view' : 'Parent view'}</button>
-            <Link href="/settings" className="rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]" aria-label="Open settings" data-testid="button-header-settings"><Settings size={19} /></Link>
+            <Link href="/settings" className="inline-flex size-11 items-center justify-center rounded-lg text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]" aria-label="Open settings" data-testid="button-header-settings"><Settings size={19} /></Link>
           </div>
         </div>
-        <div className="animate-rise pt-8">{children}</div>
+        <div className="page-transition pt-8">{children}</div>
       </div>
     </main>
   </div>;

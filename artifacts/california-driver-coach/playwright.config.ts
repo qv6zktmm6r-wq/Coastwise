@@ -8,6 +8,9 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:4174',
     headless: true,
+    launchOptions: {
+      executablePath: process.env.REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE,
+    },
   },
   webServer: {
     command: 'PORT=4174 BASE_PATH=/ pnpm run dev',

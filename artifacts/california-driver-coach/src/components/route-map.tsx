@@ -7,6 +7,7 @@ export function RouteMap({ route, currentPosition }: { route: PlannedRoute; curr
   const host = useRef<HTMLDivElement | null>(null);
   const map = useRef<L.Map | null>(null);
   const positionMarker = useRef<L.CircleMarker | null>(null);
+  const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   useEffect(() => {
     if (!host.current || map.current) return;
@@ -30,7 +31,7 @@ export function RouteMap({ route, currentPosition }: { route: PlannedRoute; curr
     const points = route.coordinates.map(([longitude, latitude]) => L.latLng(latitude, longitude));
     const line = L.polyline(points, { color: '#0a84ff', weight: 6, opacity: 0.9, lineCap: 'round' }).addTo(map.current);
     L.circleMarker([route.origin[1], route.origin[0]], { radius: 8, color: '#ffffff', fillColor: '#0a84ff', fillOpacity: 1, weight: 3 }).addTo(map.current);
-    map.current.fitBounds(line.getBounds(), { padding: [28, 28] });
+    map.current.fitBounds(line.getBounds(), { padding: [28, 28], animate: !reduceMotion() });
   }, [route]);
 
   useEffect(() => {
@@ -43,8 +44,8 @@ export function RouteMap({ route, currentPosition }: { route: PlannedRoute; curr
       fillOpacity: 1,
       weight: 3,
     }).addTo(map.current);
-    map.current.panTo([currentPosition[1], currentPosition[0]], { animate: true, duration: 0.5 });
+    map.current.panTo([currentPosition[1], currentPosition[0]], { animate: !reduceMotion(), duration: reduceMotion() ? 0 : 0.5 });
   }, [currentPosition]);
 
-  return <div ref={host} className="h-[280px] w-full overflow-hidden rounded-2xl bg-[hsl(var(--muted))] md:h-[340px]" aria-label="Practice route map" />;
+  return <div ref={host} className="h-[280px] w-full overflow-hidden rounded-2xl bg-[hsl(var(--muted))] md:h-[340px]" role="img" aria-label="Practice route map" />;
 }
