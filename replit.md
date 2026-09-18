@@ -1,10 +1,11 @@
-# [Project name]
+# California Teen Driver Coach
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A responsive study and supervised-practice coach that helps California teens prepare for the permit and behind-the-wheel tests.
 
 ## Run & Operate
 
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/california-driver-coach run dev` — run the web app through its managed workflow
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
@@ -22,15 +23,22 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/california-driver-coach/src/App.tsx` — routes, product data, interactions, and local persistence
+- `artifacts/california-driver-coach/src/index.css` — visual tokens, typography, and motion
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The initial release is frontend-only and stores progress in localStorage so it is immediately usable without an account.
+- California licensing requirements are displayed as educational guidance, with an explicit disclaimer that the app is not the DMV or a licensed instructor.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Student dashboard with readiness and next-action guidance
+- Adaptive permit questions with explanations and topic mastery
+- Real-world judgment scenarios
+- Supervised drive missions and a 50-hour practice log
+- Parent coaching prompts and readiness summary
+- Editable profile, test dates, and support preferences
 
 ## User preferences
 

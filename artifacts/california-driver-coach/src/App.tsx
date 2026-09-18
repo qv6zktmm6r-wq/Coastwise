@@ -59,7 +59,7 @@ type AppState = {
 };
 
 const initialState: AppState = {
-  profile: { name: 'Maya', permitDate: '2025-02-14', targetTestDate: '2025-10-18' },
+  profile: { name: 'Maya', permitDate: '2026-04-14', targetTestDate: '2026-11-18' },
   topics: [
     { topic: 'Right-of-way', mastery: 72, questions: 18 },
     { topic: 'Signs & signals', mastery: 84, questions: 21 },
