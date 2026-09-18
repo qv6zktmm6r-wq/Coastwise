@@ -125,9 +125,8 @@ const initialState: AppState = {
 
 const navItems: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/', label: 'Today', icon: Home },
-  { href: '/practice', label: 'Permit practice', icon: BookOpen },
-  { href: '/scenarios', label: 'Real-world scenarios', icon: Compass },
-  { href: '/drive', label: 'Drive practice', icon: RouteIcon },
+  { href: '/practice', label: 'Permit & knowledge', icon: BookOpen },
+  { href: '/drive', label: 'Driving exam', icon: RouteIcon },
   { href: '/parent', label: 'Parent view', icon: HeartHandshake },
 ];
 
@@ -202,7 +201,7 @@ function PageHeader({ eyebrow, title, copy, action }: { eyebrow: string; title: 
 function Shell({ children, state, setState }: { children: ReactNode; state: AppState; setState: (next: AppState) => void }) {
   const [location, setLocation] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const current = navItems.find((item) => item.href === location)?.label ?? 'Settings';
+  const current = location === '/scenarios' ? 'Driving exam' : navItems.find((item) => item.href === location)?.label ?? 'Settings';
   const initials = state.profile.name.slice(0, 1).toUpperCase();
   const toggleParent = () => {
     const next = !state.settings.parentMode;
@@ -220,7 +219,7 @@ function Shell({ children, state, setState }: { children: ReactNode; state: AppS
       </div>
       <div className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.18em] text-[hsl(var(--muted-foreground))]">Your path</div>
       <nav className="space-y-1">
-        {navItems.map((item) => { const Icon = item.icon; const active = location === item.href; return <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} className={`group flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold ${active ? 'bg-[hsl(var(--sidebar-accent))] text-[hsl(var(--sidebar-accent-foreground))]' : 'text-[hsl(var(--sidebar-foreground)/.64)] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--sidebar-foreground))]'}`} data-testid={`link-nav-${item.label.toLowerCase().replaceAll(' ', '-')}`}><Icon size={18} className={active ? 'text-[hsl(var(--sidebar-primary))]' : 'text-[hsl(var(--sidebar-foreground)/.45)]'} /><span>{item.label}</span>{active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[hsl(var(--sidebar-primary))]" />}</Link>; })}
+        {navItems.map((item) => { const Icon = item.icon; const active = location === item.href || (item.href === '/drive' && location === '/scenarios'); return <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} className={`group flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold ${active ? 'bg-[hsl(var(--sidebar-accent))] text-[hsl(var(--sidebar-accent-foreground))]' : 'text-[hsl(var(--sidebar-foreground)/.64)] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--sidebar-foreground))]'}`} data-testid={`link-nav-${item.label.toLowerCase().replaceAll(' ', '-')}`}><Icon size={18} className={active ? 'text-[hsl(var(--sidebar-primary))]' : 'text-[hsl(var(--sidebar-foreground)/.45)]'} /><span>{item.label}</span>{active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[hsl(var(--sidebar-primary))]" />}</Link>; })}
       </nav>
       <div className="mt-auto">
         <div className="mb-4 rounded-2xl border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--secondary)/.5)] p-4">
@@ -236,7 +235,7 @@ function Shell({ children, state, setState }: { children: ReactNode; state: AppS
     </aside>
     {mobileOpen && <button className="fixed inset-0 z-30 bg-[hsl(var(--foreground)/.35)] md:hidden" onClick={() => setMobileOpen(false)} aria-label="Close menu" data-testid="button-mobile-overlay" />}
      <nav className="fixed inset-x-0 bottom-0 z-30 flex items-stretch justify-around border-t border-[hsl(var(--border)/.8)] bg-[hsl(var(--card)/.9)] pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_hsl(var(--foreground)/.06)] backdrop-blur-xl md:hidden" aria-label="Primary navigation">
-       {navItems.map((item) => { const Icon = item.icon; const active = location === item.href; return <Link key={item.href} href={item.href} onClick={() => { setMobileOpen(false); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }} className={`flex min-w-0 flex-1 flex-col items-center gap-1 px-1 pb-2 pt-2.5 text-[10px] font-semibold ${active ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'}`} data-testid={`link-mobile-nav-${item.label.toLowerCase().replaceAll(' ', '-')}`}><Icon size={18} strokeWidth={active ? 2.5 : 2} /><span className="max-w-full truncate">{item.label.replace('Real-world scenarios', 'Scenarios').replace('Permit practice', 'Practice').replace('Drive practice', 'Drive')}</span></Link>; })}
+       {navItems.map((item) => { const Icon = item.icon; const active = location === item.href || (item.href === '/drive' && location === '/scenarios'); return <Link key={item.href} href={item.href} onClick={() => { setMobileOpen(false); window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }} className={`flex min-w-0 flex-1 flex-col items-center gap-1 px-1 pb-2 pt-2.5 text-[10px] font-semibold ${active ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'}`} data-testid={`link-mobile-nav-${item.label.toLowerCase().replaceAll(' ', '-')}`}><Icon size={18} strokeWidth={active ? 2.5 : 2} /><span className="max-w-full truncate">{item.href === '/practice' ? 'Permit' : item.href === '/drive' ? 'Driving' : item.href === '/parent' ? 'Parent' : item.label}</span></Link>; })}
     </nav>
     <main className="pb-20 md:pl-[248px] md:pb-0">
       <div className="mx-auto max-w-[1380px] px-5 pb-12 md:px-10">
@@ -257,39 +256,52 @@ function SafetyNote() {
   return <div className="flex gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--secondary)/.45)] p-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]"><Info size={17} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" /><p><strong className="text-[hsl(var(--foreground))]">A note on safety.</strong> Coastwise is educational and is not the DMV. It never replaces a licensed instructor, the California Driver’s Handbook, or an attentive supervising adult.</p></div>;
 }
 
-function Dashboard({ state, setState }: { state: AppState; setState: (next: AppState) => void }) {
+function Dashboard({ state }: { state: AppState; setState: (next: AppState) => void }) {
+  const [selectedGoal, setSelectedGoal] = useState<'permit' | 'driving' | null>(null);
   const totalMinutes = state.sessions.reduce((sum, session) => sum + session.minutes, 0);
-  const nightMinutes = state.sessions.filter((session) => session.night).reduce((sum, session) => sum + session.minutes, 0);
   const permitAnswers = Object.values(state.practiceProgress);
-  const permitCoverage = permitAnswers.length / questionBank.length;
-  const permitAccuracy = permitAnswers.length ? permitAnswers.filter((answer) => answer.correct).length / permitAnswers.length : 0;
-  const overall = permitAnswers.length ? Math.round((permitCoverage * 0.45 + permitAccuracy * 0.55) * 100) : Math.round(state.topics.reduce((sum, topic) => sum + topic.mastery, 0) / state.topics.length);
+  const permitCoverage = Math.round((permitAnswers.length / questionBank.length) * 100);
   const daysToTest = Math.max(0, Math.ceil((new Date(state.profile.targetTestDate).getTime() - Date.now()) / 86400000));
-  const nextMission = state.missions.find((mission) => !mission.completed);
-  const toggleMission = () => { if (!nextMission) return; setState({ ...state, missions: state.missions.map((mission) => mission.title === nextMission.title ? { ...mission, completed: true } : mission) }); };
   return <div>
-    <section className="relative overflow-hidden rounded-[26px] bg-[hsl(var(--primary))] p-6 text-[hsl(var(--primary-foreground))] shadow-xl md:p-9">
-      <div className="absolute -right-8 -top-14 h-56 w-56 rounded-full border-[22px] border-[hsl(var(--sidebar-primary)/.23)]" /><div className="absolute -bottom-24 right-24 h-48 w-48 rounded-full border-[14px] border-[hsl(var(--accent)/.18)]" />
-      <div className="relative max-w-2xl">
-        <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[.16em] text-[hsl(var(--sidebar-primary))]"><Sparkles size={15} />{daysToTest > 0 ? `${daysToTest} days to your test target` : 'Test target is here'}</div>
-        <h1 className="font-display text-4xl leading-[1.03] tracking-[-.035em] md:text-6xl">One clear road<br />to feeling ready.</h1>
-        <p className="mt-5 max-w-lg text-sm leading-6 text-white/68">Good morning, {state.profile.name}. Your next best step is small, specific, and already waiting.</p>
-        <div className="mt-7 flex flex-wrap gap-3"><ActionButton href="/practice" variant="secondary" testId="button-start-practice">Start practice <ArrowRight size={16} /></ActionButton><ActionButton href="/drive" variant="quiet" className="text-white/75 hover:bg-white/10 hover:text-white" testId="button-view-drive">View drive plan</ActionButton></div>
+    <header className="mx-auto mb-8 max-w-3xl text-center md:mb-10">
+      <div className="mb-3 text-xs font-bold uppercase tracking-[.16em] text-[hsl(var(--primary))]">Good morning, {state.profile.name}</div>
+      <h1 className="font-display text-4xl leading-[1.05] tracking-[-.035em] md:text-6xl">What are you working on today?</h1>
+      <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">Choose one goal. Coastwise will show only the tools that help with it.</p>
+    </header>
+    <section className="grid items-start gap-4 lg:grid-cols-2">
+      <div className={`overflow-hidden rounded-[24px] border bg-[hsl(var(--card))] transition-shadow ${selectedGoal === 'permit' ? 'border-[hsl(var(--primary)/.55)] shadow-lg' : 'border-[hsl(var(--border))]'}`}>
+        <button type="button" onClick={() => setSelectedGoal(selectedGoal === 'permit' ? null : 'permit')} className="flex w-full items-center gap-4 p-5 text-left md:p-6" aria-expanded={selectedGoal === 'permit'} data-testid="button-goal-permit">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[hsl(var(--secondary))] text-[hsl(var(--primary))]"><BookOpen size={23} /></span>
+          <span className="min-w-0 flex-1"><span className="block font-display text-xl md:text-2xl">Permit & knowledge test</span><span className="mt-1 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">Learn the handbook and prepare for the DMV knowledge test.</span></span>
+          <ChevronRight size={20} className={`shrink-0 text-[hsl(var(--muted-foreground))] transition-transform ${selectedGoal === 'permit' ? 'rotate-90' : ''}`} />
+        </button>
+        {selectedGoal === 'permit' && <div className="border-t border-[hsl(var(--border))] px-5 pb-5 pt-4 animate-fade md:px-6 md:pb-6">
+          <div className="space-y-3 text-sm font-semibold">
+            {['Practice handbook questions', 'Review missed answers', 'Take a DMV-style simulation', 'Study by handbook section'].map((item) => <div key={item} className="flex items-center gap-3"><Check size={16} className="shrink-0 text-[hsl(var(--success))]" />{item}</div>)}
+          </div>
+          <ActionButton href="/practice" className="mt-6 w-full sm:w-auto" testId="button-open-permit-menu">Open permit menu <ArrowRight size={16} /></ActionButton>
+        </div>}
+      </div>
+      <div className={`overflow-hidden rounded-[24px] border bg-[hsl(var(--card))] transition-shadow ${selectedGoal === 'driving' ? 'border-[hsl(var(--primary)/.55)] shadow-lg' : 'border-[hsl(var(--border))]'}`}>
+        <button type="button" onClick={() => setSelectedGoal(selectedGoal === 'driving' ? null : 'driving')} className="flex w-full items-center gap-4 p-5 text-left md:p-6" aria-expanded={selectedGoal === 'driving'} data-testid="button-goal-driving">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[hsl(var(--secondary))] text-[hsl(var(--primary))]"><RouteIcon size={23} /></span>
+          <span className="min-w-0 flex-1"><span className="block font-display text-xl md:text-2xl">Driving exam</span><span className="mt-1 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">Build road skills, log practice, and prepare for the drive test.</span></span>
+          <ChevronRight size={20} className={`shrink-0 text-[hsl(var(--muted-foreground))] transition-transform ${selectedGoal === 'driving' ? 'rotate-90' : ''}`} />
+        </button>
+        {selectedGoal === 'driving' && <div className="border-t border-[hsl(var(--border))] px-5 pb-5 pt-4 animate-fade md:px-6 md:pb-6">
+          <div className="space-y-3 text-sm font-semibold">
+            {['Plan a coached practice drive', 'Practice real-world scenarios', 'Review completed drives', 'Track supervised and night hours'].map((item) => <div key={item} className="flex items-center gap-3"><Check size={16} className="shrink-0 text-[hsl(var(--success))]" />{item}</div>)}
+          </div>
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row"><ActionButton href="/drive" testId="button-open-driving-menu">Open driving menu <ArrowRight size={16} /></ActionButton><ActionButton href="/scenarios" variant="outline" testId="button-open-scenarios">Practice scenarios</ActionButton></div>
+        </div>}
       </div>
     </section>
-    <div className="mt-8 grid gap-5 lg:grid-cols-[1.35fr_.65fr]">
-      <section className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 soft-shadow md:p-7">
-        <div className="flex items-start justify-between gap-4"><div><div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[.16em] text-[hsl(var(--accent))]"><Target size={15} />Today's next action</div><h2 className="font-display text-3xl">Learn the lane-change rhythm</h2></div><div className="rounded-xl bg-[hsl(var(--secondary))] p-3 text-[hsl(var(--primary))]"><RouteIcon size={23} /></div></div>
-        <p className="mt-4 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">Before your next drive, run through mirror → signal → shoulder check → move. Then practice it twice on a quiet road.</p>
-        <div className="mt-6 flex flex-wrap items-center gap-3"><ActionButton onClick={toggleMission} variant={nextMission ? 'primary' : 'outline'} disabled={!nextMission} testId="button-complete-next-action">{nextMission ? <><Check size={16} />Mark mission complete</> : 'All missions complete'}</ActionButton><span className="flex items-center gap-1.5 text-xs font-semibold text-[hsl(var(--muted-foreground))]"><Clock3 size={14} />30 min · Awareness</span></div>
-      </section>
-      <section className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--secondary)/.5)] p-6">
-        <div className="text-xs font-bold uppercase tracking-[.16em] text-[hsl(var(--primary))]">Readiness pulse</div><div className="mt-3 flex items-end gap-2"><span className="font-display text-5xl">{overall}%</span><span className="mb-2 text-xs font-semibold text-[hsl(var(--muted-foreground))]">permit topics</span></div><ProgressBar value={overall} color="bg-[hsl(var(--primary))]" /><p className="mt-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">You are building consistency. Focus next on safe speed and sharing the road.</p><Link href="/practice" className="mt-5 inline-flex items-center gap-1 text-xs font-bold text-[hsl(var(--primary))]" data-testid="link-readiness-practice">See topic breakdown <ChevronRight size={14} /></Link>
-      </section>
-    </div>
-    <section className="mt-6 grid gap-5 md:grid-cols-3">
-      {[{ label: 'Supervised hours', value: `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`, sub: 'of 50 required', icon: Timer, href: '/drive', color: 'text-[hsl(var(--accent))]' }, { label: 'Night hours', value: `${Math.floor(nightMinutes / 60)}h ${nightMinutes % 60}m`, sub: 'of 10 required', icon: Moon, href: '/drive', color: 'text-[hsl(var(--primary))]' }, { label: 'Practice streak', value: '4 days', sub: 'keep the calm going', icon: Award, href: '/practice', color: 'text-[hsl(var(--chart-3))]' }].map((item) => { const Icon = item.icon; return <Link key={item.label} href={item.href} className="group rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 hover:-translate-y-1 hover:shadow-md" data-testid={`card-dashboard-${item.label.toLowerCase().replaceAll(' ', '-')}`}><div className="flex items-center justify-between"><Icon size={19} className={item.color} /><ArrowRight size={15} className="text-[hsl(var(--muted-foreground))] transition-transform group-hover:translate-x-1" /></div><div className="mt-5 font-display text-3xl">{item.value}</div><div className="mt-1 text-xs font-semibold text-[hsl(var(--muted-foreground))]">{item.label} · {item.sub}</div></Link>; })}</section>
-    <section className="mt-8 grid gap-5 lg:grid-cols-[.9fr_1.1fr]"><div><PageHeader eyebrow="Keep perspective" title="The requirements, made human." copy="California asks for time behind the wheel, not perfection on day one." /><SafetyNote /></div><div className="grid gap-3 sm:grid-cols-3 lg:pt-14">{[{ value: '6 mo', label: 'permit held before drive test' }, { value: '50 hr', label: 'supervised practice' }, { value: '10 hr', label: 'of that practice at night' }].map((item) => <div key={item.value} className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5"><div className="font-mono-ui text-2xl font-medium text-[hsl(var(--accent))]">{item.value}</div><p className="mt-3 text-xs font-semibold leading-5 text-[hsl(var(--muted-foreground))]">{item.label}</p></div>)}</div></section>
+    <section className="mt-8 grid grid-cols-3 gap-2 border-t border-[hsl(var(--border))] pt-6 sm:gap-4">
+      <div><div className="text-[10px] font-bold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">Permit covered</div><div className="mt-1 font-display text-2xl">{permitCoverage}%</div></div>
+      <div><div className="text-[10px] font-bold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">Driving logged</div><div className="mt-1 font-display text-2xl">{Math.floor(totalMinutes / 60)}h {totalMinutes % 60}m</div></div>
+      <div><div className="text-[10px] font-bold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">Test target</div><div className="mt-1 font-display text-2xl">{daysToTest > 0 ? `${daysToTest} days` : 'Today'}</div></div>
+    </section>
+    <div className="mt-8"><SafetyNote /></div>
   </div>;
 }
 
