@@ -27,6 +27,8 @@ import type {
   FamilyMembershipSummary,
   HealthStatus,
   Invite,
+  NextDrivePlan,
+  NextDrivePlanInput,
   PracticeRoute,
   PracticeRouteInput,
   SyncDocument,
@@ -314,6 +316,95 @@ export const useCreateDriveDebrief = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getCreateDriveDebriefMutationOptions(options));
+    }
+
+export const getCreateNextDrivePlanUrl = () => {
+
+
+
+
+  return `/api/ai/next-drive-plan`
+}
+
+/**
+ * Creates a short plan from bounded progress summaries. Video, routes, coordinates, identity, family notes, and raw answers are not accepted.
+ * @summary Create a personalized plan for the next supervised drive
+ */
+export const createNextDrivePlan = async (nextDrivePlanInput: NextDrivePlanInput, options?: Parameters<typeof customFetch>[1]): Promise<NextDrivePlan> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<NextDrivePlan>(getCreateNextDrivePlanUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(nextDrivePlanInput)
+  }
+);}
+
+
+
+
+
+export const getCreateNextDrivePlanMutationKey = () => ['createNextDrivePlan'] as const;
+
+export const getCreateNextDrivePlanMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNextDrivePlan>>, TError,CreateNextDrivePlanMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createNextDrivePlan>>, TError,CreateNextDrivePlanMutationVariables, TContext> => {
+
+const mutationKey = getCreateNextDrivePlanMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createNextDrivePlan>>, CreateNextDrivePlanMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createNextDrivePlan(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateNextDrivePlanMutationResult = NonNullable<Awaited<ReturnType<typeof createNextDrivePlan>>>
+    export type CreateNextDrivePlanMutationBody = BodyType<NextDrivePlanInput>
+    export type CreateNextDrivePlanMutationError = ErrorType<void>
+    export type CreateNextDrivePlanMutationVariables = {data: BodyType<NextDrivePlanInput>}
+
+    /**
+ * @summary Create a personalized plan for the next supervised drive
+ */
+export const useCreateNextDrivePlan = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNextDrivePlan>>, TError,CreateNextDrivePlanMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createNextDrivePlan>>,
+        TError,
+        CreateNextDrivePlanMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateNextDrivePlanMutationOptions(options));
     }
 
 export const getCreateFamilyInviteUrl = () => {

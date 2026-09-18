@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import type { DriveDebrief } from '@workspace/api-client-react';
+import type { DriveDebrief, NextDrivePlan } from '@workspace/api-client-react';
 import type { CoachEvent } from './drive-review';
 import type { PlannedRoute } from './route-coach';
 
@@ -23,6 +23,7 @@ export type AppState = {
   missions: DriveMission[];
   sessions: DriveSession[];
   prompts: ParentPrompt[];
+  nextDrivePlan?: NextDrivePlan;
   settings: { parentMode: boolean; reminders: boolean; sounds: boolean; appearance: Appearance };
 };
 

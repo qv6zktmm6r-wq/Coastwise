@@ -78,6 +78,31 @@ paths:
           description: Too many debrief requests
         "502":
           description: AI coaching service unavailable
+  /ai/next-drive-plan:
+    post:
+      operationId: createNextDrivePlan
+      tags: [ai-coach]
+      summary: Create a personalized plan for the next supervised drive
+      description: Creates a short plan from bounded progress summaries. Video, routes, coordinates, identity, family notes, and raw answers are not accepted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NextDrivePlanInput"
+      responses:
+        "200":
+          description: Next-drive plan created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NextDrivePlan"
+        "400":
+          description: Invalid plan request
+        "429":
+          description: Too many plan requests
+        "502":
+          description: AI coaching service unavailable
   /families/invites:
     post:
       operationId: createFamilyInvite
@@ -348,6 +373,57 @@ components:
           minLength: 1
           maxLength: 300
       required: [headline, win, improvement, nextStep, parentPrompt]
+    NextDriveMissionSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        category: { type: string, minLength: 1, maxLength: 80 }
+        minutes: { type: integer, minimum: 5, maximum: 120 }
+      required: [title, category, minutes]
+    RecentDriveSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        durationMinutes: { type: integer, minimum: 1, maximum: 600 }
+        night: { type: boolean }
+        skills:
+          type: array
+          maxItems: 10
+          items: { type: string, minLength: 1, maxLength: 120 }
+        debriefImprovement: { type: ["string", "null"], maxLength: 500 }
+        debriefNextStep: { type: ["string", "null"], maxLength: 500 }
+      required: [durationMinutes, night, skills, debriefImprovement, debriefNextStep]
+    NextDrivePlanInput:
+      type: object
+      additionalProperties: false
+      properties:
+        weakTopics:
+          type: array
+          maxItems: 3
+          items:
+            $ref: "#/components/schemas/DriveDebriefTopic"
+        unfinishedMissions:
+          type: array
+          maxItems: 3
+          items:
+            $ref: "#/components/schemas/NextDriveMissionSummary"
+        recentDrives:
+          type: array
+          maxItems: 3
+          items:
+            $ref: "#/components/schemas/RecentDriveSummary"
+      required: [weakTopics, unfinishedMissions, recentDrives]
+    NextDrivePlan:
+      type: object
+      additionalProperties: false
+      properties:
+        skillFocus: { type: string, minLength: 1, maxLength: 160 }
+        durationMinutes: { type: integer, minimum: 10, maximum: 60 }
+        parentPrompt: { type: string, minLength: 1, maxLength: 300 }
+        safetyGuidance: { type: string, minLength: 1, maxLength: 500 }
+        createdAt: { type: string, format: date-time }
+      required: [skillFocus, durationMinutes, parentPrompt, safetyGuidance, createdAt]
     CreateInviteInput:
       type: object
       properties:

@@ -15,6 +15,17 @@ export const policyAcknowledgementStorageKey = 'coastwise-policy-acknowledgement
 
 export const materialPolicyNotices: MaterialPolicyNotice[] = [
   {
+    version: '2026-09-18-next-drive-plan',
+    effectiveDate: 'September 18, 2026',
+    title: 'Optional AI next-drive plans',
+    summary: 'Coastwise can now create an optional pre-drive practice plan from limited progress summaries while keeping video, routes, coordinates, identity, notes, and raw answers on your device.',
+    changes: [
+      'Plans are created only when you choose Create my plan or Refresh plan.',
+      'Only low-mastery topic summaries, unfinished mission titles/categories/times, and recent duration, night, skill, and prior debrief outcome summaries are sent.',
+      'Video, routes, coordinates, identity, family notes, raw answers, drive dates, and recording details are not sent; generated plans are saved locally.',
+    ],
+  },
+  {
     version: '2026-09-18-ai-debrief',
     effectiveDate: 'September 18, 2026',
     title: 'Optional AI drive debriefs',

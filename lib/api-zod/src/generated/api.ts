@@ -128,6 +128,79 @@ export const CreateDriveDebriefResponse = zod.object({
 
 
 /**
+ * Creates a short plan from bounded progress summaries. Video, routes, coordinates, identity, family notes, and raw answers are not accepted.
+ * @summary Create a personalized plan for the next supervised drive
+ */
+export const createNextDrivePlanBodyWeakTopicsItemTopicMax = 120;
+
+export const createNextDrivePlanBodyWeakTopicsItemMasteryMin = 0;
+export const createNextDrivePlanBodyWeakTopicsItemMasteryMax = 100;
+
+export const createNextDrivePlanBodyWeakTopicsMax = 3;
+
+export const createNextDrivePlanBodyUnfinishedMissionsItemTitleMax = 120;
+
+export const createNextDrivePlanBodyUnfinishedMissionsItemCategoryMax = 80;
+
+export const createNextDrivePlanBodyUnfinishedMissionsItemMinutesMin = 5;
+export const createNextDrivePlanBodyUnfinishedMissionsItemMinutesMax = 120;
+
+export const createNextDrivePlanBodyUnfinishedMissionsMax = 3;
+
+export const createNextDrivePlanBodyRecentDrivesItemDurationMinutesMax = 600;
+
+export const createNextDrivePlanBodyRecentDrivesItemSkillsItemMax = 120;
+
+export const createNextDrivePlanBodyRecentDrivesItemSkillsMax = 10;
+
+export const createNextDrivePlanBodyRecentDrivesItemDebriefImprovementMax = 500;
+
+export const createNextDrivePlanBodyRecentDrivesItemDebriefNextStepMax = 500;
+
+export const createNextDrivePlanBodyRecentDrivesMax = 3;
+
+
+
+export const CreateNextDrivePlanBody = zod.object({
+  "weakTopics": zod.array(zod.object({
+  "topic": zod.string().min(1).max(createNextDrivePlanBodyWeakTopicsItemTopicMax),
+  "mastery": zod.number().min(createNextDrivePlanBodyWeakTopicsItemMasteryMin).max(createNextDrivePlanBodyWeakTopicsItemMasteryMax)
+})).max(createNextDrivePlanBodyWeakTopicsMax),
+  "unfinishedMissions": zod.array(zod.object({
+  "title": zod.string().min(1).max(createNextDrivePlanBodyUnfinishedMissionsItemTitleMax),
+  "category": zod.string().min(1).max(createNextDrivePlanBodyUnfinishedMissionsItemCategoryMax),
+  "minutes": zod.number().int().min(createNextDrivePlanBodyUnfinishedMissionsItemMinutesMin).max(createNextDrivePlanBodyUnfinishedMissionsItemMinutesMax)
+})).max(createNextDrivePlanBodyUnfinishedMissionsMax),
+  "recentDrives": zod.array(zod.object({
+  "durationMinutes": zod.number().int().min(1).max(createNextDrivePlanBodyRecentDrivesItemDurationMinutesMax),
+  "night": zod.boolean(),
+  "skills": zod.array(zod.string().min(1).max(createNextDrivePlanBodyRecentDrivesItemSkillsItemMax)).max(createNextDrivePlanBodyRecentDrivesItemSkillsMax),
+  "debriefImprovement": zod.string().max(createNextDrivePlanBodyRecentDrivesItemDebriefImprovementMax).nullable(),
+  "debriefNextStep": zod.string().max(createNextDrivePlanBodyRecentDrivesItemDebriefNextStepMax).nullable()
+})).max(createNextDrivePlanBodyRecentDrivesMax)
+})
+
+export const createNextDrivePlanResponseSkillFocusMax = 160;
+
+export const createNextDrivePlanResponseDurationMinutesMin = 10;
+export const createNextDrivePlanResponseDurationMinutesMax = 60;
+
+export const createNextDrivePlanResponseParentPromptMax = 300;
+
+export const createNextDrivePlanResponseSafetyGuidanceMax = 500;
+
+
+
+export const CreateNextDrivePlanResponse = zod.object({
+  "skillFocus": zod.string().min(1).max(createNextDrivePlanResponseSkillFocusMax),
+  "durationMinutes": zod.number().int().min(createNextDrivePlanResponseDurationMinutesMin).max(createNextDrivePlanResponseDurationMinutesMax),
+  "parentPrompt": zod.string().min(1).max(createNextDrivePlanResponseParentPromptMax),
+  "safetyGuidance": zod.string().min(1).max(createNextDrivePlanResponseSafetyGuidanceMax),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Create a revocable family invite
  */
 export const createFamilyInviteBodyExpiresInHoursDefault = 72;

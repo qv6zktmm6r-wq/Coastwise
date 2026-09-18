@@ -182,6 +182,82 @@ export interface DriveDebrief {
   parentPrompt: string;
 }
 
+export interface NextDriveMissionSummary {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  title: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  category: string;
+  /**
+     * @minimum 5
+     * @maximum 120
+     */
+  minutes: number;
+}
+
+export interface RecentDriveSummary {
+  /**
+     * @minimum 1
+     * @maximum 600
+     */
+  durationMinutes: number;
+  night: boolean;
+  /**
+     * @maxItems 10
+     * @items.minLength 1
+     * @items.maxLength 120
+     */
+  skills: string[];
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  debriefImprovement: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  debriefNextStep: string | null;
+}
+
+export interface NextDrivePlanInput {
+  /** @maxItems 3 */
+  weakTopics: DriveDebriefTopic[];
+  /** @maxItems 3 */
+  unfinishedMissions: NextDriveMissionSummary[];
+  /** @maxItems 3 */
+  recentDrives: RecentDriveSummary[];
+}
+
+export interface NextDrivePlan {
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  skillFocus: string;
+  /**
+     * @minimum 10
+     * @maximum 60
+     */
+  durationMinutes: number;
+  /**
+     * @minLength 1
+     * @maxLength 300
+     */
+  parentPrompt: string;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  safetyGuidance: string;
+  createdAt: string;
+}
+
 export type CreateInviteInputRole = typeof CreateInviteInputRole[keyof typeof CreateInviteInputRole];
 
 

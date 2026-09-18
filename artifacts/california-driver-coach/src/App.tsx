@@ -51,6 +51,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   useCreatePracticeRoute,
   useCreateDriveDebrief,
+  useCreateNextDrivePlan,
   type PracticeRoute,
 } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -73,6 +74,7 @@ import {
 import { getDriveReviewBrowserFixture } from '@/lib/drive-review-browser-fixture';
 import { canPlayRecording, chooseRecordingMimeType, describeRecordingFormat, getRecordingBrowser } from '@/lib/drive-recording';
 import { buildDriveDebriefInput } from '@/lib/ai-debrief';
+import { buildNextDrivePlanInput } from '@/lib/ai-next-drive-plan';
 import coastwiseLogo from '@/assets/coastwise-logo.svg';
 import NotFound from '@/pages/not-found';
 import { AppState, createDriveSessionId, getStoredState, initialState, isRecord, parseStoredState, storageKey, type Appearance, type DriveSession, type PracticeQuestion, type Scenario, type Topic } from '@/lib/state';
@@ -331,7 +333,31 @@ function MaterialPolicyNoticeDialog({ onAcknowledge }: { onAcknowledge: () => vo
 }
 
 
-function Dashboard({ state }: { state: AppState; setState: (next: AppState) => void }) {
+function NextDrivePlanCard({ state, setState, compact = false }: { state: AppState; setState: (next: AppState) => void; compact?: boolean }) {
+  const createPlan = useCreateNextDrivePlan();
+  const plan = state.nextDrivePlan;
+  const generate = () => createPlan.mutate(
+    { data: buildNextDrivePlanInput(state) },
+    { onSuccess: (result) => setState({ ...state, nextDrivePlan: result }) },
+  );
+  return <section className={`overflow-hidden rounded-2xl border border-[hsl(var(--primary)/.28)] bg-[hsl(var(--card))] ${compact ? '' : 'soft-shadow'}`} data-testid="next-drive-plan">
+    <div className="flex flex-col justify-between gap-4 bg-[hsl(var(--secondary)/.42)] p-5 sm:flex-row sm:items-center md:px-6">
+      <div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--primary))]"><Sparkles size={15} />Next supervised drive</div><h2 className="mt-1 font-display text-2xl">{plan ? 'One focused plan, ready when you are.' : 'Turn recent progress into a simple plan.'}</h2></div>
+      <ActionButton onClick={generate} disabled={createPlan.isPending} variant={plan ? 'outline' : 'primary'} testId="button-generate-next-drive-plan">
+        {createPlan.isPending ? 'Planning…' : plan ? 'Refresh plan' : 'Create my plan'}
+      </ActionButton>
+    </div>
+    {plan ? <div className="grid gap-px bg-[hsl(var(--border))] sm:grid-cols-2 lg:grid-cols-4">
+      <div className="bg-[hsl(var(--card))] p-5"><div className="text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Skill focus</div><p className="mt-2 text-sm font-extrabold leading-5" data-testid="text-next-plan-focus">{plan.skillFocus}</p></div>
+      <div className="bg-[hsl(var(--card))] p-5"><div className="text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Suggested time</div><p className="mt-2 font-display text-3xl">{plan.durationMinutes} min</p></div>
+      <div className="bg-[hsl(var(--card))] p-5"><div className="text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Calm parent prompt</div><p className="mt-2 text-sm font-semibold leading-5">{plan.parentPrompt}</p></div>
+      <div className="bg-[hsl(var(--card))] p-5"><div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--accent))]"><ShieldCheck size={13} />Safety first</div><p className="mt-2 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{plan.safetyGuidance}</p></div>
+    </div> : <div className="p-5 text-xs leading-5 text-[hsl(var(--muted-foreground))] md:px-6"><strong className="text-[hsl(var(--foreground))]">Privacy first:</strong> Coastwise sends up to three low-mastery topic summaries, unfinished mission titles/categories/times, and three recent drive summaries with duration, night status, selected skills, and prior debrief outcomes. Video, routes, coordinates, identity, family notes, and raw answers stay on this device.</div>}
+    {createPlan.isError && <div className="border-t border-[hsl(var(--border))] px-5 py-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert">{plan ? 'A new plan is unavailable right now. Your saved plan is still ready to use.' : 'Coastwise could not create a plan right now. Try again later.'}</div>}
+  </section>;
+}
+
+function Dashboard({ state, setState }: { state: AppState; setState: (next: AppState) => void }) {
   const [selectedGoal, setSelectedGoal] = useState<'permit' | 'driving' | null>(null);
   const totalMinutes = state.sessions.reduce((sum, session) => sum + session.minutes, 0);
   const permitAnswers = Object.values(state.practiceProgress);
@@ -374,6 +400,7 @@ function Dashboard({ state }: { state: AppState; setState: (next: AppState) => v
         </div>}
       </div>
     </section>
+    <div className="mt-6"><NextDrivePlanCard state={state} setState={setState} /></div>
     <section className="mt-6 overflow-hidden rounded-[24px] border border-[hsl(var(--primary)/.22)] bg-[hsl(var(--card))] soft-shadow" data-testid="daily-coach-plan">
       <div className="flex flex-col justify-between gap-3 border-b border-[hsl(var(--border))] bg-[hsl(var(--secondary)/.45)] p-5 sm:flex-row sm:items-center md:px-6">
         <div><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--primary))]">Today’s Coastwise plan</div><h2 className="mt-1 font-display text-2xl">Three small steps, one clear direction.</h2></div>
@@ -1163,6 +1190,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     }
   };
   return <div><PageHeader eyebrow="Behind the wheel" title="Every drive is a building block." copy="Choose one mission, drive with an adult, and log the time while it is fresh. Progress here is measured in minutes, not pressure." action={<ActionButton onClick={() => setShowForm(!showForm)} variant="secondary" testId="button-toggle-drive-log"><Plus size={17} />Log drive</ActionButton>} />
+    {!tracking && <div className="mb-6"><NextDrivePlanCard state={state} setState={setState} compact /></div>}
     {!tracking && <section className="mb-6 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 soft-shadow md:p-6">
       <div className="flex flex-col justify-between gap-5 md:flex-row md:items-start">
         <div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]"><RouteIcon size={16} />GPS practice route</div><h2 className="mt-2 font-display text-3xl">Build a loop from where you are.</h2><p className="mt-2 max-w-2xl text-xs leading-5 text-[hsl(var(--muted-foreground))]">Choose a target length. Coastwise maps nearby roads, returns to your starting area, and automatically speaks every upcoming maneuver.</p></div>
