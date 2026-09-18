@@ -75,11 +75,10 @@ import { ActionButton, PageHeader, SafetyNote } from '@/components/shared';
 import SettingsPage from '@/pages/settings';
 import {
   currentMaterialPolicyNotice,
-  getPolicyAcknowledgement,
+  getPolicyAcknowledgements,
   policyAcknowledgementStorageKey,
   requiresCurrentPolicyAcknowledgement,
   saveCurrentPolicyAcknowledgement,
-  type PolicyAcknowledgement,
 } from '@/lib/policy-notice';
 
 const navItems: { href: string; label: string; testId: string; icon: LucideIcon }[] = [
@@ -1252,11 +1251,12 @@ import { AppClerkProvider } from '@/components/clerk-provider-with-routes';
 import SignInPage from '@/pages/sign-in';
 import SignUpPage from '@/pages/sign-up';
 import LegalPage from '@/pages/legal';
+import PolicyUpdatesPage from '@/pages/policy-updates';
 
 function Router() {
   const [state, setState] = useState<AppState>(getStoredState);
   const syncManager = useSyncManager(state, setState);
-  const [policyAcknowledgement, setPolicyAcknowledgement] = useState<PolicyAcknowledgement | null>(getPolicyAcknowledgement);
+  const [policyAcknowledgements, setPolicyAcknowledgements] = useState(getPolicyAcknowledgements);
 
   const [persistenceWarning, setPersistenceWarning] = useState('');
   useEffect(() => {
@@ -1278,7 +1278,7 @@ function Router() {
   useEffect(() => {
     const handlePolicyStorage = (event: StorageEvent) => {
       if (event.key !== policyAcknowledgementStorageKey || (event.storageArea && event.storageArea !== window.localStorage)) return;
-      setPolicyAcknowledgement(getPolicyAcknowledgement());
+      setPolicyAcknowledgements(getPolicyAcknowledgements());
     };
     window.addEventListener('storage', handlePolicyStorage);
     return () => window.removeEventListener('storage', handlePolicyStorage);
@@ -1310,15 +1310,16 @@ function Router() {
             <Route path="/scenarios"><Scenarios state={state} setState={setState} /></Route>
             <Route path="/drive"><Drive state={state} setState={setState} /></Route>
             <Route path="/parent"><Parent state={state} setState={setState} /></Route>
-            <Route path="/settings"><SettingsPage state={state} setState={setState} syncManager={syncManager} policyAcknowledgement={policyAcknowledgement} /></Route>
+            <Route path="/settings"><SettingsPage state={state} setState={setState} syncManager={syncManager} policyAcknowledgements={policyAcknowledgements} /></Route>
             <Route path="/privacy"><LegalPage kind="privacy" /></Route>
             <Route path="/terms"><LegalPage kind="terms" /></Route>
+            <Route path="/policy-updates"><PolicyUpdatesPage /></Route>
             <Route component={NotFound} />
           </Switch>
         </Shell>
-        {requiresCurrentPolicyAcknowledgement(policyAcknowledgement) && <MaterialPolicyNoticeDialog onAcknowledge={() => {
+        {requiresCurrentPolicyAcknowledgement(policyAcknowledgements) && <MaterialPolicyNoticeDialog onAcknowledge={() => {
           try {
-            setPolicyAcknowledgement(saveCurrentPolicyAcknowledgement());
+            setPolicyAcknowledgements(saveCurrentPolicyAcknowledgement());
           } catch {
             setPersistenceWarning('This browser could not save your privacy and safety acknowledgement. Check browser storage settings before continuing.');
           }

@@ -7,7 +7,7 @@ import { Link, useLocation } from 'wouter';
 import { mergeStates } from '../lib/sync';
 import { clearDriveRecordings } from '../lib/route-coach';
 import { Settings, SunMedium, Moon, HardDrive, Download, Upload, ShieldCheck, LockKeyhole, Pencil, Check, RefreshCw, AlertTriangle, Link as LinkIcon, Trash2, ChevronRight } from 'lucide-react';
-import { currentMaterialPolicyNotice, type PolicyAcknowledgement } from '../lib/policy-notice';
+import { materialPolicyNotices, type PolicyAcknowledgement } from '../lib/policy-notice';
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -43,7 +43,7 @@ function InstallCoastwise() {
   return <ActionButton onClick={() => void install()} variant="secondary" testId="button-install-coastwise"><Download size={16} />Install Coastwise</ActionButton>;
 }
 
-export default function SettingsPage({ state, setState, syncManager, policyAcknowledgement }: { state: AppState; setState: (next: AppState) => void; syncManager: any; policyAcknowledgement: PolicyAcknowledgement | null }) {
+export default function SettingsPage({ state, setState, syncManager, policyAcknowledgements }: { state: AppState; setState: (next: AppState) => void; syncManager: any; policyAcknowledgements: PolicyAcknowledgement[] }) {
   const { user, isLoaded, isSignedIn } = useUser();
   const { signOut } = useClerk();
   const [location] = useLocation();
@@ -210,17 +210,41 @@ export default function SettingsPage({ state, setState, syncManager, policyAckno
             <Link href="/privacy" className="flex min-h-11 items-center justify-between rounded-xl border border-[hsl(var(--border))] px-4 py-3 text-sm font-bold hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--secondary)/.35)]" data-testid="link-settings-privacy">Privacy Policy<ChevronRight size={17} /></Link>
             <Link href="/terms" className="flex min-h-11 items-center justify-between rounded-xl border border-[hsl(var(--border))] px-4 py-3 text-sm font-bold hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--secondary)/.35)]" data-testid="link-settings-terms">Terms &amp; Safety<ChevronRight size={17} /></Link>
           </div>
-          <div className="mt-5 rounded-xl bg-[hsl(var(--secondary)/.45)] p-4" data-testid="policy-acknowledgement-history">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-extrabold">Latest material update</h3>
-              <span className="font-mono-ui text-[11px] text-[hsl(var(--muted-foreground))]">Version {currentMaterialPolicyNotice.version}</span>
+          <div className="mt-5" data-testid="policy-acknowledgement-history">
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-extrabold">Material update history</h3>
+                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Acknowledgements are kept only in this browser. They are not synced or included in progress backups.</p>
+              </div>
             </div>
-            <p className="mt-2 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{currentMaterialPolicyNotice.summary}</p>
-            <p className="mt-3 text-xs font-bold text-[hsl(var(--primary))]">
-              {policyAcknowledgement?.version === currentMaterialPolicyNotice.version
-                ? `Acknowledged on ${new Date(policyAcknowledgement.acknowledgedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} on this device`
-                : 'Acknowledgement required on this device'}
-            </p>
+            <ol className="space-y-3">
+              {materialPolicyNotices.map((notice, index) => {
+                const acknowledgement = policyAcknowledgements.find((record) => record.version === notice.version);
+                return <li id={`policy-update-${notice.version}`} key={notice.version} className="rounded-xl bg-[hsl(var(--secondary)/.45)] p-4" data-testid={`policy-update-${notice.version}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="text-sm font-extrabold">{index === 0 ? 'Latest: ' : ''}{notice.title}</h4>
+                    <span className="font-mono-ui text-[11px] text-[hsl(var(--muted-foreground))]">Effective {notice.effectiveDate}</span>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{notice.summary}</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">
+                    {notice.changes.map((change) => <li key={change}>{change}</li>)}
+                  </ul>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    <p className={`text-xs font-bold ${acknowledgement ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'}`} data-testid={`status-policy-acknowledgement-${notice.version}`}>
+                      {acknowledgement
+                        ? `Acknowledged on ${new Date(acknowledgement.acknowledgedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} on this device`
+                        : index === 0 ? 'Acknowledgement required on this device' : 'Not acknowledged on this device'}
+                    </p>
+                    {index === 0
+                      ? <div className="flex gap-3">
+                          <Link href="/privacy" className="text-xs font-bold text-[hsl(var(--primary))] hover:underline" data-testid={`link-policy-privacy-${notice.version}`}>Privacy text</Link>
+                          <Link href="/terms" className="text-xs font-bold text-[hsl(var(--primary))] hover:underline" data-testid={`link-policy-terms-${notice.version}`}>Safety terms</Link>
+                        </div>
+                      : <Link href={`/policy-updates#policy-update-${notice.version}`} className="text-xs font-bold text-[hsl(var(--primary))] hover:underline" data-testid={`link-policy-archive-${notice.version}`}>Review archived summary</Link>}
+                  </div>
+                </li>;
+              })}
+            </ol>
           </div>
         </section>
         
