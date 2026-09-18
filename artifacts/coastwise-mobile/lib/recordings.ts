@@ -3,10 +3,11 @@ import {
   finalizeRecording as finalizeRecordingFile,
   type CameraRecordingResult,
   type FinalizedRecording,
+  type RecordingCleanupFailure,
   type RecordingFileSystem,
 } from './recording-finalization';
 
-export type { CameraRecordingResult, FinalizedRecording };
+export type { CameraRecordingResult, FinalizedRecording, RecordingCleanupFailure };
 
 export type LocalRecording = {
   uri: string;
@@ -17,7 +18,10 @@ export type LocalRecording = {
 
 const RECORDING_PREFIXES = ['coastwise-drive-', 'drive-'];
 
-export async function finalizeRecording(result: CameraRecordingResult): Promise<FinalizedRecording | null> {
+export async function finalizeRecording(
+  result: CameraRecordingResult,
+  onCleanupFailure?: (failure: RecordingCleanupFailure) => void,
+): Promise<FinalizedRecording | null> {
   const fileSystem: RecordingFileSystem = {
     documentDirectory: FileSystem.documentDirectory,
     copyAsync: (options) => FileSystem.copyAsync(options),
@@ -32,7 +36,7 @@ export async function finalizeRecording(result: CameraRecordingResult): Promise<
       };
     },
   };
-  return finalizeRecordingFile(result, fileSystem);
+  return finalizeRecordingFile(result, fileSystem, undefined, onCleanupFailure);
 }
 
 export async function listLocalRecordings(): Promise<LocalRecording[]> {

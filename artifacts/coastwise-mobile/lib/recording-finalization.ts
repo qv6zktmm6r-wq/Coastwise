@@ -19,6 +19,11 @@ export type FinalizedRecording = {
   modifiedAt?: number;
 };
 
+export type RecordingCleanupFailure = {
+  uri: string;
+  error: unknown;
+};
+
 let lastDestinationTimestamp = -1;
 let destinationSequence = 0;
 
@@ -34,6 +39,7 @@ export async function finalizeRecording(
   result: CameraRecordingResult,
   fileSystem: RecordingFileSystem,
   destinationName = createDestinationName(),
+  onCleanupFailure?: (failure: RecordingCleanupFailure) => void,
 ): Promise<FinalizedRecording | null> {
   if (!result?.uri || !fileSystem.documentDirectory) return null;
 
@@ -43,8 +49,9 @@ export async function finalizeRecording(
   const cleanupDestination = async () => {
     try {
       await fileSystem.deleteAsync(destination, { idempotent: true });
-    } catch {
+    } catch (error) {
       // Cleanup is best effort and must not replace the original finalization error.
+      onCleanupFailure?.({ uri: destination, error });
     }
   };
 

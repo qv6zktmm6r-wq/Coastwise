@@ -274,9 +274,12 @@ export default function DriveScreen() {
     if (!recordingDriveId) return;
     setRecording(true);
     AccessibilityInfo.announceForAccessibility("Recording started.");
+    let cleanupFailed = false;
     const task = (async () => {
       const result = await camera.recordAsync({ maxDuration: 3600 });
-      const metadata = await finalizeRecording(result);
+      const metadata = await finalizeRecording(result, () => {
+        cleanupFailed = true;
+      });
       if (!metadata) throw new Error('Camera did not return a saved recording.');
       const updated = attachRecording(driveRef.current, recordingDriveId, {
         uri: metadata.uri,
@@ -297,7 +300,12 @@ export default function DriveScreen() {
       }
       await refreshRecordings();
     })().catch(() => {
-      Alert.alert('Recording unavailable', 'Coastwise could not save this recording. Your drive summary is still safe.');
+      Alert.alert(
+        'Recording unavailable',
+        cleanupFailed
+          ? 'Coastwise could not save this recording. Your drive summary is still safe. The unfinished video could not be removed, so review Local recordings when parked.'
+          : 'Coastwise could not save this recording. Your drive summary is still safe.',
+      );
     }).finally(() => {
       setRecording(false);
     });
