@@ -66,3 +66,12 @@ test('Coastwise uses the locked brand name and dedicated logo asset', () => {
   assert.match(documentSource, /rel="manifest"/);
   assert.match(documentSource, /name="theme-color" content="#0084FF"/);
 });
+
+test('dashboard greeting is generic and time-aware', () => {
+  assert.match(appSource, /function getTimeOfDayGreeting\(hour: number\)/);
+  assert.match(appSource, /if \(hour < 12\) return 'Good morning'/);
+  assert.match(appSource, /if \(hour < 18\) return 'Good afternoon'/);
+  assert.match(appSource, /return 'Good evening'/);
+  assert.match(appSource, /<div className="mb-3[^>]*>\{greeting\}<\/div>/);
+  assert.doesNotMatch(appSource, /Good morning, \{state\.profile\.name\}/);
+});

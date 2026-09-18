@@ -159,6 +159,12 @@ function formatStorageBytes(bytes: number) {
   return `${Math.max(0, Math.round(bytes / 1024 ** 2))} MB`;
 }
 
+function getTimeOfDayGreeting(hour: number) {
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -358,9 +364,10 @@ function Dashboard({ state }: { state: AppState; setState: (next: AppState) => v
   const permitAnswers = Object.values(state.practiceProgress);
   const permitCoverage = Math.round((permitAnswers.length / questionBank.length) * 100);
   const daysToTest = Math.max(0, Math.ceil((new Date(state.profile.targetTestDate).getTime() - Date.now()) / 86400000));
+  const greeting = getTimeOfDayGreeting(new Date().getHours());
   return <div>
     <header className="mx-auto mb-8 max-w-3xl text-center md:mb-10">
-      <div className="mb-3 text-xs font-bold uppercase tracking-[.16em] text-[hsl(var(--primary))]">Good morning, {state.profile.name}</div>
+      <div className="mb-3 text-xs font-bold uppercase tracking-[.16em] text-[hsl(var(--primary))]">{greeting}</div>
       <h1 className="font-display text-4xl leading-[1.05] tracking-[-.035em] md:text-6xl">What are you working on today?</h1>
       <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">Choose one goal. Coastwise will show only the tools that help with it.</p>
     </header>
