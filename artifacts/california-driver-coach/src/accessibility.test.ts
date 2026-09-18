@@ -61,4 +61,7 @@ test('Coastwise uses the locked brand name and dedicated logo asset', () => {
   assert.match(appSource, />Coastwise<\/div>/);
   assert.doesNotMatch(appSource, />coastwise<\/div>/);
   assert.match(documentSource, /href="\/favicon\.svg"/);
+  assert.match(documentSource, /rel="apple-touch-icon"/);
+  assert.match(documentSource, /rel="manifest"/);
+  assert.match(documentSource, /name="theme-color" content="#0084FF"/);
 });

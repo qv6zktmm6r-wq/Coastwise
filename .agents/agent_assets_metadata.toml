@@ -94,3 +94,17 @@ mtime_ms = 1789696412707
 storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:87f79498-6551-4eb3-b436-ff8c5c7ea267/886b42b9-d690-48ae-8906-8a0c7ef5b330/bd4548f0-347b-4171-aecc-0583609f87f7"
 storage_version_token = "1789696474855930"
 content_type = "image/svg+xml"
+
+[[outputs]]
+id = "RJjKRil1Dv3HR_dJA1Bfn"
+uri = "file://artifacts/california-driver-coach/public/coastwise-app-icon-1024.png"
+type = "image"
+title = "Coastwise app icon"
+description = "Opaque 1024×1024 PNG ready for a future iOS or Android app icon."
+logical_id = "49d322e5-ee67-442d-82fc-1340d9c82601"
+content_hash = "sha256:989553bdbf63f4d89df7061ee1a4ab8d6e1c01a42f173234a3c98e032c3415d0"
+size = 294487
+mtime_ms = 1789696746620
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:87f79498-6551-4eb3-b436-ff8c5c7ea267/49d322e5-ee67-442d-82fc-1340d9c82601/02278fd4-2a8d-4dae-ba38-c8f4a492a843"
+storage_version_token = "1789696784315102"
+content_type = "image/png"
