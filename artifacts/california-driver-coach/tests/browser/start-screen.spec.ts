@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { acknowledgeCurrentPolicyBeforeNavigation } from './policy-test-helper';
 
 const mobileNavItems = [
   'link-mobile-nav-today',
@@ -8,6 +9,7 @@ const mobileNavItems = [
 ];
 
 test.use({ viewport: { width: 390, height: 844 } });
+test.beforeEach(async ({ page }) => acknowledgeCurrentPolicyBeforeNavigation(page));
 
 test('keeps each start-screen goal tied to its own study tools', async ({ page }) => {
   await page.goto('/');

@@ -32,6 +32,31 @@ describe('sync helpers', () => {
     assert.doesNotMatch(JSON.stringify(sanitized), /video|coordinates|longitude|latitude/i);
   });
 
+  it('syncs only the explicit AppState contract and excludes local policy records', () => {
+    const unsafeState = {
+      ...initialState,
+      policyAcknowledgements: [{ version: 'local-only' }],
+      sessions: [{
+        id: 'session-1',
+        date: '2026-09-18',
+        minutes: 20,
+        night: false,
+        notes: 'Summary',
+        review: {
+          id: 'review-1',
+          durationSeconds: 120,
+          eventCount: 0,
+          events: [],
+          route: { coordinates: [[-121, 37]], distanceMeters: 1, durationSeconds: 1, origin: [-121, 37], steps: [] },
+          videoType: 'video/webm',
+        },
+      }],
+    } as AppState & { policyAcknowledgements: unknown[] };
+    const sanitized = sanitizeForSync(unsafeState) as unknown as Record<string, unknown>;
+    assert.equal('policyAcknowledgements' in sanitized, false);
+    assert.doesNotMatch(JSON.stringify(sanitized), /review-1|coordinates|video\/webm|local-only/i);
+  });
+
   it('merges a cloud drive summary without replacing the local review', () => {
     const localState: AppState = {
       ...initialState,

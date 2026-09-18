@@ -30,6 +30,24 @@ type OsrmResponse = {
 };
 
 const router: IRouter = Router();
+const routeRequestWindows = new Map<string, { startedAt: number; count: number }>();
+const ROUTE_REQUEST_WINDOW_MS = 60_000;
+const ROUTE_REQUEST_LIMIT = 20;
+
+export function allowRouteRequest(clientId: string, now = Date.now()): boolean {
+  const current = routeRequestWindows.get(clientId);
+  if (!current || now - current.startedAt >= ROUTE_REQUEST_WINDOW_MS) {
+    routeRequestWindows.set(clientId, { startedAt: now, count: 1 });
+    return true;
+  }
+  current.count += 1;
+  if (routeRequestWindows.size > 10_000) {
+    for (const [key, window] of routeRequestWindows) {
+      if (now - window.startedAt >= ROUTE_REQUEST_WINDOW_MS) routeRequestWindows.delete(key);
+    }
+  }
+  return current.count <= ROUTE_REQUEST_LIMIT;
+}
 
 function describeStep(step: OsrmStep): string {
   const road = step.name ? ` onto ${step.name}` : "";
@@ -86,6 +104,12 @@ async function requestRoute(points: Array<[number, number]>): Promise<OsrmRoute>
 }
 
 router.post("/practice-routes", async (req, res): Promise<void> => {
+  const clientId = req.ip || req.socket.remoteAddress || "unknown";
+  if (!allowRouteRequest(clientId)) {
+    res.setHeader("Retry-After", "60");
+    res.status(429).json({ error: "Too many route requests. Wait a minute and try again." });
+    return;
+  }
   const parsed = CreatePracticeRouteBody.safeParse(req.body);
   if (!parsed.success) {
     req.log.warn({ errors: parsed.error.issues }, "Invalid practice route request");

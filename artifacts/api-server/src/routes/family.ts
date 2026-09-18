@@ -23,24 +23,116 @@ async function membership(userId: string) {
   return member;
 }
 
-export function sanitizeFamilySyncState(value: unknown, key = ""): unknown {
-  if (key.toLowerCase().includes("video") || key.toLowerCase().includes("blob") || key.toLowerCase().includes("bytes")) {
-    throw new Error("Video data is device-local and cannot be synced.");
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function text(value: unknown, max = 2_000): string {
+  return typeof value === "string" ? value.slice(0, max) : "";
+}
+
+function number(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function boolean(value: unknown): boolean {
+  return value === true;
+}
+
+function array(value: unknown, max = 1_000): unknown[] {
+  return Array.isArray(value) ? value.slice(0, max) : [];
+}
+
+function booleanRecord(value: unknown): Record<string, boolean> {
+  return Object.fromEntries(Object.entries(record(value)).slice(0, 10_000).map(([key, item]) => [key, boolean(item)]));
+}
+
+function numberRecord(value: unknown): Record<string, number> {
+  return Object.fromEntries(Object.entries(record(value)).slice(0, 10_000).map(([key, item]) => [key, number(item)]));
+}
+
+export function sanitizeFamilySyncState(value: unknown): unknown {
+  const state = record(value);
+  const profile = record(state.profile);
+  const settings = record(state.settings);
+  return {
+    profile: {
+      name: text(profile.name, 200),
+      permitDate: text(profile.permitDate, 20),
+      targetTestDate: text(profile.targetTestDate, 20),
+    },
+    topics: array(state.topics).map((item) => {
+      const topic = record(item);
+      return { topic: text(topic.topic, 200), mastery: number(topic.mastery), questions: number(topic.questions) };
+    }),
+    answers: booleanRecord(state.answers),
+    practiceProgress: Object.fromEntries(Object.entries(record(state.practiceProgress)).slice(0, 10_000).map(([key, item]) => {
+      const answer = record(item);
+      return [key, {
+        selected: number(answer.selected),
+        correct: boolean(answer.correct),
+        answeredAt: text(answer.answeredAt, 40),
+        attempts: number(answer.attempts),
+        ...(typeof answer.correctStreak === "number" ? { correctStreak: number(answer.correctStreak) } : {}),
+        ...(typeof answer.nextReviewAt === "string" ? { nextReviewAt: text(answer.nextReviewAt, 40) } : {}),
+      }];
+    })),
+    scenarios: array(state.scenarios, 100).map((item) => {
+      const scenario = record(item);
+      return {
+        situation: text(scenario.situation),
+        choices: array(scenario.choices, 20).map((choice) => text(choice)),
+        bestChoice: number(scenario.bestChoice),
+        coaching: text(scenario.coaching),
+      };
+    }),
+    scenarioAnswers: numberRecord(state.scenarioAnswers),
+    missions: array(state.missions, 100).map((item) => {
+      const mission = record(item);
+      return {
+        title: text(mission.title, 300),
+        detail: text(mission.detail),
+        category: text(mission.category, 100),
+        minutes: number(mission.minutes),
+        completed: boolean(mission.completed),
+      };
+    }),
+    sessions: array(state.sessions, 10_000).map((item) => {
+      const session = record(item);
+      return {
+        id: text(session.id, 200),
+        date: text(session.date, 20),
+        minutes: number(session.minutes),
+        night: boolean(session.night),
+        notes: text(session.notes, 10_000),
+        ...(typeof session.distanceMiles === "number" ? { distanceMiles: number(session.distanceMiles) } : {}),
+        ...(Array.isArray(session.skills) ? { skills: array(session.skills, 100).map((skill) => text(skill, 200)) } : {}),
+        ...(typeof session.routeTitle === "string" ? { routeTitle: text(session.routeTitle, 500) } : {}),
+      };
+    }),
+    prompts: array(state.prompts, 100).map((item) => {
+      const prompt = record(item);
+      return { title: text(prompt.title, 300), copy: text(prompt.copy, 2_000), done: boolean(prompt.done) };
+    }),
+    settings: {
+      parentMode: boolean(settings.parentMode),
+      reminders: boolean(settings.reminders),
+      sounds: boolean(settings.sounds),
+      appearance: settings.appearance === "light" || settings.appearance === "dark" ? settings.appearance : "system",
+    },
+  };
+}
+
+export async function purgeUnsafeFamilySyncDocuments(): Promise<number> {
+  const documents = await db.select().from(familySync);
+  let updated = 0;
+  for (const document of documents) {
+    const state = sanitizeFamilySyncState(document.state);
+    if (JSON.stringify(state) === JSON.stringify(document.state)) continue;
+    await db.update(familySync).set({ state }).where(eq(familySync.familyId, document.familyId));
+    updated += 1;
   }
-  if (typeof value === "string") {
-    if (value.length > 100_000) throw new Error("Synced text is too large.");
-    return value;
-  }
-  if (Array.isArray(value)) {
-    if (value.length > 10_000) throw new Error("Synced list is too large.");
-    return value.map((item) => sanitizeFamilySyncState(item));
-  }
-  if (value && typeof value === "object") {
-    const output: Record<string, unknown> = {};
-    for (const [childKey, child] of Object.entries(value)) output[childKey] = sanitizeFamilySyncState(child, childKey);
-    return output;
-  }
-  return value;
+  return updated;
 }
 
 function parentFields(value: unknown) {
@@ -150,7 +242,11 @@ router.get("/families/sync", requireAuth, async (req, res) => {
   const member = await membership(req.userId!);
   if (!member) { res.status(403).json({ error: "You are not a member of this family." }); return; }
   const [doc] = await db.select().from(familySync).where(eq(familySync.familyId, member.familyId)).limit(1);
-  res.json(GetFamilySyncResponse.parse({ familyId: member.familyId, revision: doc?.revision ?? 0, state: doc?.state ?? {}, updatedAt: doc?.updatedAt ?? new Date() }));
+  const state = sanitizeFamilySyncState(doc?.state ?? {});
+  if (doc && JSON.stringify(state) !== JSON.stringify(doc.state)) {
+    await db.update(familySync).set({ state }).where(eq(familySync.familyId, member.familyId));
+  }
+  res.json(GetFamilySyncResponse.parse({ familyId: member.familyId, revision: doc?.revision ?? 0, state, updatedAt: doc?.updatedAt ?? new Date() }));
 });
 
 router.get("/families/membership", requireAuth, async (req, res) => {

@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
+import { acknowledgeCurrentPolicyBeforeNavigation } from './policy-test-helper';
 
 test.use({ viewport: { width: 390, height: 844 } });
+test.beforeEach(async ({ page }) => acknowledgeCurrentPolicyBeforeNavigation(page));
 
 test('keeps every mobile destination named, active, reachable, and large enough', async ({ page }) => {
   await page.goto('/');

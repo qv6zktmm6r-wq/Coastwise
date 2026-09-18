@@ -26,12 +26,12 @@ export type AppState = {
 };
 
 export const initialState: AppState = {
-  profile: { name: 'Maya', permitDate: '2026-04-14', targetTestDate: '2026-11-18' },
+  profile: { name: '', permitDate: '', targetTestDate: '' },
   topics: [
-    { topic: 'Right-of-way', mastery: 72, questions: 18 },
-    { topic: 'Signs & signals', mastery: 84, questions: 21 },
-    { topic: 'Safe speed', mastery: 58, questions: 14 },
-    { topic: 'Sharing the road', mastery: 46, questions: 11 },
+    { topic: 'Right-of-way', mastery: 0, questions: 0 },
+    { topic: 'Signs & signals', mastery: 0, questions: 0 },
+    { topic: 'Safe speed', mastery: 0, questions: 0 },
+    { topic: 'Sharing the road', mastery: 0, questions: 0 },
   ],
   answers: {},
   practiceProgress: {},
@@ -42,21 +42,16 @@ export const initialState: AppState = {
   ],
   scenarioAnswers: {},
   missions: [
-    { title: 'Smooth starts & stops', detail: 'Practice gentle acceleration and braking on a quiet street.', category: 'Control', minutes: 25, completed: true },
+    { title: 'Smooth starts & stops', detail: 'Practice gentle acceleration and braking on a quiet street.', category: 'Control', minutes: 25, completed: false },
     { title: 'Lane-change rhythm', detail: 'Mirror, signal, shoulder check, then move with space.', category: 'Awareness', minutes: 30, completed: false },
     { title: 'Neighborhood navigation', detail: 'Plan a three-turn loop and narrate what you see ahead.', category: 'Navigation', minutes: 35, completed: false },
     { title: 'Busy intersection scan', detail: 'Approach, identify hazards, and make two calm left turns.', category: 'Judgment', minutes: 30, completed: false },
     { title: 'Night-drive basics', detail: 'With an adult, practice headlights, glare, and slower speeds.', category: 'Night', minutes: 25, completed: false },
   ],
-  sessions: [
-    { id: 'sample-drive-1', date: '2025-06-01', minutes: 55, night: false, notes: 'Quiet streets and three-point turns.' },
-    { id: 'sample-drive-2', date: '2025-06-08', minutes: 65, night: false, notes: 'Lane changes on the boulevard.' },
-    { id: 'sample-drive-3', date: '2025-06-15', minutes: 45, night: true, notes: 'Sunset route; practiced headlights.' },
-    { id: 'sample-drive-4', date: '2025-06-22', minutes: 70, night: false, notes: 'Parking lot control and neighborhood loop.' },
-  ],
+  sessions: [],
   prompts: [
     { title: 'Ask for a calm replay', copy: 'After a tricky moment, ask: “What did you notice first?” before offering your answer.', done: false },
-    { title: 'Name the win', copy: 'Call out one specific choice that felt safe or smooth today.', done: true },
+    { title: 'Name the win', copy: 'Call out one specific choice that felt safe or smooth today.', done: false },
     { title: 'Set the next tiny goal', copy: 'Pick one skill for the next drive, not a whole list.', done: false },
     { title: 'Keep the cabin quiet', copy: 'Save corrections for a safe stop. A calm driver learns faster.', done: false },
   ],

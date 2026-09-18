@@ -20,7 +20,7 @@ export const materialPolicyNotices: MaterialPolicyNotice[] = [
     title: 'Privacy and safety terms have changed',
     summary: 'We clarified how Coastwise handles device permissions, drive recordings, family sharing, and safe use during supervised practice.',
     changes: [
-      'Camera, microphone, and precise location access are used only when you choose features that need them.',
+      'Camera and precise location access are used only when you choose features that need them.',
       'Drive recordings and precise route details stay on this device and are not included in family sync.',
       'A supervising adult remains responsible for safe, legal practice and should not interact with Coastwise while driving.',
     ],
@@ -39,7 +39,7 @@ export const materialPolicyNotices: MaterialPolicyNotice[] = [
     version: '2026-03-02',
     effectiveDate: 'March 2, 2026',
     title: 'Permissions and supervised use',
-    summary: 'We added clearer notice about optional camera, microphone, and location permissions and the supervising adult’s safety responsibilities.',
+    summary: 'We added clearer notice about optional camera and location permissions and the supervising adult’s safety responsibilities.',
     changes: [
       'Coastwise asks for device permissions only when a feature needs them.',
       'A supervising adult should set up coaching before driving begins and remain responsible for safe, legal practice.',

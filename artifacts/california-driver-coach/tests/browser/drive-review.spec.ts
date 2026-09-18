@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { browserRecordingFormats } from '../../src/lib/drive-recording';
+import { acknowledgeCurrentPolicyBeforeNavigation } from './policy-test-helper';
+
+test.beforeEach(async ({ page }) => acknowledgeCurrentPolicyBeforeNavigation(page));
 
 test('documents the MediaRecorder MIME type and codec selected by this browser', async ({ page, browserName }) => {
   const documentedFormats = browserRecordingFormats[browserName as keyof typeof browserRecordingFormats];

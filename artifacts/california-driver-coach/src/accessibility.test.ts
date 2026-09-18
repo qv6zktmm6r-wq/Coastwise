@@ -103,13 +103,14 @@ test('installed app ownership is local, portable, and resettable without an acco
 });
 
 test('privacy and safety notices remain reachable and complete for release', () => {
-  for (const [path, kind, pageTestId] of [
-    ['/privacy', 'privacy', 'privacy-page'],
-    ['/terms', 'terms', 'terms-page'],
+  for (const [path, kind] of [
+    ['/privacy', 'privacy'],
+    ['/terms', 'terms'],
   ] as const) {
     assert.match(appSource, new RegExp(`<Route path="${path}"><LegalPage kind="${kind}"`));
-    assert.match(legalSource, new RegExp(`data-testid="${pageTestId}"`));
   }
+  assert.match(legalSource, /data-testid=\{privacy \? 'privacy-page' : 'terms-page'\}/);
+  assert.match(appSource, /const isPolicyRoute = location === '\/privacy' \|\| location === '\/terms' \|\| location === '\/policy-updates'/);
 
   for (const [source, testId, path] of [
     [settingsSource, 'link-settings-privacy', '/privacy'],

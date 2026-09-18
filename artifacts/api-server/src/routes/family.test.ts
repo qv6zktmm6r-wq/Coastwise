@@ -37,8 +37,8 @@ test("two initial revision-zero writes produce one save and one conflict", async
 
   try {
     const results = await Promise.all([
-      saveFamilySync(userId, 0, { marker: "first" }),
-      saveFamilySync(userId, 0, { marker: "second" }),
+      saveFamilySync(userId, 0, { profile: { name: "First" } }),
+      saveFamilySync(userId, 0, { profile: { name: "Second" } }),
     ]);
     assert.deepEqual(results.map((result) => result.status).sort(), [200, 409]);
     const documents = await db.select().from(familySync).where(eq(familySync.familyId, family.id));
@@ -49,7 +49,7 @@ test("two initial revision-zero writes produce one save and one conflict", async
   }
 });
 
-test("server sanitizer accepts a client-sanitized reviewed drive without video metadata", () => {
+test("server sanitizer strips local review, route, event, recording, and policy data", () => {
   const sanitizedState = {
     prompts: [],
     settings: { parentMode: false },
@@ -66,11 +66,14 @@ test("server sanitizer accepts a client-sanitized reviewed drive without video m
         route: { coordinates: [], distanceMeters: 0, durationSeconds: 0, origin: [0, 0], steps: [] },
       },
     }],
+    policyAcknowledgements: [{ version: "secret-local-record" }],
   };
 
   const accepted = sanitizeFamilySyncState(sanitizedState) as any;
-  assert.equal(accepted.sessions[0].review.id, "review-1");
-  assert.equal("videoType" in accepted.sessions[0].review, false);
+  assert.equal(accepted.sessions[0].notes, "Reviewed drive");
+  assert.equal("review" in accepted.sessions[0], false);
+  assert.equal("policyAcknowledgements" in accepted, false);
+  assert.doesNotMatch(JSON.stringify(accepted), /coordinates|events|review-1|secret-local-record/i);
 });
 
 test("one account can concurrently join only one active family", async () => {

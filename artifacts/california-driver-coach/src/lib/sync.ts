@@ -3,11 +3,19 @@ import { SyncState } from '@workspace/api-client-react';
 
 export function sanitizeForSync(state: AppState): SyncState {
   const sanitized: AppState = {
-    ...state,
-    sessions: state.sessions.map((session) => {
-      const { review: _localReview, ...driveLogSummary } = session;
-      return driveLogSummary;
-    }),
+    profile: { ...state.profile },
+    topics: state.topics.map((topic) => ({ ...topic })),
+    answers: { ...state.answers },
+    practiceProgress: Object.fromEntries(Object.entries(state.practiceProgress).map(([key, answer]) => [key, { ...answer }])),
+    scenarios: state.scenarios.map((scenario) => ({ ...scenario, choices: [...scenario.choices] })),
+    scenarioAnswers: { ...state.scenarioAnswers },
+    missions: state.missions.map((mission) => ({ ...mission })),
+    sessions: state.sessions.map(({ review: _localReview, ...driveLogSummary }) => ({
+      ...driveLogSummary,
+      skills: driveLogSummary.skills ? [...driveLogSummary.skills] : undefined,
+    })),
+    prompts: state.prompts.map((prompt) => ({ ...prompt })),
+    settings: { ...state.settings },
   };
   return sanitized as unknown as SyncState;
 }
@@ -84,5 +92,6 @@ export function mergeStates(localState: AppState, incomingSyncState: SyncState):
     missions: Array.from(missionMap.values()),
     sessions: Array.from(sessionMap.values()).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
     prompts: incoming.prompts || localState.prompts,
+    settings: { ...localState.settings, ...incoming.settings },
   };
 }

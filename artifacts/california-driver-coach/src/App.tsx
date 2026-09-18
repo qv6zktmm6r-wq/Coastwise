@@ -1014,6 +1014,14 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     coachEventsRef.current = next.coachEvents;
     setCoachEvents(next.coachEvents);
     setSelectedEventId(next.selectedEventId);
+    if (openReviewId) {
+      setState({
+        ...state,
+        sessions: state.sessions.map((session) => session.review?.id === openReviewId
+          ? { ...session, review: { ...session.review, events: next.coachEvents, eventCount: next.coachEvents.length } }
+          : session),
+      });
+    }
   };
   const deleteRecording = () => {
     if (recordedVideoUrl) URL.revokeObjectURL(recordedVideoUrl);
@@ -1257,6 +1265,8 @@ function Router() {
   const [state, setState] = useState<AppState>(getStoredState);
   const syncManager = useSyncManager(state, setState);
   const [policyAcknowledgements, setPolicyAcknowledgements] = useState(getPolicyAcknowledgements);
+  const [location] = useLocation();
+  const isPolicyRoute = location === '/privacy' || location === '/terms' || location === '/policy-updates';
 
   const [persistenceWarning, setPersistenceWarning] = useState('');
   useEffect(() => {
@@ -1317,7 +1327,7 @@ function Router() {
             <Route component={NotFound} />
           </Switch>
         </Shell>
-        {requiresCurrentPolicyAcknowledgement(policyAcknowledgements) && <MaterialPolicyNoticeDialog onAcknowledge={() => {
+        {!isPolicyRoute && requiresCurrentPolicyAcknowledgement(policyAcknowledgements) && <MaterialPolicyNoticeDialog onAcknowledge={() => {
           try {
             setPolicyAcknowledgements(saveCurrentPolicyAcknowledgement());
           } catch {
