@@ -46,8 +46,10 @@ import type { LucideIcon } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useCreatePracticeRoute, type PracticeRoute } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
+import { PracticeHub, type PracticeAnswer } from '@/components/practice-hub';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { questionBank } from '@/data/question-bank';
 import NotFound from '@/pages/not-found';
 
 type Topic = { topic: string; mastery: number; questions: number };
@@ -60,6 +62,7 @@ type AppState = {
   profile: { name: string; permitDate: string; targetTestDate: string };
   topics: Topic[];
   answers: Record<number, boolean>;
+  practiceProgress: Record<string, PracticeAnswer>;
   scenarios: Scenario[];
   scenarioAnswers: Record<number, number>;
   missions: DriveMission[];
@@ -77,6 +80,7 @@ const initialState: AppState = {
     { topic: 'Sharing the road', mastery: 46, questions: 11 },
   ],
   answers: {},
+  practiceProgress: {},
   scenarios: [
     { situation: 'You are turning left at a green light. A pedestrian has stepped into the crosswalk, and the car behind you is close.', choices: ['Turn before the pedestrian reaches your lane', 'Stop behind the limit line and let the pedestrian cross', 'Honk so the pedestrian knows you are waiting'], bestChoice: 1, coaching: 'A patient pause is the safest move. People in a crosswalk have the right-of-way, even when traffic is waiting behind you.' },
     { situation: 'Rain starts on a familiar road. The posted limit is 45 mph and your visibility is getting worse.', choices: ['Keep 45 mph because it is the legal limit', 'Slow down enough to see and stop comfortably', 'Turn on hazard lights and continue at 45 mph'], bestChoice: 1, coaching: 'The speed limit is not a target in every condition. Choose a speed that lets you see, react, and keep a generous following distance.' },
@@ -219,7 +223,10 @@ function SafetyNote() {
 function Dashboard({ state, setState }: { state: AppState; setState: (next: AppState) => void }) {
   const totalMinutes = state.sessions.reduce((sum, session) => sum + session.minutes, 0);
   const nightMinutes = state.sessions.filter((session) => session.night).reduce((sum, session) => sum + session.minutes, 0);
-  const overall = Math.round(state.topics.reduce((sum, topic) => sum + topic.mastery, 0) / state.topics.length);
+  const permitAnswers = Object.values(state.practiceProgress);
+  const permitCoverage = permitAnswers.length / questionBank.length;
+  const permitAccuracy = permitAnswers.length ? permitAnswers.filter((answer) => answer.correct).length / permitAnswers.length : 0;
+  const overall = permitAnswers.length ? Math.round((permitCoverage * 0.45 + permitAccuracy * 0.55) * 100) : Math.round(state.topics.reduce((sum, topic) => sum + topic.mastery, 0) / state.topics.length);
   const daysToTest = Math.max(0, Math.ceil((new Date(state.profile.targetTestDate).getTime() - Date.now()) / 86400000));
   const nextMission = state.missions.find((mission) => !mission.completed);
   const toggleMission = () => { if (!nextMission) return; setState({ ...state, missions: state.missions.map((mission) => mission.title === nextMission.title ? { ...mission, completed: true } : mission) }); };
@@ -249,7 +256,7 @@ function Dashboard({ state, setState }: { state: AppState; setState: (next: AppS
   </div>;
 }
 
-function Practice({ state, setState }: { state: AppState; setState: (next: AppState) => void }) {
+function LegacyPractice({ state, setState }: { state: AppState; setState: (next: AppState) => void }) {
   const [index, setIndex] = useState(0);
   const question: PracticeQuestion[] = [
     { prompt: 'You are driving in a residential area and see a child near the curb with a ball in the street. What is the safest first move?', options: ['Maintain your speed and sound the horn', 'Slow down and prepare to stop', 'Move into the opposite lane immediately', 'Stop only if the child steps into the lane'], answer: 1, explanation: 'Slow down early and cover the brake. A child near the road is an unpredictable hazard, so create time and space before you know what they will do.', topic: 'Safe speed' },
@@ -277,6 +284,31 @@ function Practice({ state, setState }: { state: AppState; setState: (next: AppSt
       <aside className="space-y-4"><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--primary))] p-6 text-[hsl(var(--primary-foreground))]"><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--sidebar-primary))]"><LampDesk size={15} />Coach note</div><p className="mt-4 font-display text-2xl leading-snug">“A safe answer usually buys you more time and space.”</p><p className="mt-4 text-xs leading-5 text-white/60">When two answers feel possible, choose the one that protects the most vulnerable person first.</p></div><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6"><div className="mb-5 flex items-center justify-between"><h3 className="font-display text-xl">Topic pulse</h3><Link href="/settings" className="text-[hsl(var(--muted-foreground))]" aria-label="Settings" data-testid="link-practice-settings"><Settings size={16} /></Link></div>{state.topics.map((topic) => <div key={topic.topic} className="mb-4 last:mb-0"><div className="mb-2 flex justify-between text-xs font-bold"><span>{topic.topic}</span><span className="font-mono-ui text-[hsl(var(--muted-foreground))]">{topic.mastery}%</span></div><ProgressBar value={topic.mastery} color={topic.mastery > 70 ? 'bg-[hsl(var(--primary))]' : 'bg-[hsl(var(--accent))]'} /></div>)}</div></aside>
     </div>
   </div>;
+}
+
+function Practice({ state, setState }: { state: AppState; setState: (next: AppState) => void }) {
+  return <PracticeHub answers={state.practiceProgress} onAnswer={(question, selected) => {
+    const previous = state.practiceProgress[question.id];
+    const correct = selected === question.answer;
+    const correctStreak = correct ? (previous?.correctStreak ?? 0) + 1 : 0;
+    const reviewIntervals = [1, 3, 7, 14, 30];
+    const nextReviewAt = new Date();
+    nextReviewAt.setDate(nextReviewAt.getDate() + (correct ? reviewIntervals[Math.min(correctStreak - 1, reviewIntervals.length - 1)] : 1));
+    setState({
+      ...state,
+      practiceProgress: {
+        ...state.practiceProgress,
+        [question.id]: {
+          selected,
+          correct,
+          answeredAt: new Date().toISOString(),
+          attempts: (previous?.attempts ?? 0) + 1,
+          correctStreak,
+          nextReviewAt: nextReviewAt.toISOString(),
+        },
+      },
+    });
+  }} />;
 }
 
 function Scenarios({ state, setState }: { state: AppState; setState: (next: AppState) => void }) {
@@ -515,10 +547,13 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
 function Parent({ state, setState }: { state: AppState; setState: (next: AppState) => void }) {
   const total = state.sessions.reduce((sum, session) => sum + session.minutes, 0);
   const night = state.sessions.filter((session) => session.night).reduce((sum, session) => sum + session.minutes, 0);
+  const permitAnswered = Object.values(state.practiceProgress);
+  const permitCorrect = permitAnswered.filter((answer) => answer.correct).length;
+  const permitReadiness = permitAnswered.length ? Math.round(((permitAnswered.length / questionBank.length) * 0.45 + (permitCorrect / permitAnswered.length) * 0.55) * 100) : 0;
   const donePrompts = state.prompts.filter((prompt) => prompt.done).length;
   const togglePrompt = (index: number) => setState({ ...state, prompts: state.prompts.map((prompt, promptIndex) => promptIndex === index ? { ...prompt, done: !prompt.done } : prompt) });
   return <div><PageHeader eyebrow="Parent view" title="Coach the process, not just the result." copy="A quick read on what is going well, what is next, and how to make practice feel calm in the passenger seat." action={<div className="flex items-center gap-2 rounded-xl bg-[hsl(var(--secondary))] px-3 py-2 text-xs font-bold text-[hsl(var(--primary))]"><HeartHandshake size={16} />Shared plan</div>} />
-    <div className="grid gap-5 lg:grid-cols-[1fr_1fr_1fr]"><div className="rounded-2xl bg-[hsl(var(--primary))] p-6 text-[hsl(var(--primary-foreground))]"><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--sidebar-primary))]"><UserRound size={15} />{state.profile.name}'s readiness</div><div className="mt-5 font-display text-4xl">Building well</div><p className="mt-3 text-xs leading-5 text-white/60">The next unlock is repetition: one focused mission and one short practice set this week.</p></div><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--muted-foreground))]">Practice hours</div><div className="mt-4 font-display text-4xl">{Math.floor(total / 60)}h <span className="text-xl text-[hsl(var(--muted-foreground))]">of 50</span></div><ProgressBar value={(total / 3000) * 100} color="bg-[hsl(var(--primary))]" /><p className="mt-3 text-xs text-[hsl(var(--muted-foreground))]">{Math.floor(night / 60)}h {night % 60}m at night · 6 professional hours separate</p></div><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--muted-foreground))]">Permit timeline</div><div className="mt-4 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[hsl(var(--secondary))]"><LockKeyhole size={18} className="text-[hsl(var(--primary))]" /></div><div><div className="text-sm font-extrabold">6 month hold</div><div className="text-xs text-[hsl(var(--muted-foreground))]">before the drive test</div></div></div><p className="mt-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">Target test: <strong className="text-[hsl(var(--foreground))]">{new Date(`${state.profile.targetTestDate}T12:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong></p></div></div>
+    <div className="grid gap-5 lg:grid-cols-[1fr_1fr_1fr]"><div className="rounded-2xl bg-[hsl(var(--primary))] p-6 text-[hsl(var(--primary-foreground))]"><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--sidebar-primary))]"><UserRound size={15} />{state.profile.name}'s permit readiness</div><div className="mt-5 font-display text-4xl">{permitReadiness}%</div><p className="mt-3 text-xs leading-5 text-white/60">{permitAnswered.length} of {questionBank.length} handbook questions covered · {permitCorrect} currently correct.</p></div><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--muted-foreground))]">Practice hours</div><div className="mt-4 font-display text-4xl">{Math.floor(total / 60)}h <span className="text-xl text-[hsl(var(--muted-foreground))]">of 50</span></div><ProgressBar value={(total / 3000) * 100} color="bg-[hsl(var(--primary))]" /><p className="mt-3 text-xs text-[hsl(var(--muted-foreground))]">{Math.floor(night / 60)}h {night % 60}m at night · 6 professional hours separate</p></div><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--muted-foreground))]">Permit timeline</div><div className="mt-4 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[hsl(var(--secondary))]"><LockKeyhole size={18} className="text-[hsl(var(--primary))]" /></div><div><div className="text-sm font-extrabold">6 month hold</div><div className="text-xs text-[hsl(var(--muted-foreground))]">before the drive test</div></div></div><p className="mt-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">Target test: <strong className="text-[hsl(var(--foreground))]">{new Date(`${state.profile.targetTestDate}T12:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong></p></div></div>
     <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_.8fr]"><section><div className="mb-4 flex items-end justify-between"><div><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Coaching prompts</div><h2 className="mt-1 font-display text-3xl">Helpful words for the next drive.</h2></div><span className="font-mono-ui text-xs text-[hsl(var(--muted-foreground))]">{donePrompts}/{state.prompts.length} tried</span></div><div className="space-y-3">{state.prompts.map((prompt, index) => <button key={prompt.title} onClick={() => togglePrompt(index)} className={`flex w-full items-start gap-4 rounded-2xl border p-5 text-left ${prompt.done ? 'border-[hsl(var(--primary)/.2)] bg-[hsl(var(--secondary)/.4)]' : 'border-[hsl(var(--border))] bg-[hsl(var(--card))] hover:border-[hsl(var(--primary))]'}`} data-testid={`button-parent-prompt-${index}`}><span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${prompt.done ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : 'border-[hsl(var(--border))]'}`}>{prompt.done && <Check size={14} />}</span><span><span className={`block text-sm font-extrabold ${prompt.done ? 'line-through opacity-60' : ''}`}>{prompt.title}</span><span className="mt-1 block text-xs leading-5 text-[hsl(var(--muted-foreground))]">{prompt.copy}</span></span></button>)}</div></section><aside><div className="mb-4 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">The adult seat</div><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--secondary)/.5)] p-6"><SunMedium size={22} className="text-[hsl(var(--accent))]" /><h3 className="mt-4 font-display text-2xl">Your calm is part of the lesson.</h3><p className="mt-3 text-sm leading-6 text-[hsl(var(--muted-foreground))]">Give directions early, keep your voice level, and save the debrief for a safe stop. The goal is a driver who can think clearly when something changes.</p><div className="mt-5 border-t border-[hsl(var(--border))] pt-4 text-xs font-semibold text-[hsl(var(--primary))]">Try asking: “What did you notice?”</div></div><div className="mt-4"><SafetyNote /></div></aside></div>
   </div>;
 }

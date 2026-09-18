@@ -34,7 +34,7 @@ A responsive study and supervised-practice coach that helps California teens pre
 ## Product
 
 - Student dashboard with readiness and next-action guidance
-- Adaptive permit questions with explanations and topic mastery
+- A 96-question California handbook study bank with stable IDs, section coverage, explanations, missed-question review, spaced repetition, topic practice, full review, and DMV-style simulations
 - Real-world judgment scenarios
 - Supervised drive missions and a 50-hour practice log
 - Foreground dashcam recording with GPS speed, distance, elapsed time, spoken coaching cues, review, and local download

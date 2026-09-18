@@ -1,0 +1,1 @@
+- [Generated web API clients](generated-web-api-clients.md) — generated browser clients require DOM iterable types when the generator emits Headers iteration.
