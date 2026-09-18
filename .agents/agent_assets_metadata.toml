@@ -7,6 +7,7 @@ uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/prepare-l
 type = "audio"
 title = "coastwise prepare-left"
 description = "Text-to-speech audio: Prepare to turn left. Check your mirrors, signal, and scan the intersection."
+logical_id = "c8c687a6-f9f9-4f77-99fa-e779af81a0b2"
 
 [[outputs]]
 id = "zjXZe6cj9drv6vDBcMy1O"
@@ -14,6 +15,7 @@ uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/turn-left
 type = "audio"
 title = "coastwise turn-left"
 description = "Text-to-speech audio: Turn left when the intersection is clear."
+logical_id = "2068f8c3-4f44-4ea9-b026-dd1abc34a2a5"
 
 [[outputs]]
 id = "zFPKCGFfJeWHI20XEPP9D"
@@ -21,6 +23,7 @@ uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/continue-
 type = "audio"
 title = "coastwise continue-straight"
 description = "Text-to-speech audio: Continue straight, and keep looking well ahead."
+logical_id = "3d526e74-4065-4762-8c74-46acb0e322fd"
 
 [[outputs]]
 id = "R_Bcpa8QFCPgXLlzHLysJ"
@@ -28,6 +31,7 @@ uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/drive-sta
 type = "audio"
 title = "coastwise drive-started"
 description = "Text-to-speech audio: Coastwise AI coach is active. Keep your eyes on the road, and let your supervising adult manage the phone."
+logical_id = "32f0aae5-7adf-47ad-8665-4ce585622517"
 
 [[outputs]]
 id = "fW6Lc_3hULNRFcX1bd4hs"
@@ -35,6 +39,7 @@ uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/turn-righ
 type = "audio"
 title = "coastwise turn-right"
 description = "Text-to-speech audio: Turn right when the intersection is clear."
+logical_id = "8bd95bad-e427-4fcb-9c64-f0073b7f24f1"
 
 [[outputs]]
 id = "R9zVDU_0iU8d4fW-J8X2d"
@@ -42,6 +47,7 @@ uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/prepare-r
 type = "audio"
 title = "coastwise prepare-right"
 description = "Text-to-speech audio: Prepare to turn right. Check your mirrors, signal, and watch for people crossing."
+logical_id = "4ff019f9-8538-4210-8102-3d24b7c600ca"
 
 [[outputs]]
 id = "iqzvkfWndf4cI6rJxmIM3"
@@ -49,6 +55,7 @@ uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/arrived.m
 type = "audio"
 title = "coastwise arrived"
 description = "Text-to-speech audio: Route complete. Find a safe place to park before ending the drive."
+logical_id = "4fadec6c-042b-41c9-9e75-3e97fdbf7bca"
 
 [[outputs]]
 id = "KP4WL3s374nJh8iDsaeZz"
@@ -56,6 +63,7 @@ uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/route-upd
 type = "audio"
 title = "coastwise route-updated"
 description = "Text-to-speech audio: That is okay. Continue safely while I update the route."
+logical_id = "b54c8769-fcae-457c-bc70-2edbd6c6e9f3"
 
 [[outputs]]
 id = "iAs2aQfJGQVrbOnzGDjhk"
@@ -63,6 +71,7 @@ uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/following
 type = "audio"
 title = "coastwise following-distance"
 description = "Text-to-speech audio: Check your following distance. More space gives you more time."
+logical_id = "0e5eb86c-0dcc-4d17-8498-6ee24410028b"
 
 [[outputs]]
 id = "o1T5LJ_u8Cej5fE08i-Eg"
@@ -70,3 +79,18 @@ uri = "file://artifacts/california-driver-coach/src/assets/coach-voice/intersect
 type = "audio"
 title = "coastwise intersection-scan"
 description = "Text-to-speech audio: Scan the next intersection for people, bicycles, signs, and changing traffic."
+logical_id = "9182ad8e-c9a5-48f9-9682-0b209d5b68c6"
+
+[[outputs]]
+id = "ETz4BdowkSDZ1OyoJzKNm"
+uri = "file://artifacts/california-driver-coach/src/assets/coastwise-logo.svg"
+type = "image"
+title = "Coastwise logo"
+description = "Editable SVG logo mark used in the Coastwise app header and adapted for the favicon."
+logical_id = "886b42b9-d690-48ae-8906-8a0c7ef5b330"
+content_hash = "sha256:da3b7f51ee6549f3e84f3d4c817081aa7cf556316a8a4cc7c64ff32825341e57"
+size = 469
+mtime_ms = 1789696412707
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:87f79498-6551-4eb3-b436-ff8c5c7ea267/886b42b9-d690-48ae-8906-8a0c7ef5b330/bd4548f0-347b-4171-aecc-0583609f87f7"
+storage_version_token = "1789696474855930"
+content_type = "image/svg+xml"

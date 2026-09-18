@@ -68,6 +68,7 @@ import {
 } from '@/lib/drive-review';
 import { getDriveReviewBrowserFixture } from '@/lib/drive-review-browser-fixture';
 import { canPlayRecording, chooseRecordingMimeType, describeRecordingFormat, getRecordingBrowser } from '@/lib/drive-recording';
+import coastwiseLogo from '@/assets/coastwise-logo.svg';
 import NotFound from '@/pages/not-found';
 type Topic = { topic: string; mastery: number; questions: number };
 type PracticeQuestion = { prompt: string; options: string[]; answer: number; explanation: string; topic: string };
@@ -306,8 +307,8 @@ function Shell({ children, state, setState, persistenceWarning }: { children: Re
     <aside ref={mobileNavigationRef} id="mobile-navigation" aria-label="Main navigation" aria-hidden={isMobile && !mobileOpen} inert={isMobile && !mobileOpen} className={`fixed inset-y-0 left-0 z-40 flex w-[248px] flex-col border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar))] px-5 py-6 text-[hsl(var(--sidebar-foreground))] shadow-[8px_0_24px_hsl(215_30%_20%/.03)] transition-transform duration-300 md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="mb-10 flex items-center justify-between px-2">
         <Link href="/" onClick={navigateFromMobileDrawer} className="flex items-center gap-3" data-testid="link-brand">
-          <div className="flex h-10 w-10 items-center justify-center rounded-[13px] bg-[hsl(var(--sidebar-primary))] text-[hsl(var(--sidebar-primary-foreground))]"><RouteIcon size={21} strokeWidth={2.5} /></div>
-          <div><div className="font-display text-[17px] leading-none">coastwise</div><div className="mt-1 font-mono-ui text-[9px] uppercase tracking-[.18em] text-[hsl(var(--muted-foreground))]">driver coach</div></div>
+          <img src={coastwiseLogo} alt="" aria-hidden="true" className="h-10 w-10" />
+          <div><div className="font-display text-[17px] leading-none">Coastwise</div><div className="mt-1 font-mono-ui text-[9px] uppercase tracking-[.18em] text-[hsl(var(--muted-foreground))]">driver coach</div></div>
         </Link>
         <button ref={closeButtonRef} className="inline-flex size-11 items-center justify-center text-[hsl(var(--muted-foreground))] md:hidden" onClick={closeMobileNavigation} aria-label="Close navigation" data-testid="button-close-navigation"><X size={20} /></button>
       </div>

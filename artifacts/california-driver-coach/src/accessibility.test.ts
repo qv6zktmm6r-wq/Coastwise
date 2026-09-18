@@ -55,3 +55,10 @@ test('web beta metadata describes Coastwise without starter copy', () => {
   assert.match(documentSource, /<title>Coastwise — California Teen Driver Coach<\/title>/);
   assert.doesNotMatch(documentSource, /built on Replit|Update this description/i);
 });
+
+test('Coastwise uses the locked brand name and dedicated logo asset', () => {
+  assert.match(appSource, /coastwiseLogo/);
+  assert.match(appSource, />Coastwise<\/div>/);
+  assert.doesNotMatch(appSource, />coastwise<\/div>/);
+  assert.match(documentSource, /href="\/favicon\.svg"/);
+});
