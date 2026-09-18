@@ -4,7 +4,7 @@ import { AppState, Appearance, isRecord, parseStoredState, storageKey } from '..
 import { Settings, SunMedium, Moon, HardDrive, Download, Upload, ShieldCheck, LockKeyhole, Pencil, Check, RefreshCw, AlertTriangle, Link as LinkIcon, Trash2 } from 'lucide-react';
 import { ActionButton, PageHeader, SafetyNote } from '../components/shared';
 import { useCreateFamilyInvite, useGetFamilyMembership, useRevokeFamilyMember, useAcceptFamilyInvite, getGetFamilyMembershipQueryKey } from '@workspace/api-client-react';
-import { useLocation } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { mergeStates } from '../lib/sync';
 import { clearDriveRecordings } from '../lib/route-coach';
 
@@ -133,6 +133,7 @@ export default function SettingsPage({ state, setState, syncManager }: { state: 
     const exportableState: AppState = {
       ...state,
       sessions: state.sessions.map((session) => session.review ? {
+          id: session.id,
         date: session.date,
         minutes: session.minutes,
         night: session.night,
@@ -167,6 +168,7 @@ export default function SettingsPage({ state, setState, syncManager }: { state: 
       const restoredWithoutVideos: AppState = {
         ...restored,
         sessions: restored.sessions.map((session) => session.review ? {
+          id: session.id,
           date: session.date,
           minutes: session.minutes,
           night: session.night,
@@ -195,7 +197,7 @@ export default function SettingsPage({ state, setState, syncManager }: { state: 
     <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
       <section className="space-y-5">
         <section className="grid gap-5 sm:grid-cols-2" aria-label="App ownership and local data">
-          <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6" data-testid="install-settings-card"><h2 className="font-display text-2xl">Install Coastwise</h2><p className="mb-5 mt-1 text-xs text-[hsl(var(--muted-foreground))]">Use local coaching without an account, or sign in for family sync.</p><InstallCoastwise /></div>
+          <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6" data-testid="install-settings-card"><h2 className="font-display text-2xl">Install Coastwise</h2><p className="mb-5 mt-1 text-xs text-[hsl(var(--muted-foreground))]">Use local coaching without an account, or sign in for family sync.</p><InstallCoastwise /><div className="mt-5 border-t border-[hsl(var(--border))] pt-4" data-testid="legal-links-card"><p className="text-xs leading-5 text-[hsl(var(--muted-foreground))]">Review camera, location, recording, local storage, and optional sync before installing.</p><div className="mt-3 flex flex-wrap gap-2"><Link href="/privacy" className="text-xs font-bold text-[hsl(var(--primary))] hover:underline" data-testid="link-privacy">Privacy Policy</Link><span aria-hidden="true" className="text-[hsl(var(--border))]">•</span><Link href="/terms" className="text-xs font-bold text-[hsl(var(--primary))] hover:underline" data-testid="link-terms">Terms & safety</Link></div></div></div>
           <div className="rounded-2xl border border-[hsl(var(--destructive)/.25)] bg-[hsl(var(--destructive)/.04)] p-6" data-testid="reset-progress-card"><h2 className="font-display text-2xl">Reset this device</h2><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Delete local progress, annotations, and saved videos. Cloud family progress is not deleted.</p>{!resetConfirming ? <ActionButton onClick={() => setResetConfirming(true)} variant="outline" className="mt-5" testId="button-reset-progress">Reset local progress</ActionButton> : <div className="mt-5"><p className="text-sm font-bold">This cannot be undone without a backup.</p><div className="mt-3 flex flex-wrap gap-2"><ActionButton onClick={() => void resetProgress()} disabled={resetting} testId="button-confirm-reset">{resetting ? 'Resetting…' : 'Yes, reset this device'}</ActionButton><ActionButton onClick={() => setResetConfirming(false)} variant="quiet" testId="button-cancel-reset">Cancel</ActionButton></div></div>}</div>
         </section>
         
@@ -362,7 +364,7 @@ export default function SettingsPage({ state, setState, syncManager }: { state: 
         <div className="rounded-2xl bg-[hsl(var(--primary))] p-6 text-[hsl(var(--primary-foreground))]">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--sidebar-primary))]"><ShieldCheck size={15} />Built for safe progress</div>
           <h3 className="mt-4 font-display text-3xl">Private by default.</h3>
-          <p className="mt-3 text-sm leading-6 text-[hsl(var(--primary-foreground)/.68)]">Your drive review videos are recorded locally and never uploaded to the cloud. Only metadata like route logs and safety scores sync across your family's devices.</p>
+          <p className="mt-3 text-sm leading-6 text-[hsl(var(--primary-foreground)/.68)]">Your drive review videos, precise routes, and coaching-event positions stay local and are never uploaded to the cloud. Only practice results, goals, settings, and drive-log summaries sync across your family's devices.</p>
           <div className="mt-6 flex items-center gap-2 text-xs font-bold text-[hsl(var(--primary-foreground)/.78)]"><LockKeyhole size={14} />Local-only videos</div>
         </div>
         <SafetyNote />

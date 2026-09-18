@@ -70,9 +70,10 @@ import { getDriveReviewBrowserFixture } from '@/lib/drive-review-browser-fixture
 import { canPlayRecording, chooseRecordingMimeType, describeRecordingFormat, getRecordingBrowser } from '@/lib/drive-recording';
 import coastwiseLogo from '@/assets/coastwise-logo.svg';
 import NotFound from '@/pages/not-found';
-import { AppState, getStoredState, initialState, isRecord, parseStoredState, storageKey, type Appearance, type DriveSession, type PracticeQuestion, type Scenario, type Topic } from '@/lib/state';
+import { AppState, createDriveSessionId, getStoredState, initialState, isRecord, parseStoredState, storageKey, type Appearance, type DriveSession, type PracticeQuestion, type Scenario, type Topic } from '@/lib/state';
 import { ActionButton, PageHeader, SafetyNote } from '@/components/shared';
 import SettingsPage from '@/pages/settings';
+import { PrivacyPage, TermsPage } from '@/pages/legal';
 
 const navItems: { href: string; label: string; testId: string; icon: LucideIcon }[] = [
   { href: '/', label: 'Today', testId: 'today', icon: Home },
@@ -156,7 +157,13 @@ function Shell({ children, state, setState, persistenceWarning }: { children: Re
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const mobileNavigationRef = useRef<HTMLElement | null>(null);
   const restoreMenuButtonFocus = useRef(false);
-  const current = location === '/scenarios' ? 'Driving exam' : navItems.find((item) => item.href === location)?.label ?? 'Settings';
+  const current = location === '/scenarios'
+    ? 'Driving exam'
+    : location === '/privacy'
+      ? 'Privacy'
+      : location === '/terms'
+        ? 'Terms & safety'
+        : navItems.find((item) => item.href === location)?.label ?? 'Settings';
   const initials = state.profile.name.slice(0, 1).toUpperCase();
   const toggleParent = () => {
     const next = !state.settings.parentMode;
@@ -693,6 +700,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       setState({
         ...state,
         sessions: [{
+          id: createDriveSessionId(),
           date: new Date(startedAt ?? Date.now()).toISOString().slice(0, 10),
           minutes,
           night: false,
@@ -831,6 +839,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
             setState({
               ...state,
               sessions: [{
+                id: reviewId,
                 date: new Date(startedAt ?? Date.now()).toISOString().slice(0, 10),
                 minutes: Math.max(1, Math.round(durationSeconds / 60)),
                 night: false,
@@ -1010,7 +1019,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     coachAudio.current?.pause();
     if (!next) speak('Route coaching resumed.');
   };
-  const addSession = (event: React.FormEvent) => { event.preventDefault(); const minutes = Number(form.minutes); if (!minutes || minutes < 1) return; setState({ ...state, sessions: [{ date: form.date, minutes, night: form.night, notes: form.notes || 'Practice drive' }, ...state.sessions] }); setForm({ date: new Date().toISOString().slice(0, 10), minutes: '30', night: false, notes: '' }); setShowForm(false); };
+  const addSession = (event: React.FormEvent) => { event.preventDefault(); const minutes = Number(form.minutes); if (!minutes || minutes < 1) return; setState({ ...state, sessions: [{ id: createDriveSessionId(), date: form.date, minutes, night: form.night, notes: form.notes || 'Practice drive' }, ...state.sessions] }); setForm({ date: new Date().toISOString().slice(0, 10), minutes: '30', night: false, notes: '' }); setShowForm(false); };
   const requestDriveStart = () => {
     if (!plannedRoute) {
       setTrackingError('Build and review a practice route before starting.');
@@ -1233,6 +1242,8 @@ function Router() {
             <Route path="/drive"><Drive state={state} setState={setState} /></Route>
             <Route path="/parent"><Parent state={state} setState={setState} /></Route>
             <Route path="/settings"><SettingsPage state={state} setState={setState} syncManager={syncManager} /></Route>
+            <Route path="/privacy"><PrivacyPage /></Route>
+            <Route path="/terms"><TermsPage /></Route>
             <Route component={NotFound} />
           </Switch>
         </Shell>

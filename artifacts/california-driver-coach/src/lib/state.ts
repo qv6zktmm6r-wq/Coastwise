@@ -8,7 +8,7 @@ export type Topic = { topic: string; mastery: number; questions: number };
 export type PracticeQuestion = { prompt: string; options: string[]; answer: number; explanation: string; topic: string };
 export type Scenario = { situation: string; choices: string[]; bestChoice: number; coaching: string };
 export type DriveMission = { title: string; detail: string; category: string; minutes: number; completed: boolean };
-export type DriveSession = { date: string; minutes: number; night: boolean; notes: string; distanceMiles?: number; skills?: string[]; routeTitle?: string; review?: { id: string; durationSeconds: number; eventCount: number; events: CoachEvent[]; route: PlannedRoute; videoType: string } };
+export type DriveSession = { id: string; date: string; minutes: number; night: boolean; notes: string; distanceMiles?: number; skills?: string[]; routeTitle?: string; review?: { id: string; durationSeconds: number; eventCount: number; events: CoachEvent[]; route: PlannedRoute; videoType: string } };
 export type ParentPrompt = { title: string; copy: string; done: boolean };
 export type Appearance = 'system' | 'light' | 'dark';
 
@@ -49,10 +49,10 @@ export const initialState: AppState = {
     { title: 'Night-drive basics', detail: 'With an adult, practice headlights, glare, and slower speeds.', category: 'Night', minutes: 25, completed: false },
   ],
   sessions: [
-    { date: '2025-06-01', minutes: 55, night: false, notes: 'Quiet streets and three-point turns.' },
-    { date: '2025-06-08', minutes: 65, night: false, notes: 'Lane changes on the boulevard.' },
-    { date: '2025-06-15', minutes: 45, night: true, notes: 'Sunset route; practiced headlights.' },
-    { date: '2025-06-22', minutes: 70, night: false, notes: 'Parking lot control and neighborhood loop.' },
+    { id: 'sample-drive-1', date: '2025-06-01', minutes: 55, night: false, notes: 'Quiet streets and three-point turns.' },
+    { id: 'sample-drive-2', date: '2025-06-08', minutes: 65, night: false, notes: 'Lane changes on the boulevard.' },
+    { id: 'sample-drive-3', date: '2025-06-15', minutes: 45, night: true, notes: 'Sunset route; practiced headlights.' },
+    { id: 'sample-drive-4', date: '2025-06-22', minutes: 70, night: false, notes: 'Parking lot control and neighborhood loop.' },
   ],
   prompts: [
     { title: 'Ask for a calm replay', copy: 'After a tricky moment, ask: “What did you notice first?” before offering your answer.', done: false },
@@ -73,6 +73,18 @@ export function isAppearance(value: unknown): value is Appearance {
   return value === 'system' || value === 'light' || value === 'dark';
 }
 
+export function normalizeDriveSessions(value: unknown): DriveSession[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isRecord).map((session, index) => ({
+    ...session,
+    id: typeof session.id === 'string' && session.id
+      ? session.id
+      : isRecord(session.review) && typeof session.review.id === 'string'
+        ? session.review.id
+        : `legacy-drive-${index}-${String(session.date ?? 'unknown')}-${String(session.minutes ?? 0)}`,
+  })) as DriveSession[];
+}
+
 export function parseStoredState(saved: string | null): AppState {
   if (!saved) return initialState;
   try {
@@ -80,6 +92,7 @@ export function parseStoredState(saved: string | null): AppState {
     if (!isRecord(parsed)) return initialState;
     const storedProfile = isRecord(parsed.profile) ? parsed.profile : {};
     const storedSettings = isRecord(parsed.settings) ? parsed.settings : {};
+    const storedSessions = Array.isArray(parsed.sessions) ? normalizeDriveSessions(parsed.sessions) : initialState.sessions;
     return {
       ...initialState,
       ...parsed,
@@ -89,10 +102,16 @@ export function parseStoredState(saved: string | null): AppState {
         ...storedSettings,
         appearance: isAppearance(storedSettings.appearance) ? storedSettings.appearance : initialState.settings.appearance,
       },
+      sessions: storedSessions,
     };
   } catch {
     return initialState;
   }
+}
+
+export function createDriveSessionId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `drive-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 export function getStoredState(): AppState {

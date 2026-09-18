@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@clerk/react';
 import { getGetFamilyMembershipQueryKey, useGetFamilyMembership, useGetFamilySync, useUpdateFamilySync } from '@workspace/api-client-react';
-import { AppState } from './state';
+import { AppState, normalizeDriveSessions } from './state';
 import { sanitizeForSync, mergeStates } from './sync';
 import { getGetFamilySyncQueryKey } from '@workspace/api-client-react';
 
@@ -79,9 +79,13 @@ export function useSyncManager(localState: AppState, setLocalState: (s: AppState
 
   const useCloudOnly = useCallback(() => {
     if (!conflict) return;
-    setLocalState(conflict.cloudState);
+    const normalizedCloudState = {
+      ...conflict.cloudState,
+      sessions: normalizeDriveSessions(conflict.cloudState.sessions),
+    };
+    setLocalState(normalizedCloudState);
     lastSyncedRevision.current = conflict.cloudRevision;
-    lastLocalSyncState.current = JSON.stringify(sanitizeForSync(conflict.cloudState));
+    lastLocalSyncState.current = JSON.stringify(sanitizeForSync(normalizedCloudState));
     setConflict(null);
     setSyncStatus('idle');
   }, [conflict, setLocalState]);

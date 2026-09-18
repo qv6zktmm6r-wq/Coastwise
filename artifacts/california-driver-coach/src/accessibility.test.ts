@@ -6,6 +6,7 @@ const appSource = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8');
 
 const settingsSource = readFileSync(new URL('./pages/settings.tsx', import.meta.url), 'utf8');
 const syncManagerSource = readFileSync(new URL('./lib/use-sync-manager.ts', import.meta.url), 'utf8');
+const legalSource = readFileSync(new URL('./pages/legal.tsx', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('./index.css', import.meta.url), 'utf8');
 const mapSource = readFileSync(new URL('./components/route-map.tsx', import.meta.url), 'utf8');
 const documentSource = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
@@ -99,4 +100,14 @@ test('installed app ownership is local, portable, and resettable without an acco
   assert.match(syncManagerSource, /const unlinkDevice[\s\S]*lastLocalSyncState\.current = ''/);
   assert.match(syncManagerSource, /syncGeneration\.current \+= 1/);
   assert.match(syncManagerSource, /generation !== syncGeneration\.current/);
+});
+
+test('privacy and safety disclosures cover local ownership and optional sharing', () => {
+  assert.match(appSource, /path="\/privacy"/);
+  assert.match(appSource, /path="\/terms"/);
+  assert.match(settingsSource, /data-testid="link-privacy"/);
+  assert.match(settingsSource, /data-testid="link-terms"/);
+  assert.match(legalSource, /No account is required/);
+  assert.match(legalSource, /drive video files remain on the recording device and are not included in cloud sync/i);
+  assert.match(legalSource, /Only a passenger should operate Coastwise/);
 });

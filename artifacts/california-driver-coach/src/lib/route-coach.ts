@@ -93,6 +93,49 @@ type OsrmRoute = {
   legs: Array<{ steps: OsrmStep[] }>;
 };
 
+type OsrmResponse = { code: string; routes?: OsrmRoute[] };
+
+async function fetchOsrmRoute(url: string, unavailableMessage: string): Promise<OsrmRoute> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 12000);
+    let response: Response;
+    try {
+      response = await fetch(url, { signal: controller.signal });
+    } catch (error) {
+      lastError = error;
+      if (attempt === 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, 350));
+        continue;
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeout);
+    }
+    if (!response.ok) {
+      const error = new Error(`Route service returned ${response.status}`);
+      const transient = response.status === 408 || response.status === 429 || response.status >= 500;
+      if (transient && attempt === 0) {
+        lastError = error;
+        await new Promise((resolve) => window.setTimeout(resolve, 350));
+        continue;
+      }
+      throw error;
+    }
+    let data: OsrmResponse;
+    try {
+      data = await response.json() as OsrmResponse;
+    } catch {
+      throw new Error('Route service returned an invalid response');
+    }
+    const route = data.routes?.[0];
+    if (data.code !== 'Ok' || !route) throw new Error(unavailableMessage);
+    return route;
+  }
+  throw lastError instanceof Error ? lastError : new Error(unavailableMessage);
+}
+
 function instructionFor(step: OsrmStep) {
   const modifier = step.maneuver.modifier ?? 'straight';
   const road = step.name ? ` onto ${step.name}` : '';
@@ -115,11 +158,10 @@ export async function requestPracticeLoop(latitude: number, longitude: number, m
     [longitude, latitude],
   ];
   const coordinates = waypoints.map(([lon, lat]) => `${lon},${lat}`).join(';');
-  const response = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&geometries=geojson&steps=true&continue_straight=true`);
-  if (!response.ok) throw new Error('Route service unavailable');
-  const data = await response.json() as { code: string; routes?: OsrmRoute[] };
-  const route = data.routes?.[0];
-  if (data.code !== 'Ok' || !route) throw new Error('No nearby driving loop was found');
+  const route = await fetchOsrmRoute(
+    `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&geometries=geojson&steps=true&continue_straight=true`,
+    'No nearby driving loop was found',
+  );
   return {
     coordinates: route.geometry.coordinates,
     distanceMeters: route.distance,
@@ -138,11 +180,10 @@ export async function requestPracticeLoop(latitude: number, longitude: number, m
 }
 
 export async function requestReturnRoute(latitude: number, longitude: number, destination: RouteCoordinate): Promise<PlannedRoute> {
-  const response = await fetch(`https://router.project-osrm.org/route/v1/driving/${longitude},${latitude};${destination[0]},${destination[1]}?overview=full&geometries=geojson&steps=true`);
-  if (!response.ok) throw new Error('Route service unavailable');
-  const data = await response.json() as { code: string; routes?: OsrmRoute[] };
-  const route = data.routes?.[0];
-  if (data.code !== 'Ok' || !route) throw new Error('No return route was found');
+  const route = await fetchOsrmRoute(
+    `https://router.project-osrm.org/route/v1/driving/${longitude},${latitude};${destination[0]},${destination[1]}?overview=full&geometries=geojson&steps=true`,
+    'No return route was found',
+  );
   return {
     coordinates: route.geometry.coordinates,
     distanceMeters: route.distance,

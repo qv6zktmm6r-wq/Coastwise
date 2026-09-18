@@ -46,15 +46,43 @@ function describeStep(step: OsrmStep): string {
 async function requestRoute(points: Array<[number, number]>): Promise<OsrmRoute> {
   const coordinates = points.map(([lon, lat]) => `${lon.toFixed(6)},${lat.toFixed(6)}`).join(";");
   const url = `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&geometries=geojson&steps=true&continue_straight=false`;
-  const response = await fetch(url, {
-    headers: { "User-Agent": "Coastwise-Driver-Coach/1.0" },
-    signal: AbortSignal.timeout(12000),
-  });
-  if (!response.ok) throw new Error(`OSRM returned ${response.status}`);
-  const payload = await response.json() as OsrmResponse;
-  const route = payload.routes?.[0];
-  if (payload.code !== "Ok" || !route) throw new Error(payload.message ?? "No route returned");
-  return route;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        headers: { "User-Agent": "Coastwise-Driver-Coach/1.0" },
+        signal: AbortSignal.timeout(12000),
+      });
+    } catch (error) {
+      lastError = error;
+      if (attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 350));
+        continue;
+      }
+      throw error;
+    }
+    if (!response.ok) {
+      const error = new Error(`OSRM returned ${response.status}`);
+      const transient = response.status === 408 || response.status === 429 || response.status >= 500;
+      if (transient && attempt === 0) {
+        lastError = error;
+        await new Promise((resolve) => setTimeout(resolve, 350));
+        continue;
+      }
+      throw error;
+    }
+    let payload: OsrmResponse;
+    try {
+      payload = await response.json() as OsrmResponse;
+    } catch {
+      throw new Error("Route service returned an invalid response");
+    }
+    const route = payload.routes?.[0];
+    if (payload.code !== "Ok" || !route) throw new Error(payload.message ?? "No route returned");
+    return route;
+  }
+  throw lastError instanceof Error ? lastError : new Error("Route service unavailable");
 }
 
 router.post("/practice-routes", async (req, res): Promise<void> => {
