@@ -68,7 +68,7 @@ export function getDriveReviewBrowserFixture(): DriveReviewBrowserFixture | null
   if (new URLSearchParams(window.location.search).get('reviewFixture') !== '1') return null;
 
   return {
-    recordedVideoUrl: 'data:video/webm;base64,GkXfo0AgQoaBAULygQFC8oEEQvOBCEKCQAR3ZWJt',
+    recordedVideoUrl: `${import.meta.env.BASE_URL}drive-review-fixture.webm`,
     plannedRoute,
     coachEvents,
   };
