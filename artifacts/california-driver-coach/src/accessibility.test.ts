@@ -85,3 +85,12 @@ test('premium coaching loop connects planning, safety, review, and family progre
   assert.match(appSource, /testId="button-share-drive-summary"/);
   assert.match(appSource, /testId="button-share-family-progress"/);
 });
+
+test('installed app ownership is local, portable, and resettable without an account', () => {
+  assert.match(appSource, /data-testid="install-coastwise-card"/);
+  assert.match(appSource, /data-testid="install-settings-card"/);
+  assert.match(appSource, /data-testid="reset-progress-card"/);
+  assert.match(appSource, /testId="button-confirm-reset"/);
+  assert.match(appSource, /clearDriveRecordings\(\)/);
+  assert.match(appSource, /No login is required/);
+});

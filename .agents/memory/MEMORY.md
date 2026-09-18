@@ -1,4 +1,4 @@
 - [Generated web API clients](generated-web-api-clients.md) — generated browser clients require DOM iterable types when the generator emits Headers iteration.
 - [Playwright on Nix](playwright-on-nix.md) — browser binaries need host libraries; Ubuntu WebKit builds may require sonames unavailable from current Nix packages.
 - [Coastwise brand](coastwise-brand.md) — keep the approved name and route-shaped C logo consistent in future product work.
-- [Coastwise family sharing](coastwise-family-sharing.md) — local summaries are shareable now; true parent/student sync must use authenticated, permission-based cloud storage.
+- [Coastwise local ownership](coastwise-family-sharing.md) — the approved product model is installable and no-login, with device-local progress, backup/restore, and full reset.
