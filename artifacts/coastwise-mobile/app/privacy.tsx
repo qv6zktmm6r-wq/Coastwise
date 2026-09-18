@@ -1,0 +1,9 @@
+import { useRouter } from 'expo-router';
+import { Pressable, Text } from 'react-native';
+import { Body, Card, Eyebrow, Screen, Title, usePalette } from '@/components/ui';
+
+export default function PrivacyScreen() {
+  const palette = usePalette();
+  const router = useRouter();
+  return <Screen><Pressable onPress={() => router.back()} accessibilityRole="button"><Text style={{ color: '#0084FF', fontWeight: '800', marginBottom: 22 }}>‹ Back</Text></Pressable><Eyebrow>Coastwise privacy</Eyebrow><Title>Your progress stays yours.</Title><Body muted>Coastwise is designed for local-first supervised practice.</Body><Card><Eyebrow>On this device</Eyebrow><Body>Drive video, precise route details, coaching positions, recordings, and family notes stay in app storage on this device.</Body></Card><Card><Eyebrow>Optional AI</Eyebrow><Body>If you choose Generate private debrief, Coastwise sends only duration, distance, night status, selected skills, coach-event text, and up to three low-mastery topics to the managed AI service. Video, routes, coordinates, speeds, identity, notes, recording metadata, and raw answers are excluded.</Body></Card><Card><Eyebrow>While driving</Eyebrow><Body>Location is used only during an active foreground coaching session. Do not interact with Coastwise while the vehicle is moving. A supervising adult remains responsible for safe and legal practice.</Body></Card><Pressable onPress={() => router.back()} accessibilityRole="button" style={{ marginTop: 20 }}><Text style={{ color: '#0084FF', fontWeight: '800' }}>Done</Text></Pressable><Text style={{ color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 28 }}>Privacy policy version: September 18, 2026 · iOS companion draft</Text></Screen>;
+}
