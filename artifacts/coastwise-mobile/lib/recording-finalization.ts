@@ -19,10 +19,21 @@ export type FinalizedRecording = {
   modifiedAt?: number;
 };
 
+let lastDestinationTimestamp = -1;
+let destinationSequence = 0;
+
+function createDestinationName() {
+  const timestamp = Date.now();
+  destinationSequence = timestamp === lastDestinationTimestamp ? destinationSequence + 1 : 0;
+  lastDestinationTimestamp = timestamp;
+  const uniqueSuffix = Math.random().toString(36).slice(2, 11);
+  return `coastwise-drive-${timestamp}-${destinationSequence}-${uniqueSuffix}.mp4`;
+}
+
 export async function finalizeRecording(
   result: CameraRecordingResult,
   fileSystem: RecordingFileSystem,
-  destinationName = `coastwise-drive-${Date.now()}.mp4`,
+  destinationName = createDestinationName(),
 ): Promise<FinalizedRecording | null> {
   if (!result?.uri || !fileSystem.documentDirectory) return null;
 

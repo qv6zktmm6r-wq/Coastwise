@@ -33,6 +33,40 @@ test('does not save metadata when camera completion has no URI', async () => {
   assert.equal(copied, false);
 });
 
+test('keeps destinations distinct when recordings finalize in the same millisecond', async () => {
+  const originalNow = Date.now;
+  const originalRandom = Math.random;
+  const copiedDestinations: string[] = [];
+  const savedDestinations = new Set<string>();
+
+  Date.now = () => 1_700_000_000_000;
+  Math.random = () => 0.5;
+
+  try {
+    const storage = fileSystem({
+      copyAsync: async ({ to }) => {
+        copiedDestinations.push(to);
+        savedDestinations.add(to);
+      },
+      getInfoAsync: async (uri) => ({
+        exists: savedDestinations.has(uri),
+        size: 4096,
+      }),
+    });
+
+    const first = await finalizeRecording({ uri: 'file:///cache/first.mp4' }, storage);
+    const second = await finalizeRecording({ uri: 'file:///cache/second.mp4' }, storage);
+
+    assert.equal(copiedDestinations.length, 2);
+    assert.notEqual(copiedDestinations[0], copiedDestinations[1]);
+    assert.deepEqual(new Set([first?.uri, second?.uri]), savedDestinations);
+    assert.equal(savedDestinations.size, 2);
+  } finally {
+    Date.now = originalNow;
+    Math.random = originalRandom;
+  }
+});
+
 test('does not produce recording metadata when copying the camera file fails', async () => {
   const message = await rejectionMessage(
     () => finalizeRecording(
