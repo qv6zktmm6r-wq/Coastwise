@@ -133,11 +133,11 @@ const initialState: AppState = {
   settings: { parentMode: false, reminders: true, sounds: false, appearance: 'system' },
 };
 
-const navItems: { href: string; label: string; icon: LucideIcon }[] = [
-  { href: '/', label: 'Today', icon: Home },
-  { href: '/practice', label: 'Permit & knowledge', icon: BookOpen },
-  { href: '/drive', label: 'Driving exam', icon: RouteIcon },
-  { href: '/parent', label: 'Parent view', icon: HeartHandshake },
+const navItems: { href: string; label: string; testId: string; icon: LucideIcon }[] = [
+  { href: '/', label: 'Today', testId: 'today', icon: Home },
+  { href: '/practice', label: 'Permit & knowledge', testId: 'permit-practice', icon: BookOpen },
+  { href: '/drive', label: 'Driving exam', testId: 'drive-practice', icon: RouteIcon },
+  { href: '/parent', label: 'Parent view', testId: 'parent-view', icon: HeartHandshake },
 ];
 
 const mobileNavItems = [
@@ -364,7 +364,7 @@ function Shell({ children, state, setState, persistenceWarning }: { children: Re
       </div>
       <div className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.18em] text-[hsl(var(--muted-foreground))]">Your path</div>
       <nav className="space-y-1">
-          {navItems.map((item) => { const Icon = item.icon; const active = location === item.href; return <Link key={item.href} href={item.href} onClick={navigateFromMobileDrawer} aria-current={active ? 'page' : undefined} className={`group flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold ${active ? 'bg-[hsl(var(--sidebar-accent))] text-[hsl(var(--sidebar-accent-foreground))]' : 'text-[hsl(var(--sidebar-foreground)/.64)] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--sidebar-foreground))]'}`} data-testid={`link-nav-${item.label.toLowerCase().replaceAll(' ', '-')}`}><Icon aria-hidden="true" size={18} className={active ? 'text-[hsl(var(--sidebar-primary))]' : 'text-[hsl(var(--sidebar-foreground)/.45)]'} /><span>{item.label}</span>{active && <span aria-hidden="true" className="ml-auto h-1.5 w-1.5 rounded-full bg-[hsl(var(--sidebar-primary))]" />}</Link>; })}
+          {navItems.map((item) => { const Icon = item.icon; const active = location === item.href; return <Link key={item.href} href={item.href} onClick={navigateFromMobileDrawer} aria-current={active ? 'page' : undefined} className={`group flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold ${active ? 'bg-[hsl(var(--sidebar-accent))] text-[hsl(var(--sidebar-accent-foreground))]' : 'text-[hsl(var(--sidebar-foreground)/.64)] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--sidebar-foreground))]'}`} data-testid={`link-nav-${item.testId}`}><Icon aria-hidden="true" size={18} className={active ? 'text-[hsl(var(--sidebar-primary))]' : 'text-[hsl(var(--sidebar-foreground)/.45)]'} /><span>{item.label}</span>{active && <span aria-hidden="true" className="ml-auto h-1.5 w-1.5 rounded-full bg-[hsl(var(--sidebar-primary))]" />}</Link>; })}
       </nav>
       <div className="mt-auto">
         <div className="mb-4 rounded-2xl border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--secondary)/.5)] p-4">
@@ -380,7 +380,7 @@ function Shell({ children, state, setState, persistenceWarning }: { children: Re
     </aside>
     {mobileOpen && <div aria-hidden="true" className="fixed inset-0 z-30 bg-[hsl(var(--foreground)/.35)] md:hidden" onClick={closeMobileNavigation} data-testid="button-mobile-overlay" />}
     <nav className="fixed inset-x-0 bottom-0 z-30 flex items-stretch justify-around border-t border-[hsl(var(--border)/.8)] bg-[hsl(var(--card)/.9)] pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_hsl(var(--foreground)/.06)] backdrop-blur-xl md:hidden" aria-label="Primary navigation" aria-hidden={mobileOpen} inert={mobileOpen}>
-      {mobileNavItems.map((item) => { const Icon = item.icon; const active = location === item.href; return <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} aria-label={item.label} aria-current={active ? 'page' : undefined} className={`flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-semibold ${active ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'}`} data-testid={`link-mobile-nav-${item.label.toLowerCase().replaceAll(' ', '-')}`}><Icon aria-hidden="true" size={18} strokeWidth={active ? 2.5 : 2} /><span className="max-w-full truncate">{item.label.replace('Permit practice', 'Practice').replace('Drive practice', 'Drive').replace('Parent view', 'Parent')}</span></Link>; })}
+      {mobileNavItems.map((item) => { const Icon = item.icon; const active = location === item.href; return <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} aria-label={item.label} aria-current={active ? 'page' : undefined} className={`flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-semibold ${active ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'}`} data-testid={`link-mobile-nav-${item.testId}`}><Icon aria-hidden="true" size={18} strokeWidth={active ? 2.5 : 2} /><span className="max-w-full truncate">{item.label.replace('Parent view', 'Parent')}</span></Link>; })}
     </nav>
     <main className="pb-20 md:pl-[248px] md:pb-0" aria-hidden={isMobile && mobileOpen} inert={isMobile && mobileOpen}>
       <div className="mx-auto max-w-[1380px] px-5 pb-12 md:px-10">

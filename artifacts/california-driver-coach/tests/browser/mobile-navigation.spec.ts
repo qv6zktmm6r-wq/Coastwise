@@ -7,10 +7,9 @@ test('keeps every mobile destination named, active, reachable, and large enough'
 
   const destinations = [
     { testId: 'link-mobile-nav-today', path: '/', name: 'Today' },
-    { testId: 'link-mobile-nav-permit-practice', path: '/practice', name: 'Permit practice' },
-    { testId: 'link-mobile-nav-drive-practice', path: '/drive', name: 'Drive practice' },
+    { testId: 'link-mobile-nav-permit-practice', path: '/practice', name: 'Permit & knowledge' },
+    { testId: 'link-mobile-nav-drive-practice', path: '/drive', name: 'Driving exam' },
     { testId: 'link-mobile-nav-parent-view', path: '/parent', name: 'Parent view' },
-    { testId: 'link-mobile-nav-settings', path: '/settings', name: 'Settings' },
   ];
 
   for (const destination of destinations) {
@@ -24,6 +23,7 @@ test('keeps every mobile destination named, active, reachable, and large enough'
     expect(box?.width).toBeGreaterThanOrEqual(44);
     expect(box?.height).toBeGreaterThanOrEqual(44);
   }
+  await expect(page.getByTestId('button-header-settings')).toHaveAccessibleName('Open settings');
 });
 
 test('contains drawer focus, restores it on Escape, and focuses the destination after navigation', async ({ page }) => {
