@@ -249,13 +249,6 @@ function Shell({ children, state, setState }: { children: ReactNode; state: AppS
         <div className="animate-rise pt-8">{children}</div>
       </div>
     </main>
-    <nav className="fixed inset-x-0 bottom-0 z-20 flex items-center justify-around border-t border-[hsl(var(--border))] bg-[hsl(var(--card)/.94)] px-2 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-8px_24px_hsl(215_30%_20%/.06)] backdrop-blur md:hidden" aria-label="Primary navigation">
-      {navItems.filter((item) => ['/', '/practice', '/drive', '/parent'].includes(item.href)).map((item) => {
-        const Icon = item.icon;
-        const active = location === item.href;
-        return <Link key={item.href} href={item.href} className={`flex min-w-[64px] flex-col items-center gap-1 rounded-xl px-2 py-1 text-[10px] font-bold ${active ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'}`} data-testid={`link-bottom-nav-${item.label.toLowerCase().replaceAll(' ', '-')}`}><Icon size={19} strokeWidth={active ? 2.5 : 2} /><span>{item.href === '/' ? 'Today' : item.href === '/practice' ? 'Practice' : item.href === '/drive' ? 'Drive' : 'Parent'}</span></Link>;
-      })}
-    </nav>
   </div>;
 }
 

@@ -7,7 +7,6 @@ import {
   Check,
   CheckCircle2,
   CircleHelp,
-  Gauge,
   Layers3,
   RotateCcw,
   Sparkles,
@@ -215,7 +214,6 @@ export function PracticeHub({ answers, onAnswer }: Props) {
   return <div>
     <header className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-end">
       <div className="max-w-2xl"><div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[.16em] text-[hsl(var(--primary))]"><span className="h-px w-7 bg-[hsl(var(--primary))]" />California handbook practice</div><h1 className="font-display text-4xl leading-[1.05] tracking-[-.03em] md:text-5xl">A clear next step for permit practice.</h1><p className="mt-3 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">Short sessions cover the California Driver’s Handbook without turning practice into a score chase.</p></div>
-      <div className="flex w-fit items-center gap-2 rounded-full bg-[hsl(var(--secondary))] px-3 py-2 text-xs font-bold text-[hsl(var(--primary))]"><Gauge size={16} />{overallCoverage}% covered</div>
     </header>
     <section className="relative overflow-hidden rounded-[24px] bg-[hsl(var(--primary))] p-6 text-[hsl(var(--primary-foreground))] shadow-[0_16px_40px_hsl(211_100%_50%/.18)] md:p-8">
       <div className="absolute -right-14 -top-20 h-56 w-56 rounded-full border-[24px] border-white/10" />
@@ -223,20 +221,19 @@ export function PracticeHub({ answers, onAnswer }: Props) {
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.14em] text-white/70"><Sparkles size={15} />Recommended next session</div>
         <h2 className="mt-3 font-display text-3xl leading-tight md:text-4xl">{recommendationTitle}</h2>
         <p className="mt-3 max-w-xl text-sm leading-6 text-white/75">{recommendationCopy}</p>
-        <button onClick={() => startSession(recommendedMode)} className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-extrabold text-[hsl(var(--primary))] shadow-sm hover:bg-white/90" data-testid="button-start-recommended-practice">Start recommended session <ArrowRight size={16} /></button>
+        <button onClick={() => startSession(recommendedMode)} className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-extrabold text-[hsl(var(--primary))] shadow-sm hover:bg-white/90" data-testid="button-start-recommended-practice">Start session <ArrowRight size={16} /></button>
       </div>
     </section>
-    {answeredCount === 0 && <div className="mt-4 flex items-start gap-3 rounded-2xl border border-[hsl(var(--primary)/.2)] bg-[hsl(var(--secondary)/.55)] p-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]"><Target size={17} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" /><p><strong className="text-[hsl(var(--foreground))]">Nothing to catch up on.</strong> Start the recommended session and your coverage, accuracy, and review reminders will fill in here.</p></div>}
-    <section className="mt-6 grid gap-3 sm:grid-cols-3">
-      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5"><div className="text-xs font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Handbook coverage</div><div className="mt-3 font-display text-4xl">{answeredCount}<span className="text-xl text-[hsl(var(--muted-foreground))]">/{questionBank.length}</span></div><div className="mt-4"><ProgressBar value={overallCoverage} /></div><div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{answeredCount ? 'questions seen' : 'ready to begin'}</div></div>
-      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5"><div className="text-xs font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Accuracy</div><div className="mt-3 font-display text-4xl">{answeredCount ? `${overallAccuracy}%` : '—'}</div><div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{answeredCount ? `${correctCount} currently mastered` : 'appears after your first answer'}</div></div>
-      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5"><div className="text-xs font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Needs review</div><div className="mt-3 font-display text-4xl">{answeredCount ? missedQuestions.length : '—'}</div><div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">{answeredCount ? `${dueQuestions.length} due · ${unseenQuestions.length} unseen` : 'your review list is created as you learn'}</div></div>
+    {answeredCount === 0 && <div className="mt-4 flex items-start gap-3 rounded-2xl border border-[hsl(var(--primary)/.2)] bg-[hsl(var(--secondary)/.55)] p-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]"><Target size={17} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" /><p><strong className="text-[hsl(var(--foreground))]">Start with one short session.</strong> Your coverage and review reminders will appear here as you learn.</p></div>}
+    <section className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
+      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4"><div className="text-[10px] font-bold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">Covered</div><div className="mt-2 font-display text-2xl">{answeredCount}<span className="text-sm text-[hsl(var(--muted-foreground))]">/{questionBank.length}</span></div><div className="mt-3"><ProgressBar value={overallCoverage} /></div></div>
+      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4"><div className="text-[10px] font-bold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">Accuracy</div><div className="mt-2 font-display text-2xl">{answeredCount ? `${overallAccuracy}%` : '—'}</div><div className="mt-1 text-[11px] leading-4 text-[hsl(var(--muted-foreground))]">{answeredCount ? `${correctCount} correct` : 'after first answer'}</div></div>
+      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4"><div className="text-[10px] font-bold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">Review</div><div className="mt-2 font-display text-2xl">{answeredCount ? missedQuestions.length : '—'}</div><div className="mt-1 text-[11px] leading-4 text-[hsl(var(--muted-foreground))]">{answeredCount ? `${dueQuestions.length} due` : 'builds as you learn'}</div></div>
     </section>
     <section className="mt-9">
       <div className="mb-4"><div className="text-xs font-bold uppercase tracking-[.14em] text-[hsl(var(--muted-foreground))]">More ways to practice</div><h2 className="mt-1 font-display text-2xl">Choose a different pace.</h2></div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { mode: 'daily' as const, title: 'Daily 10', copy: 'New and weak questions', icon: Sparkles },
+          {[
           { mode: 'continue' as const, title: 'Continue', copy: 'Next 15 handbook questions', icon: BookOpen },
           { mode: 'missed' as const, title: 'Review missed', copy: `${missedQuestions.length} waiting`, icon: RotateCcw, disabled: missedQuestions.length === 0 },
           { mode: 'exam' as const, title: 'Test simulation', copy: '30 randomized questions', icon: Award },
