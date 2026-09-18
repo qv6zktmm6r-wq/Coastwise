@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { DriveDebrief, NextDrivePlan } from '@workspace/api-client-react';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { beginDriveState, finishDriveState, saveDriveState, updateDriveState } from './mobile-state';
 
 const STORAGE_KEY = 'coastwise-mobile-state';
 
@@ -22,7 +23,7 @@ export type ActiveMobileDrive = MobileDrive & {
   recordingRequested?: boolean;
 };
 
-type MobileState = {
+export type MobileState = {
   drives: MobileDrive[];
   plan?: NextDrivePlan;
   acknowledgedPrivacyVersion?: string;
@@ -76,15 +77,9 @@ export function CoastwiseProvider({ children }: { children: ReactNode }) {
     completeOnboarding: () => setState((current) => ({ ...current, hasCompletedOnboarding: true })),
     setRecordingRetention: (days) => setState((current) => ({ ...current, recordingRetentionDays: days })),
     setParentGoal: (goal) => setState((current) => ({ ...current, parentGoal: goal })),
-    beginActiveDrive: (drive) => setState((current) => ({ ...current, activeDrive: drive })),
-    updateActiveDrive: (drive) => setState((current) => ({ ...current, activeDrive: drive })),
-    finishActiveDrive: (drive) => setState((current) => ({
-      ...current,
-      activeDrive: undefined,
-      drives: current.drives.some((item) => item.id === drive.id)
-        ? current.drives.map((item) => item.id === drive.id ? drive : item)
-        : [drive, ...current.drives].slice(0, 50),
-    })),
+    beginActiveDrive: (drive) => setState((current) => beginDriveState(current, drive)),
+    updateActiveDrive: (drive) => setState((current) => updateDriveState(current, drive)),
+    finishActiveDrive: (drive) => setState((current) => finishDriveState(current, drive)),
     discardActiveDrive: () => setState((current) => ({ ...current, activeDrive: undefined })),
     forgetRecording: (uri) => setState((current) => ({
       ...current,
@@ -106,12 +101,7 @@ export function CoastwiseProvider({ children }: { children: ReactNode }) {
         recordingSizeBytes: undefined,
       })),
     })),
-    saveDrive: (drive) => setState((current) => ({
-      ...current,
-      drives: current.drives.some((item) => item.id === drive.id)
-        ? current.drives.map((item) => item.id === drive.id ? drive : item)
-        : [drive, ...current.drives].slice(0, 50),
-    })),
+    saveDrive: (drive) => setState((current) => saveDriveState(current, drive)),
     savePlan: (plan) => setState((current) => ({ ...current, plan })),
     acknowledgePrivacy: () => setState((current) => ({ ...current, acknowledgedPrivacyVersion: '2026-09-18-ios-ai' })),
   }), [hydrated, state]);

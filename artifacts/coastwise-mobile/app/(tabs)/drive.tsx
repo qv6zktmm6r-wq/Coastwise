@@ -17,6 +17,11 @@ import {
 } from '@/lib/recordings';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@/theme';
+import {
+  attachRecording,
+  DriveLifecycleCoordinator,
+  shouldRequestMicrophonePermission,
+} from '@/lib/drive-lifecycle';
 
 const DRIVE_SKILLS = ['turns', 'intersections'];
 const WEAK_TOPICS = [
@@ -40,16 +45,6 @@ function explainPermission(title: string, permission: { granted: boolean; canAsk
         { text: 'Open Settings', onPress: () => void Linking.openSettings().catch(() => undefined) },
       ],
   );
-}
-
-function completedDrive(drive: MobileDrive, elapsedSeconds: number): MobileDrive {
-  const {
-    startedAt: _startedAt,
-    elapsedSeconds: _elapsedSeconds,
-    recordingRequested: _recordingRequested,
-    ...completed
-  } = drive as ActiveMobileDrive;
-  return { ...completed, durationMinutes: Math.max(1, Math.round(elapsedSeconds / 60)) };
 }
 
 function recordingDate(recording: LocalRecording) {
@@ -79,12 +74,13 @@ export default function DriveScreen() {
   const lastCoordinates = useRef<Location.LocationObjectCoords | null>(null);
   const driveRef = useRef<MobileDrive | null>(null);
   const elapsedRef = useRef(0);
-  const recordingTaskRef = useRef<Promise<void> | null>(null);
+  const lifecycleRef = useRef(new DriveLifecycleCoordinator());
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [microphonePermission, requestMicrophonePermission] = useMicrophonePermissions();
   const [locationReady, setLocationReady] = useState(false);
   const [active, setActive] = useState(false);
   const [recoveryPending, setRecoveryPending] = useState(false);
+  const [recoveryActionPending, setRecoveryActionPending] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordingPrepared, setRecordingPrepared] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -163,15 +159,21 @@ export default function DriveScreen() {
   const pauseForInterruption = useCallback(() => {
     const current = driveRef.current;
     if (!current) return;
-    stopNativeSession();
-    const paused: ActiveMobileDrive = {
-      ...current,
-      startedAt: activeDrive?.startedAt ?? new Date().toISOString(),
-      elapsedSeconds: elapsedRef.current,
-    };
-    driveRef.current = paused;
-    setDrive(paused);
-    updateActiveDrive(paused);
+    const paused = lifecycleRef.current.pause(
+      {
+        ...current,
+        startedAt: activeDrive?.startedAt ?? new Date().toISOString(),
+        elapsedSeconds: elapsedRef.current,
+      },
+      elapsedRef.current,
+      stopNativeSession,
+      (nextDrive) => {
+        driveRef.current = nextDrive;
+        setDrive(nextDrive);
+        updateActiveDrive(nextDrive);
+      },
+    );
+    if (!paused) return;
     setActive(false);
     setRecoveryPending(true);
     AccessibilityInfo.announceForAccessibility("Drive paused due to app interruption. Please resume when ready.");
@@ -250,25 +252,26 @@ export default function DriveScreen() {
       recordingRequested: recordingPrepared,
     };
     if (await beginLocationTracking(session)) {
+      lifecycleRef.current.beginDrive();
       beginActiveDrive(session);
       AccessibilityInfo.announceForAccessibility("Coached drive started.");
     }
   };
 
   const resumeDrive = async () => {
-    await recordingTaskRef.current;
-    const recoveredDrive = driveRef.current as ActiveMobileDrive | null;
-    if (recoveredDrive) {
-      await beginLocationTracking(recoveredDrive);
-    } else if (activeDrive) {
-      await beginLocationTracking(activeDrive);
-    }
+    await lifecycleRef.current.resume(
+      () => driveRef.current as ActiveMobileDrive | null,
+      beginLocationTracking,
+      setRecoveryActionPending,
+    );
   };
 
   const startRecording = async () => {
     if (!cameraPermission?.granted) return;
     const camera = cameraRef.current;
     if (!camera) return;
+    const recordingDriveId = driveRef.current?.id;
+    if (!recordingDriveId) return;
     setRecording(true);
     AccessibilityInfo.announceForAccessibility("Recording started.");
     const task = (async () => {
@@ -277,13 +280,11 @@ export default function DriveScreen() {
       const destination = `${FileSystem.documentDirectory}coastwise-drive-${Date.now()}.mp4`;
       await FileSystem.copyAsync({ from: result.uri, to: destination });
       const info = await FileSystem.getInfoAsync(destination);
-      const current = driveRef.current;
-      if (current) {
-        const updated = {
-          ...current,
-          recordingUri: destination,
-          recordingSizeBytes: info.exists ? info.size ?? 0 : 0,
-        };
+      const updated = attachRecording(driveRef.current, recordingDriveId, {
+        uri: destination,
+        sizeBytes: info.exists ? info.size ?? 0 : 0,
+      });
+      if (updated) {
         driveRef.current = updated;
         setDrive(updated);
         if (active) {
@@ -301,9 +302,8 @@ export default function DriveScreen() {
       Alert.alert('Recording unavailable', 'Coastwise could not save this recording. Your drive summary is still safe.');
     }).finally(() => {
       setRecording(false);
-      recordingTaskRef.current = null;
     });
-    recordingTaskRef.current = task;
+    lifecycleRef.current.beginRecording(task);
     await task;
   };
 
@@ -314,15 +314,16 @@ export default function DriveScreen() {
   }, [active, recordingPrepared]);
 
   const prepareRecording = async () => {
+    if (active) return;
     if (recordingPrepared) {
       setRecordingPrepared(false);
       AccessibilityInfo.announceForAccessibility('Local recording disabled for the next drive.');
       return;
     }
     const camera = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
-    const microphone = microphonePermission?.granted
-      ? microphonePermission
-      : await requestMicrophonePermission();
+    const microphone = shouldRequestMicrophonePermission(active, microphonePermission)
+      ? await requestMicrophonePermission()
+      : microphonePermission ?? { granted: false };
     if (!camera.granted) {
       explainPermission('Camera', camera);
       return;
@@ -336,18 +337,21 @@ export default function DriveScreen() {
   };
 
   const stopDrive = async () => {
-    stopNativeSession();
-    await recordingTaskRef.current;
-    const current = driveRef.current;
-    if (!current) return;
-    const finished = completedDrive(current, elapsedRef.current);
-    driveRef.current = finished;
-    setDrive(finished);
-    finishActiveDrive(finished);
-    setActive(false);
-    setRecordingPrepared(false);
-    setRecoveryPending(false);
-    AccessibilityInfo.announceForAccessibility("Drive finished.");
+    await lifecycleRef.current.end(
+      () => driveRef.current,
+      () => elapsedRef.current,
+      stopNativeSession,
+      (finished) => {
+        driveRef.current = finished;
+        setDrive(finished);
+        finishActiveDrive(finished);
+        setActive(false);
+        setRecordingPrepared(false);
+        setRecoveryPending(false);
+        AccessibilityInfo.announceForAccessibility("Drive finished.");
+      },
+      setRecoveryActionPending,
+    );
   };
 
   const discardRecoveredDrive = () => {
@@ -357,12 +361,19 @@ export default function DriveScreen() {
         text: 'Discard',
         style: 'destructive',
         onPress: () => {
-          discardActiveDrive();
-          driveRef.current = null;
-          elapsedRef.current = 0;
-          setDrive(null);
-          setElapsed(0);
-          setRecoveryPending(false);
+          lifecycleRef.current.discard(
+            stopNativeSession,
+            () => {
+              discardActiveDrive();
+              driveRef.current = null;
+              elapsedRef.current = 0;
+              setDrive(null);
+              setElapsed(0);
+              setActive(false);
+              setRecoveryPending(false);
+            },
+            setRecoveryActionPending,
+          );
         },
       },
     ]);
@@ -501,9 +512,20 @@ export default function DriveScreen() {
           </View>
           <Body>Location and recording were paused when Coastwise was interrupted. Resume only while parked and ready.</Body>
           <View style={{ marginTop: 24, gap: 12 }}>
-            <ActionButton onPress={() => void resumeDrive()}>Resume drive</ActionButton>
-            <ActionButton onPress={() => void stopDrive()} secondary>End and save drive</ActionButton>
-            <Pressable onPress={discardRecoveredDrive} style={({ pressed }) => [{ minHeight: 48, justifyContent: 'center', alignItems: 'center', opacity: pressed ? 0.7 : 1, marginTop: 8 }]}>
+            <ActionButton onPress={() => void resumeDrive()} disabled={recoveryActionPending}>Resume drive</ActionButton>
+            <ActionButton onPress={() => void stopDrive()} secondary disabled={recoveryActionPending}>End and save drive</ActionButton>
+            <Pressable
+              onPress={discardRecoveredDrive}
+              disabled={recoveryActionPending}
+              accessibilityState={{ disabled: recoveryActionPending }}
+              style={({ pressed }) => [{
+                minHeight: 48,
+                justifyContent: 'center',
+                alignItems: 'center',
+                opacity: recoveryActionPending ? 0.5 : pressed ? 0.7 : 1,
+                marginTop: 8,
+              }]}
+            >
               <Text style={{ color: palette.destructive, fontWeight: '700', fontSize: 15 }}>Discard unfinished drive</Text>
             </Pressable>
           </View>

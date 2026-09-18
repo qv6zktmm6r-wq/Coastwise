@@ -12,6 +12,9 @@ pnpm exec expo install --check
 echo "Checking TypeScript..."
 pnpm run typecheck
 
+echo "Running lifecycle regression tests..."
+pnpm run test
+
 echo "Running Expo Doctor..."
 pnpm dlx expo-doctor@latest
 
