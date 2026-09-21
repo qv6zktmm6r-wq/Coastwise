@@ -8,7 +8,7 @@
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
     "release:validate:six-state": "sh ./scripts/release-six-state.sh",
-    "release:smoke:production": "node ./scripts/production-smoke.mjs"
+    "release:smoke:production": "pnpm --dir artifacts/california-driver-coach run test:production-smoke"
   },
   "private": true,
   "dependencies": {

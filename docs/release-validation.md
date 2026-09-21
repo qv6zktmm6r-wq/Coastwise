@@ -44,3 +44,26 @@ the generated web/native artifact identifiers with the release. Confirm that
 the public web manifest matches the bundled six-pack manifest before
 publication. If any check is unavailable, keep the prior release active and
 record the reason rather than weakening the gate.
+
+## Post-publish production smoke check
+
+Publishing is not complete until the live deployment passes the Chromium smoke
+check. After publishing:
+
+1. Read the current deployment metadata with Replit's deployment-info lookup.
+   Require a successful deployment with a successful current build, and copy
+   its `primaryUrl`. Do not infer the URL from the Repl name, a development
+   domain, or an environment variable.
+2. Run:
+
+   ```sh
+   PRODUCTION_URL="<primaryUrl from deployment metadata>" pnpm run release:smoke:production
+   ```
+
+3. Keep the prior release active or roll back if the command fails.
+
+The smoke check uses Chromium against the published HTTPS URL. It requires
+`GET /api/healthz` to return `{ "status": "ok" }`, waits for the usable Coastwise
+start screen, and fails if the global error boundary appears, the page raises
+an uncaught error, or the browser emits a console error. Record its output with
+the release evidence.
