@@ -75,12 +75,13 @@ test('starts a free-drive dashcam without building a route', async ({ page, cont
   for (const checkbox of await page.getByRole('checkbox').all()) {
     await checkbox.check();
   }
+  await expect(page.getByTestId('button-test-spoken-coaching')).toBeVisible();
   await page.getByTestId('button-confirm-preflight').click();
 
   await expect(page.getByText('Recording locally')).toBeVisible();
   await expect(page.locator('video[autoplay]')).toBeVisible();
   await expect(page.getByTestId('active-recording-panel')).toBeInViewport();
-  await expect(page.getByTestId('text-gps-status')).toContainText(/Live|Finding/);
+  await expect(page.getByTestId('text-gps-status')).toContainText(/Movement live|Signal only|Finding/);
   await expect(page.getByTestId('text-current-speed')).toBeVisible();
   await expect(page.getByTestId('text-motion-status')).toBeVisible();
   const cameraBounds = await page.locator('video[autoplay]').boundingBox();

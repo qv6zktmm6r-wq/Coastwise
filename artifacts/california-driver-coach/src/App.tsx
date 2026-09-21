@@ -726,9 +726,13 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     coachAudio.current?.pause();
     const audio = new Audio(src);
     coachAudio.current = audio;
-    audio.addEventListener('playing', () => setAudioStatus('speaking'), { once: true });
-    audio.addEventListener('ended', () => setAudioStatus('ready'), { once: true });
-    void audio.play().catch(() => setAudioStatus('unavailable'));
+    // The recorded cue is optional. Speech synthesis has its own status and
+    // must not be marked unavailable only because iOS blocked this MP3.
+    void audio.play().catch(() => undefined);
+  };
+  const testSpokenCoaching = () => {
+    setAudioStatus('ready');
+    speak('Spoken coaching is ready.');
   };
   const recordCoachEvent = ({ kind, title, detail, distanceToNext = null, stepIndex = null }: { kind: CoachEventKind; title: string; detail: string; distanceToNext?: number | null; stepIndex?: number | null }) => {
     const clockStart = recordingClockStartedAt.current;
@@ -762,7 +766,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     });
   };
   const handleDeviceMotion = (event: DeviceMotionEvent) => {
-    if (pausedRef.current || (currentSpeedRef.current ?? 0) < 5) return;
+    if (pausedRef.current || recordingClockStartedAt.current === null) return;
     const acceleration = event.acceleration;
     const includingGravity = event.accelerationIncludingGravity;
     const sample = acceleration && acceleration.x !== null && acceleration.y !== null && acceleration.z !== null
@@ -782,7 +786,8 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       y: baseline.y * 0.92 + sample.y * 0.08,
       z: baseline.z * 0.92 + sample.z * 0.08,
     };
-    if (change >= 2.8) {
+    const motionThreshold = (currentSpeedRef.current ?? 0) >= 5 ? 2.8 : 4.2;
+    if (change >= motionThreshold) {
       motionBrakeSamples.current += 1;
       if (motionBrakeSamples.current >= 2) {
         motionBrakeSamples.current = 0;
@@ -1519,13 +1524,14 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     </section>}
       {showPreflight && !tracking && <section className="mb-6 rounded-2xl border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--card))] p-5 soft-shadow md:p-6" data-testid="preflight-checklist">
         <div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--primary))]"><Video size={16} />Dashcam preflight · {driveMode === 'free' ? 'Free Drive' : 'Planned Route'}</div><h2 className="mt-2 font-display text-3xl">Start the camera only when parked.</h2><p className="mt-2 text-xs leading-5 text-[hsl(var(--muted-foreground))]">The supervising passenger should complete this before the drive begins. After confirmation, Coastwise opens the forward-facing camera and starts local recording.</p></div><button onClick={() => setShowPreflight(false)} className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]" aria-label="Close safety check"><X size={19} /></button></div>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">{[
+       <div className="mt-5 grid gap-3 sm:grid-cols-2">{[
         ['parked', 'The vehicle is parked in a safe place.'],
          ['adult', 'A supervising passenger is present, or I am licensed and will not touch the phone while driving.'],
         ['mounted', 'The phone is mounted and does not block the driver’s view.'],
          ['reviewed', driveMode === 'free' ? 'We chose a safe practice area and discussed today’s focus.' : 'We reviewed the route and current conditions together.'],
-      ].map(([key, label]) => <label key={key} className="flex cursor-pointer items-start gap-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 text-sm font-semibold"><input type="checkbox" checked={preflightChecks[key as keyof typeof preflightChecks]} onChange={(event) => setPreflightChecks({ ...preflightChecks, [key]: event.target.checked })} className="mt-0.5 h-5 w-5 shrink-0 accent-[hsl(var(--primary))]" />{label}</label>)}</div>
-       <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><ActionButton onClick={() => setShowPreflight(false)} variant="quiet" testId="button-cancel-preflight">Cancel</ActionButton><ActionButton onClick={() => void startTracking()} disabled={!preflightReady} testId="button-confirm-preflight"><Video size={16} />Start dashcam & coaching</ActionButton></div>
+       ].map(([key, label]) => <label key={key} className="flex cursor-pointer items-start gap-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 text-sm font-semibold"><input type="checkbox" checked={preflightChecks[key as keyof typeof preflightChecks]} onChange={(event) => setPreflightChecks({ ...preflightChecks, [key]: event.target.checked })} className="mt-0.5 h-5 w-5 shrink-0 accent-[hsl(var(--primary))]" />{label}</label>)}</div>
+       <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--secondary)/.35)] p-4"><div><div className="text-sm font-bold">Check the coach voice while parked</div><div className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">On iPhone, this tap allows Safari to start spoken cues.</div></div><ActionButton onClick={testSpokenCoaching} variant="outline" testId="button-test-spoken-coaching"><Volume2 size={15} />Test voice</ActionButton></div>
+        <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><ActionButton onClick={() => setShowPreflight(false)} variant="quiet" testId="button-cancel-preflight">Cancel</ActionButton><ActionButton onClick={() => void startTracking()} disabled={!preflightReady} testId="button-confirm-preflight"><Video size={16} />Start dashcam & coaching</ActionButton></div>
     </section>}
     <section ref={activeRecordingPanel} data-testid="active-recording-panel" className={`mb-6 scroll-mt-4 overflow-hidden rounded-2xl border ${tracking ? 'border-[hsl(var(--accent)/.45)] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'} p-5 md:p-6`}>
       <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
@@ -1542,18 +1548,18 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
            <video ref={cameraPreview} autoPlay muted playsInline className="h-full w-full object-cover" />
            <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/65 px-3 py-1.5 font-mono-ui text-[10px] uppercase tracking-[.12em] text-white"><span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />Road camera</div>
            <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/85 via-black/40 to-transparent px-4 pb-3 pt-12 text-white">
-             <div><div className="font-mono-ui text-[10px] uppercase tracking-[.16em] text-white/70">Estimated speed</div><div className="font-display text-5xl leading-none" data-testid="text-current-speed">{gpsStatus === 'live' ? currentSpeed.toFixed(0) : '—'} <span className="font-sans text-sm font-bold text-white/75">mph</span></div></div>
-             <div className="mb-1 text-right text-[10px] font-bold text-white/80">{gpsStatus === 'live' ? 'GPS estimate' : gpsStatus === 'acquiring' ? 'Finding GPS…' : 'No GPS'}</div>
+              <div><div className="font-mono-ui text-[10px] uppercase tracking-[.16em] text-white/70">Estimated speed</div><div className="font-display text-5xl leading-none" data-testid="text-current-speed">{gpsStatus === 'live' && speedSampleCount >= 3 ? currentSpeed.toFixed(0) : '—'} <span className="font-sans text-sm font-bold text-white/75">mph</span></div></div>
+              <div className="mb-1 max-w-32 text-right text-[10px] font-bold leading-4 text-white/80">{gpsStatus === 'live' ? speedSampleCount >= 3 ? 'GPS movement estimate' : `${gpsFixCount} GPS ${gpsFixCount === 1 ? 'fix' : 'fixes'} · waiting for movement` : gpsStatus === 'acquiring' ? 'Finding GPS…' : 'No GPS'}</div>
            </div>
          </div>
          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
            <div className="rounded-xl bg-white/8 p-3"><div className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-white/50">Miles</div><div className="mt-1 font-display text-2xl">{distanceMiles.toFixed(1)} <span className="font-sans text-xs font-bold text-white/55">mi</span></div></div>
            <div className="rounded-xl bg-white/8 p-3"><div className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-white/50">Time</div><div className="mt-1 font-display text-2xl">{formatElapsed(elapsedSeconds)}</div></div>
            <div className="rounded-xl bg-white/8 p-3"><div className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-white/50">Average</div><div className="mt-1 font-display text-2xl">{averageSpeed.toFixed(0)} <span className="font-sans text-xs font-bold text-white/55">mph</span></div></div>
-           <div className="rounded-xl bg-white/8 p-3"><div className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-white/50">GPS</div><div className="mt-1 text-xs font-extrabold" data-testid="text-gps-status">{gpsStatus === 'live' ? 'Live' : gpsStatus === 'acquiring' ? 'Finding…' : 'Unavailable'}</div></div>
+            <div className="rounded-xl bg-white/8 p-3"><div className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-white/50">GPS</div><div className="mt-1 text-xs font-extrabold" data-testid="text-gps-status">{gpsStatus === 'live' ? speedSampleCount >= 3 ? 'Movement live' : 'Signal only' : gpsStatus === 'acquiring' ? 'Finding…' : 'Unavailable'}</div>{gpsAccuracy !== null && <div className="mt-1 text-[10px] text-white/55">±{Math.round(gpsAccuracy)} m · {gpsFixCount} fixes</div>}</div>
            <div className="col-span-2 rounded-xl bg-white/8 p-3 sm:col-span-1"><div className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-white/50">Brake sensor</div><div className="mt-1 text-xs font-extrabold" data-testid="text-motion-status">{motionStatus === 'ready' ? 'Motion + GPS' : 'GPS only'}</div></div>
          </div>
-         <div className="mt-4 flex items-start gap-2 rounded-xl border border-white/15 bg-white/8 px-4 py-3 text-xs text-white"><Volume2 size={16} className="mt-0.5 shrink-0" /><span><span className="block font-bold">{paused ? 'Coaching paused' : audioStatus === 'unavailable' ? 'Spoken coaching is unavailable — follow the visible cue' : 'Spoken coaching is active'}</span><span className="mt-1 block text-white/70" data-testid="text-current-voice-cue">{currentCue}</span></span></div>
+         <div className="mt-4 flex items-start gap-3 rounded-xl border border-white/15 bg-white/8 px-4 py-3 text-xs text-white"><Volume2 size={16} className="mt-0.5 shrink-0" /><span className="min-w-0 flex-1"><span className="block font-bold">{paused ? 'Coaching paused' : audioStatus === 'unavailable' ? 'Spoken coaching needs a direct tap on this iPhone' : 'Spoken coaching is active'}</span><span className="mt-1 block text-white/70" data-testid="text-current-voice-cue">{currentCue}</span></span>{audioStatus === 'unavailable' && <button type="button" onClick={testSpokenCoaching} className="min-h-11 shrink-0 rounded-lg border border-white/25 bg-white/10 px-3 text-xs font-bold" data-testid="button-retry-spoken-coaching">Passenger: enable voice</button>}</div>
        </div>}
     </section>
     {tracking && plannedRoute && <section className="mb-6 grid gap-5 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 md:p-6 lg:grid-cols-[.7fr_1.3fr]"><div className="flex flex-col justify-center"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Next instruction · automatic</div><h2 className="mt-3 font-display text-3xl">{plannedRoute.steps[Math.min(activeStep, plannedRoute.steps.length - 1)]?.instruction ?? 'Continue safely'}</h2><div className="mt-4 font-mono-ui text-sm font-medium text-[hsl(var(--primary))]">{distanceToNext > 0 ? `${distanceToNext * 3.28084 >= 500 ? Math.round(distanceToNext * 3.28084 / 50) * 50 : Math.round(distanceToNext * 3.28084)} feet` : 'Acquiring GPS position'}</div><p className="mt-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">No taps are needed. Coastwise prepares the driver, announces the maneuver, advances to the next step, and calmly recalculates after a missed turn.</p></div><RouteMap route={plannedRoute} currentPosition={currentPosition} /></section>}
