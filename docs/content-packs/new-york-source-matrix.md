@@ -1,0 +1,23 @@
+# New York content-pack source matrix
+
+**Status: PENDING / UNAPPROVED — not cleared for publication.**  
+**Jurisdiction:** US-NY · **Pack version:** `us-ny-2026.09.1`  
+**Last source check:** 2026-09-21 (automated content review; not human approval)
+
+| Claim area | Official source | Source revision/effective metadata | Pack coverage | Accountable human reviewer | Review date | Decision |
+|---|---|---|---|---|---|---|
+| Learner permit, supervised practice, 50 hours / 15 after sunset | [NY DMV Teen Drivers](https://dmv.ny.gov/younger-driver/graduated-license-law-and-restrictions-drivers-under-18) | No revision date displayed; page checked 2026-09-21 | ny-licensing-001, ny-scenario-001 | **UNRESOLVED — assign DMV-content owner** | **UNRESOLVED** | Pending |
+| Supervision and junior driver terminology | [NY DMV Teen Drivers](https://dmv.ny.gov/younger-driver/graduated-license-law-and-restrictions-drivers-under-18) | No revision date displayed; page checked 2026-09-21 | ny-licensing-002–005, ny-vehicle-responsibility-003 | **UNRESOLVED — assign accountable human reviewer** | **UNRESOLVED** | Pending |
+| Knowledge permit process | [NY DMV Get a driver license](https://dmv.ny.gov/driver-license/get-learner-permit) | No revision date displayed; page checked 2026-09-21 | ny-testing-001 | **UNRESOLVED** | **UNRESOLVED** | Pending |
+| Pre-licensing and road-test eligibility | [NY DMV Schedule and take a road test](https://dmv.ny.gov/driver-license/complete-pre-licensing-requirements) | No revision date displayed; page checked 2026-09-21 | ny-testing-002–004 | **UNRESOLVED** | **UNRESOLVED** | Pending |
+| Road-test vehicle documents | [NY DMV Schedule and take a road test](https://dmv.ny.gov/driver-license/complete-pre-licensing-requirements) | No revision date displayed; page checked 2026-09-21 | ny-testing-003, ny-vehicle-responsibility-002, ny-scenario-003 | **UNRESOLVED** | **UNRESOLVED** | Pending |
+| Identity, date of birth, and residence proofs | [NY DMV document guide](https://dmv.ny.gov/driver-license/prepare-for-and-take-your-permit-test) | No revision date displayed; page checked 2026-09-21 | ny-vehicle-responsibility-001 | **UNRESOLVED** | **UNRESOLVED** | Pending |
+| Road rules and representative safe-driving guidance | [NY DMV Driver’s Manual and Practice Tests (MV-21)](https://dmv.ny.gov/new-york-state-drivers-manual-practice-tests) | MV-21 (5/23); official page checked 2026-09-21 | ny-fundamentals-001 through ny-safe-driving-002 | **UNRESOLVED — assign rules subject-matter reviewer** | **UNRESOLVED** | Pending |
+| Statutory GDL authority | [NY Vehicle and Traffic Law §501](https://www.nysenate.gov/legislation/laws/VAT/501) | Current page checked 2026-09-21; amendments require verification | Supporting authority for regional restrictions | **UNRESOLVED — assign legal reviewer** | **UNRESOLVED** | Pending |
+
+## Open verification items
+
+* Confirm the current MV-21 PDF revision and effective date, and map each road-rule claim to an exact page/section.
+* Recheck New York City, Nassau/Suffolk, and upstate junior-permit/junior-license restrictions and exceptions against current DMV wording.
+* Confirm road-test vehicle, insurance, inspection, and documentation requirements at release time.
+* Populate accountable reviewer names, dates, and decisions only after a human review. This record intentionally makes no approval claim.

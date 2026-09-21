@@ -4,14 +4,23 @@ export const DEFAULT_JURISDICTION = 'US-CA';
 export const CURRENT_CALIFORNIA_CONTENT_PACK_VERSION = 'us-ca-2026.09.1';
 export const CURRENT_TEXAS_CONTENT_PACK_VERSION = 'us-tx-2026.09.1';
 export const CURRENT_FLORIDA_CONTENT_PACK_VERSION = 'us-fl-2026.09.1';
+export const CURRENT_NEW_YORK_CONTENT_PACK_VERSION = 'us-ny-2026.09.1';
+export const CURRENT_OHIO_CONTENT_PACK_VERSION = 'us-oh-2026.09.1';
+export const CURRENT_ILLINOIS_CONTENT_PACK_VERSION = 'us-il-2026.09.1';
 
 export function isMobileJurisdiction(value: unknown): value is MobileJurisdiction {
+  return value === 'US-CA' || value === 'US-TX' || value === 'US-FL' || value === 'US-NY' || value === 'US-OH' || value === 'US-IL';
+}
+export function isApprovedMobileJurisdiction(value: unknown): value is MobileJurisdiction {
   return value === 'US-CA' || value === 'US-TX' || value === 'US-FL';
 }
 
 export function getMobileContentPackVersion(jurisdiction: MobileJurisdiction) {
   if (jurisdiction === 'US-TX') return CURRENT_TEXAS_CONTENT_PACK_VERSION;
   if (jurisdiction === 'US-FL') return CURRENT_FLORIDA_CONTENT_PACK_VERSION;
+  if (jurisdiction === 'US-NY') return CURRENT_NEW_YORK_CONTENT_PACK_VERSION;
+  if (jurisdiction === 'US-OH') return CURRENT_OHIO_CONTENT_PACK_VERSION;
+  if (jurisdiction === 'US-IL') return CURRENT_ILLINOIS_CONTENT_PACK_VERSION;
   return CURRENT_CALIFORNIA_CONTENT_PACK_VERSION;
 }
 
@@ -22,7 +31,7 @@ export function getMobileContentPackVersion(jurisdiction: MobileJurisdiction) {
  */
 export function hydrateMobileState(value: unknown): MobileState {
   const legacy = value && typeof value === 'object' ? value as Partial<MobileState> : {};
-  const jurisdiction = isMobileJurisdiction(legacy.jurisdiction)
+  const jurisdiction = isApprovedMobileJurisdiction(legacy.jurisdiction)
     ? legacy.jurisdiction
     : DEFAULT_JURISDICTION;
   return {
@@ -32,8 +41,8 @@ export function hydrateMobileState(value: unknown): MobileState {
       ? legacy.practiceProgress
       : {},
     jurisdiction,
-    contentPackVersion: typeof legacy.contentPackVersion === 'string' && legacy.contentPackVersion.length > 0
-      ? legacy.contentPackVersion
+    contentPackVersion: legacy.contentPackVersion === getMobileContentPackVersion(jurisdiction)
+      ? getMobileContentPackVersion(jurisdiction)
       : getMobileContentPackVersion(jurisdiction),
   };
 }

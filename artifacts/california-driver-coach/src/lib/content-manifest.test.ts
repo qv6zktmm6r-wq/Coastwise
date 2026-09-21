@@ -21,7 +21,7 @@ function memoryStorage() {
 
 test('accepts all bundled versioned jurisdiction manifests', () => {
   assert.deepEqual(parseContentManifest(bundledContentManifest), bundledContentManifest);
-  assert.deepEqual(bundledContentManifest.packs.map((pack) => pack.jurisdiction), ['US-CA', 'US-TX', 'US-FL']);
+  assert.deepEqual(bundledContentManifest.packs.map((pack) => pack.jurisdiction), ['US-CA', 'US-TX', 'US-FL', 'US-NY', 'US-OH', 'US-IL']);
   assert.equal(compareContentPackVersions('us-ca-2026.10.0', 'us-ca-2026.09.1'), 1);
   assert.equal(compareContentPackVersions('us-ca-2026.08.9', 'us-ca-2026.09.1'), -1);
 });
@@ -54,7 +54,7 @@ test('distinguishes ordinary corrections from material updates', () => {
       sourceUrl: texas.sourceUrl,
     },
   );
-  assert.equal(parseContentManifest(manifest)?.packs.length, 3);
+   assert.equal(parseContentManifest(manifest)?.packs.length, 6);
   assert.equal(getMaterialContentNotice(manifest, 'US-TX', [])?.id, 'tx-material-rule');
   assert.equal(getMaterialContentNotice(manifest, 'US-TX', ['tx-material-rule']), undefined);
 });
@@ -122,4 +122,29 @@ test('does not cache a rollback or missing-pack manifest', async () => {
     assert.equal(status.kind, 'unavailable');
     assert.equal(storage.getItem(contentManifestStorageKey), null);
   }
+});
+
+test('rejects duplicate, mismatched, and malformed six-pack manifests atomically', () => {
+  const duplicate = structuredClone(bundledContentManifest);
+  duplicate.packs[1] = { ...duplicate.packs[0] };
+  assert.equal(parseContentManifest(duplicate), null);
+  const mismatch = structuredClone(bundledContentManifest);
+  mismatch.packs[0].version = 'us-tx-2026.09.1';
+  assert.equal(parseContentManifest(mismatch), null);
+  const malformed = structuredClone(bundledContentManifest);
+  malformed.packs[0].version = '2026-01';
+  assert.equal(parseContentManifest(malformed), null);
+});
+
+test('does not use a cached manifest with a rollback in another jurisdiction', async () => {
+  const cached = structuredClone(bundledContentManifest);
+  cached.packs[1].version = 'us-tx-2026.08.1';
+  const storage = memoryStorage();
+  storage.setItem(contentManifestStorageKey, JSON.stringify(cached));
+  const status = await checkContentManifest({
+    jurisdiction: 'US-CA',
+    storage,
+    fetcher: async () => { throw new Error('offline'); },
+  });
+  assert.equal(status.source, 'bundled');
 });

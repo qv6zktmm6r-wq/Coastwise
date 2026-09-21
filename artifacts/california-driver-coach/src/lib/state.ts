@@ -146,6 +146,10 @@ export function parseStoredState(saved: string | null): AppState {
     const jurisdiction = isSupportedJurisdictionCode(storedProfile.jurisdiction)
       ? storedProfile.jurisdiction
       : defaultJurisdiction;
+    const currentVersion = getCurrentContentPackVersion(jurisdiction);
+    // Only the current approved pack may hydrate. Legacy California records
+    // without a version migrate to this current version.
+    const contentPackVersion = currentVersion;
     const storedSettings = isRecord(parsed.settings) ? parsed.settings : {};
     const storedSessions = Array.isArray(parsed.sessions) ? normalizeDriveSessions(parsed.sessions) : initialState.sessions;
     return {
@@ -155,16 +159,12 @@ export function parseStoredState(saved: string | null): AppState {
         ...initialState.profile,
         ...storedProfile,
         jurisdiction,
-        contentPackVersion: typeof storedProfile.contentPackVersion === 'string'
-          ? storedProfile.contentPackVersion
-          : getCurrentContentPackVersion(jurisdiction),
+        contentPackVersion,
       },
       practiceProgress: normalizePracticeProgress(
         parsed.practiceProgress,
         jurisdiction,
-        typeof storedProfile.contentPackVersion === 'string'
-          ? storedProfile.contentPackVersion
-          : getCurrentContentPackVersion(jurisdiction),
+        contentPackVersion,
       ),
       settings: {
         ...initialState.settings,

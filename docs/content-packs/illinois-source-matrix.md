@@ -1,0 +1,41 @@
+# Illinois teen-driver source matrix
+
+**Pack:** `us-il-2026.09.1` · **Jurisdiction:** `US-IL` · **Status:** PENDING / NOT APPROVED  
+**Review date:** 2026-09-21 · **Scope:** Illinois instruction-permit and graduated-driver-license practice content. This is educational content, not legal advice.
+
+## Official sources and drafting coverage
+
+| Topic | Official source | Revision/effective metadata | Drafting rule |
+|---|---|---|---|
+| Handbook, signs, road rules, safe driving | [2026 Illinois Rules of the Road](https://www.ilsos.gov/publications/pdf_publications/dsd_a112.pdf) | 2026 official PDF; effective date not separately stated | Use exact Illinois terminology where possible; paraphrase rules rather than reproduce text. |
+| Permit eligibility, supervision, practice | [Illinois GDL Program](https://www.ilsos.gov/services/drivers-license/gdl.html) | Revision date not stated; page checked 2026-09-21 | Use instruction permit, initial licensing phase, 50 hours including 10 nighttime hours, and 21+ supervising-driver terminology. |
+| Permit and examination process | [Illinois Driver Services](https://www.ilsos.gov/departments/drivers/drivers_license/drlicid.html) | Revision date not stated; page checked 2026-09-21 | Describe vision, written examination, driving examination, and permit/licensing process without implying guaranteed eligibility. |
+| Identity and residency documentation | [Acceptable Identification Documents](https://www.ilsos.gov/departments/drivers/drivers_license/acceptable_documents.html) | Revision date not stated; page checked 2026-09-21 | Direct applicants to the current Secretary of State document list. |
+| Nighttime and passenger restrictions | [Illinois GDL Program](https://www.ilsos.gov/services/drivers-license/gdl.html) | Revision date not stated; page checked 2026-09-21 | Apply the Sunday–Thursday 10 p.m. and Friday–Saturday 11 p.m. curfews and first-12-month maximum-one-unrelated-passenger rule with sibling, step-sibling, child, and stepchild exceptions only with listed exceptions. |
+
+## Structured review checklist
+
+- [x] Every question has a stable unique `il-*` identifier, exactly three options, and a valid answer index.
+- [ ] At least two questions cover each of the 12 handbook sections.
+- [x] Three scenarios are exported with stable IDs and official source URLs.
+- [x] Permit age, 21+ supervision, 50 hours/10 nighttime hours, nine-month permit duration, restrictions, testing, documentation, and representative Illinois road rules are represented.
+- [x] Every question includes an official citation URL, source revision/effective metadata, review date, and pack version.
+- [x] The pack uses exact terms such as “instruction permit,” “initial licensing phase,” “written examination,” and “driving examination.”
+- [ ] Human legal/editorial reviewer independently verifies every GDL exception, restriction, and road-rule paraphrase against the 2026 edition.
+- [ ] Human reviewer confirms the Secretary of State URLs, document list, and current revision/effective status at release.
+- [ ] Human reviewer confirms that the 2026 Rules of the Road PDF remains the applicable edition and checks later amendments.
+
+## Unresolved items and release blockers
+
+The Illinois Secretary of State pages do not consistently expose revision dates or effective dates. The matrix therefore records the access/currentness date and does not infer an effective date. Curfew exceptions, immediate-family wording, permit exceptions, test eligibility, documentation combinations, school-bus roadway exceptions, insurance proof details, and any post-publication amendments require human legal/editorial verification before release. These are intentionally unresolved; this document does not claim approval.
+
+## Accountable human review — unresolved
+
+- **Accountable legal reviewer:** UNASSIGNED — name and title required
+- **Accountable editorial reviewer:** UNASSIGNED — name and title required
+- **Independent source/URL verifier:** UNASSIGNED — name and title required
+- **Review date:** PENDING
+- **Decision:** PENDING / NOT APPROVED
+- **Approval signature or ticket:** PENDING
+
+**No approval is claimed. Publication requires the accountable human reviewers to complete the unresolved checks above.**

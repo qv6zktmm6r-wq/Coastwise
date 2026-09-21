@@ -2,8 +2,12 @@ import {
   CALIFORNIA_CONTENT_PACK_VERSION,
   FLORIDA_CONTENT_PACK_VERSION,
   TEXAS_CONTENT_PACK_VERSION,
+  NEW_YORK_CONTENT_PACK_VERSION,
+  OHIO_CONTENT_PACK_VERSION,
+  ILLINOIS_CONTENT_PACK_VERSION,
   defaultJurisdiction,
   isJurisdictionCode,
+  getCurrentContentPackVersion,
   type JurisdictionCode,
 } from './jurisdiction';
 
@@ -76,6 +80,24 @@ export const bundledContentManifest: ContentManifest = {
       sourceUrl: 'https://www.flhsmv.gov/pdf/handbooks/englishdriverhandbook.pdf',
       notices: [],
     },
+    {
+      jurisdiction: 'US-NY', version: NEW_YORK_CONTENT_PACK_VERSION,
+      sourceRevision: 'New York State Driver’s Manual and official DMV sources checked 2026-09-21',
+      effectiveDate: '2026-09-21', reviewedAt: '2026-09-21',
+      sourceUrl: 'https://dmv.ny.gov/new-york-state-drivers-manual-practice-tests', notices: [],
+    },
+    {
+      jurisdiction: 'US-OH', version: OHIO_CONTENT_PACK_VERSION,
+      sourceRevision: 'Ohio Driver Manual and official BMV sources checked 2026-09-21',
+      effectiveDate: '2026-09-21', reviewedAt: '2026-09-21',
+      sourceUrl: 'https://www.bmv.ohio.gov/forms-general.aspx', notices: [],
+    },
+    {
+      jurisdiction: 'US-IL', version: ILLINOIS_CONTENT_PACK_VERSION,
+      sourceRevision: 'Illinois Rules of the Road and official Secretary of State sources checked 2026-09-21',
+      effectiveDate: '2026-09-21', reviewedAt: '2026-09-21',
+      sourceUrl: 'https://www.ilsos.gov/publications/pdf_publications/dsd_a112.pdf', notices: [],
+    },
   ],
 };
 
@@ -99,6 +121,7 @@ export function parseContentManifest(value: unknown): ContentManifest | null {
   const candidate = value as Record<string, unknown>;
   if (candidate.schemaVersion !== 1 || typeof candidate.generatedAt !== 'string' || !Array.isArray(candidate.packs)) return null;
   const packs: ContentPackManifestEntry[] = [];
+  const seen = new Set<JurisdictionCode>();
   for (const value of candidate.packs) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
     const pack = value as Record<string, unknown>;
@@ -116,8 +139,13 @@ export function parseContentManifest(value: unknown): ContentManifest | null {
         && notice.packVersion === pack.version
       )
     ) return null;
+    if (seen.has(pack.jurisdiction)) return null;
+    const versionMatch = /^us-[a-z]{2}-\d{4}\.\d{2}\.\d+$/.exec(pack.version);
+    if (!versionMatch || !pack.version.startsWith(`${pack.jurisdiction.toLowerCase()}-`)) return null;
+    seen.add(pack.jurisdiction);
     packs.push(pack as unknown as ContentPackManifestEntry);
   }
+  if (packs.length !== 6 || seen.size !== 6) return null;
   return { schemaVersion: 1, generatedAt: candidate.generatedAt, packs };
 }
 
@@ -149,6 +177,12 @@ export function loadCachedContentManifest(storage: Pick<Storage, 'getItem'>): Co
 
 export function getPackFromManifest(manifest: ContentManifest, jurisdiction: JurisdictionCode) {
   return manifest.packs.find((pack) => pack.jurisdiction === jurisdiction);
+}
+function isManifestCurrentOrNewer(manifest: ContentManifest) {
+  return manifest.packs.every((pack) => {
+    const comparison = compareContentPackVersions(pack.version, getCurrentContentPackVersion(pack.jurisdiction));
+    return comparison !== null && comparison >= 0;
+  });
 }
 
 export function getMaterialContentNotice(
@@ -188,19 +222,23 @@ export async function checkContentManifest({
   fetcher?: typeof fetch;
   storage?: Pick<Storage, 'getItem' | 'setItem'>;
 } = {}): Promise<ContentManifestStatus> {
-  const installedVersion = currentVersion ?? (
-    jurisdiction === 'US-CA'
-      ? CALIFORNIA_CONTENT_PACK_VERSION
-      : jurisdiction === 'US-TX'
-        ? TEXAS_CONTENT_PACK_VERSION
-        : FLORIDA_CONTENT_PACK_VERSION
-  );
+  const installedVersion = currentVersion ?? ({
+    'US-CA': CALIFORNIA_CONTENT_PACK_VERSION,
+    'US-TX': TEXAS_CONTENT_PACK_VERSION,
+    'US-FL': FLORIDA_CONTENT_PACK_VERSION,
+    'US-NY': NEW_YORK_CONTENT_PACK_VERSION,
+    'US-OH': OHIO_CONTENT_PACK_VERSION,
+    'US-IL': ILLINOIS_CONTENT_PACK_VERSION,
+  } satisfies Record<JurisdictionCode, string>)[jurisdiction];
   const cached = loadCachedContentManifest(storage);
   try {
     const response = await fetcher(`${import.meta.env.BASE_URL}content-manifest.json`, { cache: 'no-store' });
     if (!response.ok) throw new Error(`manifest returned ${response.status}`);
     const manifest = parseContentManifest(await response.json());
     if (!manifest) throw new Error('manifest is invalid');
+    if (manifest.packs.some((entry) => compareContentPackVersions(entry.version, getCurrentContentPackVersion(entry.jurisdiction)) === -1)) {
+      throw new Error('manifest contains a rollback');
+    }
     const pack = getPackFromManifest(manifest, jurisdiction);
     if (!pack) throw new Error('manifest does not contain the selected jurisdiction');
     const comparison = compareContentPackVersions(pack.version, installedVersion);
@@ -214,7 +252,7 @@ export async function checkContentManifest({
     const cachedComparison = cachedPack
       ? compareContentPackVersions(cachedPack.version, installedVersion)
       : null;
-    const canUseCached = cached && cachedPack && cachedComparison !== null && cachedComparison >= 0;
+    const canUseCached = cached && cachedPack && cachedComparison !== null && cachedComparison >= 0 && isManifestCurrentOrNewer(cached);
     const fallback = canUseCached ? cached : bundledContentManifest;
     const pack = getPackFromManifest(fallback, jurisdiction);
     if (canUseCached && pack && cachedComparison === 1) {

@@ -20,5 +20,5 @@ test('preserves selected jurisdiction and pack version', () => {
       contentPackVersion: '2026-01-01',
     });
     assert.equal(state.jurisdiction, 'US-CA');
-    assert.equal(state.contentPackVersion, '2026-01-01');
+    assert.equal(state.contentPackVersion, CURRENT_CALIFORNIA_CONTENT_PACK_VERSION);
 });

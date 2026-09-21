@@ -137,6 +137,9 @@ export const DriveDebriefInputJurisdiction = {
   'US-CA': 'US-CA',
   'US-TX': 'US-TX',
   'US-FL': 'US-FL',
+  'US-NY': 'US-NY',
+  'US-OH': 'US-OH',
+  'US-IL': 'US-IL',
 } as const;
 
 export interface DriveDebriefInput {
@@ -247,6 +250,9 @@ export const NextDrivePlanInputJurisdiction = {
   'US-CA': 'US-CA',
   'US-TX': 'US-TX',
   'US-FL': 'US-FL',
+  'US-NY': 'US-NY',
+  'US-OH': 'US-OH',
+  'US-IL': 'US-IL',
 } as const;
 
 export interface NextDrivePlanInput {

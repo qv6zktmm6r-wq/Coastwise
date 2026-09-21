@@ -61,8 +61,12 @@ function jurisdictionLabel(jurisdiction: PlanInput["jurisdiction"]): string {
     "US-CA": "California (US-CA)",
     "US-TX": "Texas (US-TX)",
     "US-FL": "Florida (US-FL)",
+    "US-NY": "New York (US-NY)",
+    "US-OH": "Ohio (US-OH)",
+    "US-IL": "Illinois (US-IL)",
   }[jurisdiction];
 }
+const approvedPackVersions: Record<string, string> = { "US-CA": "us-ca-2026.09.1", "US-TX": "us-tx-2026.09.1", "US-FL": "us-fl-2026.09.1" };
 
 async function requestNextDrivePlan(input: PlanInput) {
   const baseUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
@@ -134,6 +138,9 @@ router.post("/ai/next-drive-plan", async (req, res): Promise<void> => {
   if (!parsed.success) {
     res.status(400).json({ error: "The progress summary is incomplete or invalid." });
     return;
+  }
+  if (approvedPackVersions[parsed.data.jurisdiction] !== parsed.data.contentPackVersion) {
+    res.status(400).json({ error: "That jurisdiction is not an approved current coaching pack." }); return;
   }
   try {
     res.json(await requestNextDrivePlan(parsed.data));

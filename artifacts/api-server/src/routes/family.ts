@@ -6,6 +6,9 @@ import { CreateFamilyInviteBody, CreateFamilyInviteResponse, AcceptFamilyInviteR
 import { requireAuth } from "../middlewares/auth";
 
 const router = Router();
+const approvedPacks: Record<string, string> = {
+  "US-CA": "us-ca-2026.09.1", "US-TX": "us-tx-2026.09.1", "US-FL": "us-fl-2026.09.1",
+};
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
 class FamilyMembershipConflict extends Error {}
 
@@ -55,15 +58,16 @@ export function sanitizeFamilySyncState(value: unknown): unknown {
   const state = record(value);
   const profile = record(state.profile);
   const settings = record(state.settings);
+  const selectedJurisdiction = String(profile.jurisdiction);
+  const selectedVersion = typeof profile.contentPackVersion === "string" ? profile.contentPackVersion : "";
+  const validPair = approvedPacks[selectedJurisdiction] === selectedVersion;
+  const scope = validPair ? `${selectedJurisdiction}:${selectedVersion}:` : "";
   return {
     profile: {
       name: text(profile.name, 200),
       permitDate: text(profile.permitDate, 20),
       targetTestDate: text(profile.targetTestDate, 20),
-      ...(["US-CA", "US-TX", "US-FL"].includes(String(profile.jurisdiction)) ? { jurisdiction: profile.jurisdiction } : {}),
-      ...(typeof profile.contentPackVersion === "string"
-        ? { contentPackVersion: text(profile.contentPackVersion, 80) }
-        : {}),
+      ...(validPair ? { jurisdiction: selectedJurisdiction, contentPackVersion: selectedVersion } : {}),
     },
     topics: array(state.topics).map((item) => {
       const topic = record(item);
@@ -81,7 +85,7 @@ export function sanitizeFamilySyncState(value: unknown): unknown {
         ...(typeof answer.nextReviewAt === "string" ? { nextReviewAt: text(answer.nextReviewAt, 40) } : {}),
       }];
     })),
-    scenarios: array(state.scenarios, 100).map((item) => {
+    scenarios: validPair ? array(state.scenarios, 100).map((item) => {
       const scenario = record(item);
       return {
         situation: text(scenario.situation),
@@ -89,8 +93,10 @@ export function sanitizeFamilySyncState(value: unknown): unknown {
         bestChoice: number(scenario.bestChoice),
         coaching: text(scenario.coaching),
       };
-    }),
-    scenarioAnswers: numberRecord(state.scenarioAnswers),
+    }) : [],
+    scenarioAnswers: validPair
+      ? Object.fromEntries(Object.entries(numberRecord(state.scenarioAnswers)).filter(([key]) => key.startsWith(scope)))
+      : {},
     missions: array(state.missions, 100).map((item) => {
       const mission = record(item);
       return {

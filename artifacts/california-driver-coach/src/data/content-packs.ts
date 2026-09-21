@@ -1,10 +1,18 @@
 import { californiaContentPack } from './question-bank';
 import { texasContentPack, texasScenarios } from './texas-pack';
 import { floridaContentPack, floridaScenarios } from './florida-pack';
+import { newYorkContentPack, newYorkScenarios } from './new-york-pack';
+import { ohioContentPack, ohioScenarios } from './ohio-pack';
+import { illinoisContentPack, illinoisScenarios } from './illinois-pack';
 import type { JurisdictionCode } from '../lib/jurisdiction';
 import type { Scenario } from '../lib/state';
 
-export type ContentScenario = Scenario & { id: string; sourceUrl: string };
+export type ContentScenario = Scenario & { id: string; sourceUrl: string; jurisdiction: JurisdictionCode; contentPackVersion: string; reviewedAt: string; sourceRevision?: string };
+const mapScenario = (scenario: { id: string; prompt: string; options: [string, string, string]; answer: number; explanation: string; sourceUrl: string; jurisdiction: JurisdictionCode; contentPackVersion: string; reviewedAt: string; sourceRevision?: string }): ContentScenario => ({
+  id: scenario.id, situation: scenario.prompt, choices: [...scenario.options], bestChoice: scenario.answer,
+  coaching: scenario.explanation, sourceUrl: scenario.sourceUrl, jurisdiction: scenario.jurisdiction,
+  contentPackVersion: scenario.contentPackVersion, reviewedAt: scenario.reviewedAt, sourceRevision: scenario.sourceRevision,
+});
 
 const californiaScenarios: ContentScenario[] = [
   {
@@ -14,6 +22,7 @@ const californiaScenarios: ContentScenario[] = [
     bestChoice: 1,
     coaching: 'A patient pause is the safest move. People in a crosswalk have the right-of-way, even when traffic is waiting behind you.',
     sourceUrl: californiaContentPack.sourceUrl,
+    jurisdiction: 'US-CA', contentPackVersion: californiaContentPack.version, reviewedAt: californiaContentPack.reviewedAt,
   },
   {
     id: 'ca-scenario-002',
@@ -22,6 +31,7 @@ const californiaScenarios: ContentScenario[] = [
     bestChoice: 1,
     coaching: 'The speed limit is not a target in every condition. Choose a speed that lets you see, react, and keep a generous following distance.',
     sourceUrl: californiaContentPack.sourceUrl,
+    jurisdiction: 'US-CA', contentPackVersion: californiaContentPack.version, reviewedAt: californiaContentPack.reviewedAt,
   },
   {
     id: 'ca-scenario-003',
@@ -30,6 +40,7 @@ const californiaScenarios: ContentScenario[] = [
     bestChoice: 2,
     coaching: 'At an all-way stop, the driver who arrived first goes first. If arrival is at the same time, yield to the driver on your right.',
     sourceUrl: californiaContentPack.sourceUrl,
+    jurisdiction: 'US-CA', contentPackVersion: californiaContentPack.version, reviewedAt: californiaContentPack.reviewedAt,
   },
 ];
 
@@ -37,26 +48,20 @@ export const contentPacks = {
   'US-CA': californiaContentPack,
   'US-TX': texasContentPack,
   'US-FL': floridaContentPack,
+  'US-NY': newYorkContentPack,
+  'US-OH': ohioContentPack,
+  'US-IL': illinoisContentPack,
 } as const;
 
 export const contentScenarios: Record<JurisdictionCode, ContentScenario[]> = {
   'US-CA': californiaScenarios,
-  'US-TX': texasScenarios.map((scenario) => ({
-    id: scenario.id,
-    situation: scenario.prompt,
-    choices: [...scenario.options],
-    bestChoice: scenario.answer,
-    coaching: scenario.explanation,
-    sourceUrl: scenario.sourceUrl,
+  'US-TX': texasScenarios.map(mapScenario),
+  'US-FL': floridaScenarios.map((scenario) => mapScenario({
+    ...scenario, jurisdiction: 'US-FL', contentPackVersion: floridaContentPack.version, reviewedAt: floridaContentPack.reviewedAt,
   })),
-  'US-FL': floridaScenarios.map((scenario) => ({
-    id: scenario.id,
-    situation: scenario.prompt,
-    choices: [...scenario.options],
-    bestChoice: scenario.answer,
-    coaching: scenario.explanation,
-    sourceUrl: scenario.sourceUrl,
-  })),
+  'US-NY': newYorkScenarios.map(mapScenario),
+  'US-OH': ohioScenarios.map(mapScenario),
+  'US-IL': illinoisScenarios.map(mapScenario),
 };
 
 export function getContentPack(jurisdiction: JurisdictionCode) {

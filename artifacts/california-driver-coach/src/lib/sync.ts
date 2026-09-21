@@ -1,14 +1,16 @@
 import { AppState, isRecord, normalizeDriveSessions } from './state';
+import { isApprovedContentPackPair } from './jurisdiction';
 import { SyncState } from '@workspace/api-client-react';
 
 export function sanitizeForSync(state: AppState): SyncState {
+  const validPair = isApprovedContentPackPair(state.profile.jurisdiction, state.profile.contentPackVersion);
   const sanitized = {
     profile: { ...state.profile },
     topics: state.topics.map((topic) => ({ ...topic })),
     answers: { ...state.answers },
     practiceProgress: Object.fromEntries(Object.entries(state.practiceProgress).map(([key, answer]) => [key, { ...answer }])),
     scenarios: state.scenarios.map((scenario) => ({ ...scenario, choices: [...scenario.choices] })),
-    scenarioAnswers: { ...state.scenarioAnswers },
+    scenarioAnswers: validPair ? Object.fromEntries(Object.entries(state.scenarioAnswers).filter(([key]) => key.startsWith(`${state.profile.jurisdiction}:${state.profile.contentPackVersion}:`))) : {},
     missions: state.missions.map((mission) => ({ ...mission })),
     sessions: state.sessions.map(({ review: _localReview, notes: _localNotes, routeTitle: _localRouteTitle, ...sharedDriveSummary }) => ({
       ...sharedDriveSummary,
@@ -32,6 +34,9 @@ export function mergeStates(localState: AppState, incomingSyncState: SyncState):
     ...localState.profile,
     ...(incoming.profile || {}),
   };
+  const validPair = isApprovedContentPackPair(profile.jurisdiction, profile.contentPackVersion);
+  if (!validPair) return localState;
+  const scope = `${profile.jurisdiction}:${profile.contentPackVersion}:`;
 
   // Union merge for arrays with unique identifiers/deduplication
   const localSessions = localState.sessions || [];
@@ -90,7 +95,7 @@ export function mergeStates(localState: AppState, incomingSyncState: SyncState):
     topics: Array.from(topicMap.values()),
     answers: { ...localState.answers, ...incoming.answers },
     practiceProgress: { ...localState.practiceProgress, ...incoming.practiceProgress },
-    scenarioAnswers: { ...localState.scenarioAnswers, ...incoming.scenarioAnswers },
+    scenarioAnswers: { ...localState.scenarioAnswers, ...Object.fromEntries(Object.entries(incoming.scenarioAnswers ?? {}).filter(([key]) => key.startsWith(scope))) },
     missions: Array.from(missionMap.values()),
     sessions: Array.from(sessionMap.values()).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
     prompts: incoming.prompts || localState.prompts,

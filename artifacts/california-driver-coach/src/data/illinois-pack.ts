@@ -1,0 +1,80 @@
+import type { HandbookContentPack, HandbookQuestion, HandbookSection } from './question-bank';
+
+const ILLINOIS = 'US-IL' as HandbookQuestion['jurisdiction'];
+export const ILLINOIS_CONTENT_PACK_VERSION = 'us-il-2026.09.1';
+const VERSION = ILLINOIS_CONTENT_PACK_VERSION;
+const REVIEWED = '2026-09-21';
+const handbookUrl = 'https://www.ilsos.gov/publications/pdf_publications/dsd_a112.pdf';
+const gdlUrl = 'https://www.ilsos.gov/services/drivers-license/gdl.html';
+const rulesRevision = 'Illinois Rules of the Road 2026 (official Secretary of State PDF)';
+const effective = '2026 edition; official source currency checked 2026-09-21';
+
+type Source = { title: string; url: string; revision: string; effectiveDate: string };
+const rules: Source = { title: '2026 Illinois Rules of the Road', url: handbookUrl, revision: rulesRevision, effectiveDate: effective };
+const gdl: Source = { title: 'Illinois Graduated Driver Licensing (GDL) Program', url: gdlUrl, revision: 'Official Secretary of State page; revision date not stated', effectiveDate: 'Current page checked 2026-09-21' };
+const permit: Source = { title: 'Illinois Instruction Permit — Driver Services', url: 'https://www.ilsos.gov/departments/drivers/drivers_license/drlicid.html', revision: 'Official Secretary of State page; revision date not stated', effectiveDate: 'Current page checked 2026-09-21' };
+const docs: Source = { title: 'Illinois Driver’s License or ID Card — acceptable documents', url: 'https://www.ilsos.gov/departments/drivers/drivers_license/acceptable_documents.html', revision: 'Official Secretary of State page; revision date not stated', effectiveDate: 'Current page checked 2026-09-21' };
+
+const sections: HandbookSection[] = [
+  { id: 'licensing', title: 'Licensing & permits', description: 'Illinois instruction permits and graduated licensing.' },
+  { id: 'testing', title: 'Testing process', description: 'Illinois vision, written, and driving tests.' },
+  { id: 'fundamentals', title: 'Driving fundamentals', description: 'Control, observation, communication, and defensive driving.' },
+  { id: 'signs', title: 'Signs, signals & markings', description: 'Illinois traffic controls and pavement markings.' },
+  { id: 'right-of-way', title: 'Right-of-way', description: 'Intersections, pedestrians, and yielding.' },
+  { id: 'lane-control', title: 'Turns, lanes & passing', description: 'Lane use, turns, and passing.' },
+  { id: 'speed-space', title: 'Speed, space & conditions', description: 'Speed, following distance, and weather.' },
+  { id: 'sharing-road', title: 'Sharing the road', description: 'Buses, emergency vehicles, and vulnerable users.' },
+  { id: 'parking', title: 'Parking & backing', description: 'Parking and backing safely.' },
+  { id: 'freeway', title: 'Freeways & emergencies', description: 'Expressways and roadside emergencies.' },
+  { id: 'safe-driving', title: 'Safe driving choices', description: 'Distraction, impairment, and restraints.' },
+  { id: 'vehicle-responsibility', title: 'Vehicle & driver responsibility', description: 'Insurance, registration, and equipment.' },
+];
+
+const q = (id: string, section: string, objective: string, prompt: string, options: [string, string, string],
+  answer: number, explanation: string, source: Source, difficulty: HandbookQuestion['difficulty'] = 'medium'): HandbookQuestion => ({
+  id, section, objective, prompt, options, answer, explanation, source: `${source.title} — official citation`,
+  sourceUrl: source.url, sourceRevision: source.revision, effectiveDate: source.effectiveDate,
+  reviewedAt: REVIEWED, contentPackVersion: VERSION, jurisdiction: ILLINOIS,
+  scope: 'jurisdiction-specific', difficulty,
+});
+
+export const illinoisQuestions: HandbookQuestion[] = [
+  q('il-licensing-001', 'licensing', 'Permit eligibility', 'What is the minimum age to apply for an Illinois instruction permit?', ['15 years old', '14 years old', '17 years old'], 0, 'Illinois GDL starts with an instruction permit at age 15, subject to education and consent requirements.', gdl, 'easy'),
+  q('il-licensing-002', 'licensing', 'Supervision', 'Who may supervise a driver practicing with an Illinois instruction permit?', ['A licensed driver age 21 or older with at least one year of driving experience', 'Any passenger who is 18 or older', 'Only another instruction-permit holder'], 0, 'The supervising driver must be 21 or older, hold a valid license, and have at least one year of driving experience.', gdl, 'easy'),
+  q('il-licensing-003', 'licensing', 'Practice record', 'What supervised practice must an Illinois applicant under 18 certify?', ['At least 50 hours, including 10 hours at night', '20 hours, all during daylight', '50 hours with no nighttime minimum'], 0, 'Illinois requires 50 hours of supervised driving, including 10 nighttime hours.', gdl, 'easy'),
+  q('il-licensing-004', 'licensing', 'Permit duration', 'How long must an Illinois instruction permit generally be held before initial licensing?', ['At least 9 months', '30 days', 'Until age 21'], 0, 'The Illinois GDL instruction permit must be held for at least nine months before moving to the initial licensing phase.', gdl, 'easy'),
+  q('il-testing-001', 'testing', 'Required tests', 'Which tests are part of Illinois initial driver licensing?', ['Vision screening, written examination, and driving examination', 'Only a vehicle emissions test', 'Only a road-sign quiz after licensing'], 0, 'The Secretary of State process includes vision, written, and driving examinations as applicable.', permit, 'easy'),
+  q('il-testing-002', 'testing', 'Documentation', 'What should an Illinois applicant bring to a Driver Services facility?', ['Required identity, date-of-birth, residency, and signature documents', 'Only a school sports schedule', 'A vehicle advertisement'], 0, 'The Secretary of State requires documents proving identity and the other listed qualifications; use its current acceptable-document list.', docs, 'medium'),
+  q('il-fundamentals-001', 'fundamentals', 'Vehicle control', 'What is the safest response when a developing hazard requires an early adjustment?', ['Scan, reduce speed smoothly, and keep the vehicle under control', 'Accelerate toward the hazard', 'Look only in the rearview mirror'], 0, 'The Rules of the Road teaches observation and controlled speed adjustment rather than abrupt or aggressive reactions.', rules, 'easy'),
+  q('il-fundamentals-002', 'fundamentals', 'Following distance', 'What should a driver do when conditions reduce available stopping time?', ['Increase following distance and choose a safe speed', 'Follow at one car length at every speed', 'Drive closer so others cannot merge'], 0, 'Extra space and a speed appropriate for conditions provide time to respond.', rules, 'easy'),
+  q('il-signs-001', 'signs', 'Traffic controls', 'What is the correct response to a red traffic signal?', ['Stop before the intersection and proceed only when permitted', 'Proceed if no police officer is present', 'Copy the vehicle ahead without checking'], 0, 'A red signal requires a stop; the driver proceeds only under a lawful signal or applicable turn rule.', rules, 'easy'),
+  q('il-signs-002', 'signs', 'Railroad crossings', 'What should a driver do at a railroad crossing when warning devices are active?', ['Stop and do not cross until it is safe and lawful', 'Drive around the gate if no train is visible', 'Stop on the tracks to look both ways'], 0, 'Active gates, lights, or bells warn of a train; never drive around a lowered gate or stop on the tracks.', rules, 'medium'),
+  q('il-right-of-way-001', 'right-of-way', 'Pedestrian priority', 'At a crosswalk, what should a driver do for a pedestrian who is crossing?', ['Stop or yield as required and keep the crosswalk clear', 'Pass the pedestrian in the same lane', 'Honk and continue'], 0, 'Illinois rules require drivers to yield appropriately and avoid endangering people in a crosswalk.', rules, 'easy'),
+  q('il-right-of-way-002', 'right-of-way', 'Four-way stops', 'At an intersection where vehicles arrive at the same time, who generally has the right-of-way?', ['The vehicle on the right', 'The vehicle on the left', 'The vehicle traveling fastest'], 0, 'At an all-way stop with simultaneous arrival, yield to the vehicle on your right.', rules, 'easy'),
+  q('il-lane-control-001', 'lane-control', 'Turn signaling', 'When should a driver signal before turning or changing lanes?', ['In advance, long enough to communicate the intended movement', 'Only after beginning the movement', 'Only when another driver honks'], 0, 'Signal before the movement so other road users can understand your intention.', rules, 'easy'),
+  q('il-lane-control-002', 'lane-control', 'Passing', 'When is passing an unsafe choice?', ['When visibility, space, or traffic conditions do not support a safe and legal pass', 'Whenever a road has two lanes', 'Whenever the passing vehicle is newer'], 0, 'Passing requires a clear view, sufficient space, and a lawful opportunity.', rules, 'medium'),
+  q('il-speed-space-001', 'speed-space', 'Conditions', 'How should speed be chosen in rain, snow, or reduced visibility?', ['Slow to a speed that is reasonable for conditions and leaves stopping room', 'Always drive exactly at the posted limit', 'Speed up to get through the weather'], 0, 'Illinois law requires a reasonable and prudent speed for conditions, not merely the posted maximum.', rules, 'easy'),
+  q('il-speed-space-002', 'speed-space', 'Following distance', 'Why should following distance increase on slippery roads?', ['Traction and stopping ability are reduced', 'It makes the road dry', 'It guarantees no one will merge'], 0, 'Reduced traction means more distance is needed to stop without losing control.', rules, 'easy'),
+  q('il-sharing-road-001', 'sharing-road', 'School buses', 'What must a driver do when an Illinois school bus is stopped with its stop signal extended or lights flashing?', ['Stop and remain stopped until the signal is withdrawn or it is otherwise lawful to proceed', 'Pass on the shoulder', 'Pass if no child is visible'], 0, 'Illinois requires traffic to stop for a school bus displaying its stop signal, subject to the statutory roadway exception.', rules, 'medium'),
+  q('il-sharing-road-002', 'sharing-road', 'Emergency vehicles', 'When an emergency vehicle approaches using an audible or visual signal, what is the responsible response?', ['Yield, move to the right when safe, and stop as required', 'Follow closely behind it', 'Stop in the middle of the intersection'], 0, 'Yielding and clearing a path protects responders and other road users.', rules, 'easy'),
+  q('il-parking-001', 'parking', 'Hill parking', 'When parking downhill next to a curb, which way should the front wheels generally point?', ['Toward the curb', 'Straight into traffic', 'Away from the curb'], 0, 'Turning the wheels toward the curb helps keep a parked vehicle from rolling into traffic.', rules, 'easy'),
+  q('il-parking-002', 'parking', 'Backing', 'What is the safest general approach when backing?', ['Check around the vehicle and back slowly while maintaining control', 'Back quickly before looking', 'Rely only on a camera'], 0, 'Direct observation and controlled speed remain necessary even when a camera is available.', rules, 'easy'),
+  q('il-freeway-001', 'freeway', 'Expressway entry', 'When entering an Illinois expressway, what should a driver do?', ['Use the acceleration lane to reach a compatible speed and merge when safe', 'Stop at the end of the acceleration lane', 'Enter without checking traffic'], 0, 'Build speed in the acceleration lane, signal, check traffic, and merge only into a safe gap.', rules, 'medium'),
+  q('il-freeway-002', 'freeway', 'Disabled vehicle', 'If a vehicle becomes disabled on an expressway, what is the safest first priority?', ['Move out of traffic if possible and warn approaching traffic', 'Stand in a travel lane to direct traffic', 'Leave the vehicle without activating any warning'], 0, 'Get out of the travel path when possible and use appropriate warning measures.', rules, 'medium'),
+  q('il-safe-driving-001', 'safe-driving', 'Nighttime restriction', 'For an Illinois driver under 18 in the initial licensing phase, when does the nighttime restriction generally begin Sunday through Thursday?', ['10 p.m.', '8 p.m.', 'Midnight'], 0, 'The Illinois GDL curfew generally begins at 10 p.m. Sunday through Thursday and 11 p.m. Friday and Saturday, with exceptions.', gdl, 'medium'),
+  q('il-safe-driving-002', 'safe-driving', 'Passenger restriction', 'During the first 12 months of Illinois initial licensing, what passenger rule generally applies?', ['A maximum of one unrelated passenger under 20, with sibling, step-sibling, child, and stepchild exceptions', 'Unlimited unrelated passengers under 20', 'No passengers of any age'], 0, 'During the first 12 months, Illinois generally limits the driver to one unrelated passenger under 20; siblings, step-siblings, children, and stepchildren are excepted.', gdl, 'medium'),
+  q('il-vehicle-responsibility-001', 'vehicle-responsibility', 'Insurance', 'What financial-responsibility item must a driver be prepared to show when required in Illinois?', ['Proof of liability insurance', 'A restaurant receipt', 'A vehicle advertisement'], 0, 'Illinois requires liability insurance for vehicles operated on public roads and proof may be requested.', rules, 'easy'),
+  q('il-vehicle-responsibility-002', 'vehicle-responsibility', 'Seat belts', 'What is the responsible practice for occupants of a vehicle?', ['Wear a properly adjusted seat belt, and use an appropriate child restraint when required', 'Wear a belt only on expressways', 'Let passengers hold children without restraints'], 0, 'Illinois safety rules require belts and child restraints as applicable; the driver should ensure safe use.', rules, 'easy'),
+];
+
+export type IllinoisScenario = { id: string; prompt: string; options: [string, string, string]; answer: number; explanation: string; sourceUrl: string; reviewedAt: string; contentPackVersion: string; jurisdiction: 'US-IL' };
+export const illinoisScenarios: IllinoisScenario[] = [
+  { id: 'il-scenario-001', prompt: 'You have held an Illinois instruction permit for six months and logged 50 hours, including 10 at night. Can you take the initial licensing road test?', options: ['Not yet; an under-18 applicant generally must hold the permit at least nine months', 'Yes; six months is always enough', 'No; Illinois does not require supervised practice'], answer: 0, explanation: 'The GDL permit phase requires at least nine months, plus the supervised practice and testing requirements.', sourceUrl: gdlUrl, reviewedAt: REVIEWED, contentPackVersion: VERSION, jurisdiction: 'US-IL' },
+  { id: 'il-scenario-002', prompt: 'You are under 18 and driving at 10:30 p.m. on a Wednesday during the first year. Is this generally permitted?', options: ['No, unless a listed exception applies', 'Yes, because Wednesday has no curfew', 'Yes, if two friends are passengers'], answer: 0, explanation: 'The Illinois initial licensing nighttime restriction generally begins at 10 p.m. Sunday through Thursday.', sourceUrl: gdlUrl, reviewedAt: REVIEWED, contentPackVersion: VERSION, jurisdiction: 'US-IL' },
+  { id: 'il-scenario-003', prompt: 'A school bus ahead displays its stop signal on a two-lane road. What should you do?', options: ['Stop and wait until the signal is withdrawn or it is lawful to proceed', 'Pass slowly on the shoulder', 'Pass because no child is visible'], answer: 0, explanation: 'Illinois Rules of the Road requires stopping for a school bus displaying its stop signal, subject to the stated exception.', sourceUrl: handbookUrl, reviewedAt: REVIEWED, contentPackVersion: VERSION, jurisdiction: 'US-IL' },
+];
+
+export const illinoisContentPack: HandbookContentPack = {
+  jurisdiction: ILLINOIS, version: VERSION, sourceRevision: rulesRevision, effectiveDate: effective, reviewedAt: REVIEWED,
+  sourceUrl: handbookUrl, sections, universalSafetyQuestions: [], jurisdictionQuestions: illinoisQuestions, questions: illinoisQuestions,
+};

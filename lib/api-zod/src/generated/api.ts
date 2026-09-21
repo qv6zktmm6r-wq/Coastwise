@@ -93,7 +93,7 @@ export const createDriveDebriefBodyWeakTopicsMax = 10;
 
 
 export const CreateDriveDebriefBody = zod.object({
-  "jurisdiction": zod.enum(['US-CA', 'US-TX', 'US-FL']),
+  "jurisdiction": zod.enum(['US-CA', 'US-TX', 'US-FL', 'US-NY', 'US-OH', 'US-IL']),
   "contentPackVersion": zod.string().min(1).max(createDriveDebriefBodyContentPackVersionMax),
   "durationMinutes": zod.number().int().min(1).max(createDriveDebriefBodyDurationMinutesMax),
   "distanceMiles": zod.number().min(createDriveDebriefBodyDistanceMilesMin).max(createDriveDebriefBodyDistanceMilesMax),
@@ -168,7 +168,7 @@ export const createNextDrivePlanBodyRecentDrivesMax = 3;
 
 
 export const CreateNextDrivePlanBody = zod.object({
-  "jurisdiction": zod.enum(['US-CA', 'US-TX', 'US-FL']),
+  "jurisdiction": zod.enum(['US-CA', 'US-TX', 'US-FL', 'US-NY', 'US-OH', 'US-IL']),
   "contentPackVersion": zod.string().min(1).max(createNextDrivePlanBodyContentPackVersionMax),
   "weakTopics": zod.array(zod.object({
   "topic": zod.string().min(1).max(createNextDrivePlanBodyWeakTopicsItemTopicMax),

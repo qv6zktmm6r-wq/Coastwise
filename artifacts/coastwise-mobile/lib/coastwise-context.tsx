@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { DriveDebrief, NextDrivePlan } from '@workspace/api-client-react';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { beginDriveState, CURRENT_CALIFORNIA_CONTENT_PACK_VERSION, DEFAULT_JURISDICTION, finishDriveState, getMobileContentPackVersion, hydrateMobileState, saveDriveState, updateDriveState } from './mobile-state';
+import { beginDriveState, CURRENT_CALIFORNIA_CONTENT_PACK_VERSION, DEFAULT_JURISDICTION, finishDriveState, getMobileContentPackVersion, hydrateMobileState, isApprovedMobileJurisdiction, saveDriveState, updateDriveState } from './mobile-state';
 
 const STORAGE_KEY = 'coastwise-mobile-state';
 
@@ -23,7 +23,7 @@ export type ActiveMobileDrive = MobileDrive & {
   recordingRequested?: boolean;
 };
 
-export type MobileJurisdiction = 'US-CA' | 'US-TX' | 'US-FL';
+export type MobileJurisdiction = 'US-CA' | 'US-TX' | 'US-FL' | 'US-NY' | 'US-OH' | 'US-IL';
 
 export type MobileState = {
   drives: MobileDrive[];
@@ -85,13 +85,13 @@ export function CoastwiseProvider({ children }: { children: ReactNode }) {
   const value = useMemo<CoastwiseContextValue>(() => ({
     ...state,
     hydrated,
-    setJurisdiction: (jurisdiction) => setState((current) => ({
+    setJurisdiction: (jurisdiction) => setState((current) => isApprovedMobileJurisdiction(jurisdiction) ? ({
       ...current,
       jurisdiction,
       // A jurisdiction change must never carry a pack from another state.
       contentPackVersion: getMobileContentPackVersion(jurisdiction),
       plan: undefined,
-    })),
+    }) : current),
     setRole: (role) => setState((current) => ({ ...current, role })),
     completeOnboarding: () => setState((current) => ({ ...current, hasCompletedOnboarding: true })),
     setRecordingRetention: (days) => setState((current) => ({ ...current, recordingRetentionDays: days })),

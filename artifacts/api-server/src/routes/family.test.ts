@@ -54,7 +54,7 @@ test("server sanitizer strips local review, route, event, recording, and policy 
     profile: {
       name: "Driver",
       jurisdiction: "US-CA",
-      contentPackVersion: "2026-01",
+       contentPackVersion: "us-ca-2026.09.1",
       policyAcknowledgements: [{ version: "secret-profile-policy" }],
     },
     prompts: [],
@@ -78,7 +78,7 @@ test("server sanitizer strips local review, route, event, recording, and policy 
 
   const accepted = sanitizeFamilySyncState(sanitizedState) as any;
   assert.equal(accepted.profile.jurisdiction, "US-CA");
-  assert.equal(accepted.profile.contentPackVersion, "2026-01");
+   assert.equal(accepted.profile.contentPackVersion, "us-ca-2026.09.1");
   assert.equal("notes" in accepted.sessions[0], false);
   assert.equal("routeTitle" in accepted.sessions[0], false);
   assert.equal("review" in accepted.sessions[0], false);
