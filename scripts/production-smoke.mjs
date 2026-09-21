@@ -37,7 +37,7 @@ try {
   });
 
   const healthUrl = new URL('/api/healthz', parsedUrl);
-  const healthResponse = await page.request.get(healthUrl);
+  const healthResponse = await page.request.get(healthUrl.toString());
   if (!healthResponse.ok()) {
     throw new Error(
       `Production API health check failed (${healthResponse.status()}): ${healthUrl}`,
@@ -59,14 +59,14 @@ try {
 
   await page.waitForTimeout(2_000);
   const bodyText = await page.locator('body').innerText();
-  if (!bodyText.includes('Coastwise')) {
-    throw new Error('Production web app did not render Coastwise content');
-  }
   if (bodyText.includes('Something went wrong')) {
     throw new Error('Production web app rendered the global error boundary');
   }
   if (failures.length > 0) {
     throw new Error(failures.join('\n'));
+  }
+  if (!bodyText.includes('Coastwise')) {
+    throw new Error('Production web app did not render Coastwise content');
   }
 
   console.log(`Production smoke passed: ${parsedUrl.origin}`);

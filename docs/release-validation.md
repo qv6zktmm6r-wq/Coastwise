@@ -21,6 +21,22 @@ screen-reader validation, route-departure behavior, storage-quota warnings,
 Node-version matrices, and warning-as-error checks are separate follow-up
 work and are not silently substituted by this command.
 
+## Published-environment smoke check
+
+After publishing, obtain the live URL from deployment metadata and run:
+
+```sh
+PRODUCTION_URL="https://the-published-url.example" \
+  pnpm run release:smoke:production
+```
+
+The command requires an explicit HTTPS URL and never derives one from the
+project name or development-domain environment variables. It checks the
+published `/api/healthz` endpoint, opens the published web app in Chromium,
+rejects the global error boundary, requires visible Coastwise content, and
+fails on uncaught page errors or console errors. A failed or skipped production
+smoke check blocks promotion of the published build.
+
 ## Release evidence
 
 Record the command output, commit SHA, pack versions, reviewer approvals, and
