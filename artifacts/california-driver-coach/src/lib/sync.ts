@@ -2,7 +2,7 @@ import { AppState, isRecord, normalizeDriveSessions } from './state';
 import { SyncState } from '@workspace/api-client-react';
 
 export function sanitizeForSync(state: AppState): SyncState {
-  const sanitized: AppState = {
+  const sanitized = {
     profile: { ...state.profile },
     topics: state.topics.map((topic) => ({ ...topic })),
     answers: { ...state.answers },
@@ -10,9 +10,9 @@ export function sanitizeForSync(state: AppState): SyncState {
     scenarios: state.scenarios.map((scenario) => ({ ...scenario, choices: [...scenario.choices] })),
     scenarioAnswers: { ...state.scenarioAnswers },
     missions: state.missions.map((mission) => ({ ...mission })),
-    sessions: state.sessions.map(({ review: _localReview, ...driveLogSummary }) => ({
-      ...driveLogSummary,
-      skills: driveLogSummary.skills ? [...driveLogSummary.skills] : undefined,
+    sessions: state.sessions.map(({ review: _localReview, notes: _localNotes, routeTitle: _localRouteTitle, ...sharedDriveSummary }) => ({
+      ...sharedDriveSummary,
+      skills: sharedDriveSummary.skills ? [...sharedDriveSummary.skills] : undefined,
     })),
     prompts: state.prompts.map((prompt) => ({ ...prompt })),
     settings: { ...state.settings },
@@ -48,10 +48,12 @@ export function mergeStates(localState: AppState, incomingSyncState: SyncState):
     const key = getSessionKey(s);
     // A local review contains private recording metadata and precise route details.
     const existing = sessionMap.get(key);
-    if (existing?.review && !s.review) {
-      continue;
-    }
-    sessionMap.set(key, s);
+    sessionMap.set(key, {
+      ...s,
+      notes: existing?.notes ?? s.notes,
+      routeTitle: existing?.routeTitle ?? s.routeTitle,
+      review: existing?.review ?? s.review,
+    });
   }
 
   // Missions: if either is completed, it's completed

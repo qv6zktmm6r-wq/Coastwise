@@ -26,6 +26,7 @@ export type PracticeAnswer = {
 type PracticeMode = 'daily' | 'continue' | 'missed' | 'exam' | 'full' | 'topic';
 
 type Props = {
+  jurisdiction: import("@/lib/jurisdiction").Jurisdiction;
   answers: Record<string, PracticeAnswer>;
   onAnswer: (question: HandbookQuestion, selected: number) => void;
 };
@@ -68,7 +69,7 @@ function modeLabel(mode: PracticeMode) {
   return 'Topic practice';
 }
 
-export function PracticeHub({ answers, onAnswer }: Props) {
+export function PracticeHub({ jurisdiction, answers, onAnswer }: Props) {
   const [queue, setQueue] = useState<HandbookQuestion[]>([]);
   const [mode, setMode] = useState<PracticeMode | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
@@ -189,7 +190,7 @@ export function PracticeHub({ answers, onAnswer }: Props) {
           {currentSelection !== undefined && <div className="mt-6 rounded-2xl bg-[hsl(var(--secondary)/.65)] p-5 animate-fade">
             <div className={`flex items-center gap-2 text-sm font-extrabold ${selectedCorrectly ? 'text-[hsl(var(--success))]' : 'text-[hsl(var(--accent-foreground))]'}`}>{selectedCorrectly ? <CheckCircle2 size={18} className="text-[hsl(var(--success))]" /> : <CircleHelp size={18} className="text-[hsl(var(--accent))]" />}{selectedCorrectly ? 'Good call.' : 'Review this one before moving on.'}</div>
             <p className="mt-2 text-sm leading-6 text-[hsl(var(--muted-foreground))]">{currentQuestion.explanation}</p>
-            <div className="mt-4 border-t border-[hsl(var(--border))] pt-3 text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">Source: {currentQuestion.source}</div>
+            <div className="mt-4 border-t border-[hsl(var(--border))] pt-3 text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">Source: {jurisdiction.handbookName}{currentQuestion.source.includes(" · ") ? ` · ${currentQuestion.source.split(" · ")[1]}` : ""}</div>
           </div>}
           <div className="mt-7 flex items-center justify-between gap-3">
             <button onClick={() => setQuestionIndex((index) => Math.max(0, index - 1))} disabled={questionIndex === 0} className="rounded-xl px-4 py-2.5 text-sm font-bold text-[hsl(var(--muted-foreground))] disabled:opacity-40">Previous</button>
@@ -213,7 +214,7 @@ export function PracticeHub({ answers, onAnswer }: Props) {
       : 'A short mix of new and due questions is ready. Keep the session small and return when you have a clear moment.';
   return <div>
     <header className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-      <div className="max-w-2xl"><div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[.16em] text-[hsl(var(--primary))]"><span className="h-px w-7 bg-[hsl(var(--primary))]" />California handbook practice</div><h1 className="font-display text-4xl leading-[1.05] tracking-[-.03em] md:text-5xl">A clear next step for permit practice.</h1><p className="mt-3 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">Short sessions cover the California Driver’s Handbook without turning practice into a score chase.</p></div>
+      <div className="max-w-2xl"><div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[.16em] text-[hsl(var(--primary))]"><span className="h-px w-7 bg-[hsl(var(--primary))]" />{jurisdiction.shortName} handbook practice</div><h1 className="font-display text-4xl leading-[1.05] tracking-[-.03em] md:text-5xl">A clear next step for permit practice.</h1><p className="mt-3 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">Short sessions cover the {jurisdiction.handbookName} without turning practice into a score chase.</p></div>
     </header>
     <section className="relative overflow-hidden rounded-[24px] bg-[hsl(var(--primary))] p-6 text-[hsl(var(--primary-foreground))] shadow-[0_16px_40px_hsl(211_100%_50%/.18)] md:p-8">
       <div className="absolute -right-14 -top-20 h-56 w-56 rounded-full border-[24px] border-white/10" />
@@ -257,6 +258,6 @@ export function PracticeHub({ answers, onAnswer }: Props) {
         })}
       </div>
     </section>
-    <div className="mt-7 flex gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--secondary)/.45)] p-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]"><CircleHelp size={17} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" /><p><strong className="text-[hsl(var(--foreground))]">Study guidance, not an official test.</strong> Questions are organized around California handbook subjects and should be used with the current DMV handbook and official sample tests.</p></div>
+    <div className="mt-7 flex gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--secondary)/.45)] p-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]"><CircleHelp size={17} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" /><p><strong className="text-[hsl(var(--foreground))]">Study guidance, not an official test.</strong> Questions are organized around {jurisdiction.name} handbook subjects and should be used with the current {jurisdiction.agencyName} handbook and official sample tests.</p></div>
   </div>;
 }

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-20T00:00:00.000Z",
+  "packs": [
+    {
+      "jurisdiction": "US-CA",
+      "version": "us-ca-2026.09.1",
+      "sourceRevision": "California Driver’s Handbook 2026",
+      "effectiveDate": "2026-01-01",
+      "reviewedAt": "2026-09-20",
+      "sourceUrl": "https://www.dmv.ca.gov/portal/handbook/california-driver-handbook/",
+      "notices": []
+    }
+  ]
+}

@@ -28,6 +28,7 @@ describe('sync helpers', () => {
 
     const sanitized = sanitizeForSync(state) as unknown as AppState;
     assert.equal(sanitized.sessions[0].review, undefined);
+    assert.equal('notes' in sanitized.sessions[0], false);
     assert.equal(sanitized.sessions[0].minutes, 55);
     assert.doesNotMatch(JSON.stringify(sanitized), /video|coordinates|longitude|latitude/i);
   });
@@ -42,6 +43,7 @@ describe('sync helpers', () => {
         minutes: 20,
         night: false,
         notes: 'Summary',
+        routeTitle: 'Home to school',
         review: {
           id: 'review-1',
           durationSeconds: 120,
@@ -54,7 +56,7 @@ describe('sync helpers', () => {
     } as AppState & { policyAcknowledgements: unknown[] };
     const sanitized = sanitizeForSync(unsafeState) as unknown as Record<string, unknown>;
     assert.equal('policyAcknowledgements' in sanitized, false);
-    assert.doesNotMatch(JSON.stringify(sanitized), /review-1|coordinates|video\/webm|local-only/i);
+    assert.doesNotMatch(JSON.stringify(sanitized), /review-1|coordinates|video\/webm|local-only|Summary|Home to school/i);
   });
 
   it('merges a cloud drive summary without replacing the local review', () => {

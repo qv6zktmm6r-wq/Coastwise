@@ -68,6 +68,8 @@ export default function DriveScreen() {
     saveDrive,
     forgetRecording,
     forgetAllRecordings,
+    jurisdiction,
+    contentPackVersion,
   } = useCoastwise();
   const cameraRef = useRef<CameraViewType | null>(null);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
@@ -438,6 +440,8 @@ export default function DriveScreen() {
         skills: drive.skills,
         events: [],
         weakTopics: WEAK_TOPICS,
+        jurisdiction,
+        contentPackVersion,
       },
     }, {
       onSuccess: (debrief) => {

@@ -60,6 +60,10 @@ export function sanitizeFamilySyncState(value: unknown): unknown {
       name: text(profile.name, 200),
       permitDate: text(profile.permitDate, 20),
       targetTestDate: text(profile.targetTestDate, 20),
+      ...(profile.jurisdiction === "US-CA" ? { jurisdiction: profile.jurisdiction } : {}),
+      ...(typeof profile.contentPackVersion === "string"
+        ? { contentPackVersion: text(profile.contentPackVersion, 80) }
+        : {}),
     },
     topics: array(state.topics).map((item) => {
       const topic = record(item);
@@ -104,10 +108,8 @@ export function sanitizeFamilySyncState(value: unknown): unknown {
         date: text(session.date, 20),
         minutes: number(session.minutes),
         night: boolean(session.night),
-        notes: text(session.notes, 10_000),
         ...(typeof session.distanceMiles === "number" ? { distanceMiles: number(session.distanceMiles) } : {}),
         ...(Array.isArray(session.skills) ? { skills: array(session.skills, 100).map((skill) => text(skill, 200)) } : {}),
-        ...(typeof session.routeTitle === "string" ? { routeTitle: text(session.routeTitle, 500) } : {}),
       };
     }),
     prompts: array(state.prompts, 100).map((item) => {

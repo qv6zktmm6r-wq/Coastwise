@@ -15,7 +15,7 @@ const requestWindows = new Map<string, { startedAt: number; count: number }>();
 const REQUEST_WINDOW_MS = 60_000;
 const REQUEST_LIMIT = 10;
 const SAFETY_GUIDANCE = "Practice only with an attentive, qualified supervising adult. Review the plan while parked, choose conditions that match the driver’s current ability, and stop or simplify the drive whenever conditions feel unsafe.";
-const topLevelKeys = new Set(["weakTopics", "unfinishedMissions", "recentDrives"]);
+const topLevelKeys = new Set(["jurisdiction", "contentPackVersion", "weakTopics", "unfinishedMissions", "recentDrives"]);
 const topicKeys = new Set(["topic", "mastery"]);
 const missionKeys = new Set(["title", "category", "minutes"]);
 const driveKeys = new Set(["durationMinutes", "night", "skills", "debriefImprovement", "debriefNextStep"]);
@@ -48,10 +48,16 @@ export function allowNextDrivePlanRequest(clientId: string, now = Date.now()): b
 
 export function buildNextDrivePlanPrompt(input: PlanInput): string {
   return JSON.stringify({
+    jurisdiction: input.jurisdiction,
+    contentPackVersion: input.contentPackVersion,
     weakKnowledgeTopics: input.weakTopics,
     unfinishedPracticeMissions: input.unfinishedMissions,
     recentDriveSummaries: input.recentDrives,
   });
+}
+
+function jurisdictionLabel(jurisdiction: PlanInput["jurisdiction"]): string {
+  return jurisdiction === "US-CA" ? "California (US-CA)" : jurisdiction;
 }
 
 async function requestNextDrivePlan(input: PlanInput) {
@@ -86,7 +92,7 @@ async function requestNextDrivePlan(input: PlanInput) {
         {
           role: "system",
           content: [
-            "You are Coastwise, a calm California teen driving practice coach.",
+            `You are Coastwise, a calm teen driving practice coach for ${jurisdictionLabel(input.jurisdiction)}.`,
             "Create one short, age-appropriate supervised practice plan using only the supplied progress summaries.",
             "Choose exactly one skill focus and a realistic duration between 10 and 60 minutes.",
             "The parent prompt must be one calm sentence the adult can say before starting or while safely parked.",

@@ -320,6 +320,13 @@ components:
       type: object
       additionalProperties: false
       properties:
+        jurisdiction:
+          type: string
+          enum: [US-CA]
+        contentPackVersion:
+          type: string
+          minLength: 1
+          maxLength: 80
         durationMinutes:
           type: integer
           minimum: 1
@@ -347,7 +354,7 @@ components:
           maxItems: 10
           items:
             $ref: "#/components/schemas/DriveDebriefTopic"
-      required: [durationMinutes, distanceMiles, night, skills, events, weakTopics]
+      required: [jurisdiction, contentPackVersion, durationMinutes, distanceMiles, night, skills, events, weakTopics]
     DriveDebrief:
       type: object
       additionalProperties: false
@@ -398,6 +405,13 @@ components:
       type: object
       additionalProperties: false
       properties:
+        jurisdiction:
+          type: string
+          enum: [US-CA]
+        contentPackVersion:
+          type: string
+          minLength: 1
+          maxLength: 80
         weakTopics:
           type: array
           maxItems: 3
@@ -413,7 +427,7 @@ components:
           maxItems: 3
           items:
             $ref: "#/components/schemas/RecentDriveSummary"
-      required: [weakTopics, unfinishedMissions, recentDrives]
+      required: [jurisdiction, contentPackVersion, weakTopics, unfinishedMissions, recentDrives]
     NextDrivePlan:
       type: object
       additionalProperties: false

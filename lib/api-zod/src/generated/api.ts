@@ -66,6 +66,8 @@ export const CreatePracticeRouteResponse = zod.object({
  * Creates a short coaching debrief from a bounded summary. Video, coordinates, route geometry, and recording metadata are not accepted.
  * @summary Create a private post-drive coaching debrief
  */
+export const createDriveDebriefBodyContentPackVersionMax = 80;
+
 export const createDriveDebriefBodyDurationMinutesMax = 600;
 
 export const createDriveDebriefBodyDistanceMilesMin = 0;
@@ -91,6 +93,8 @@ export const createDriveDebriefBodyWeakTopicsMax = 10;
 
 
 export const CreateDriveDebriefBody = zod.object({
+  "jurisdiction": zod.enum(['US-CA']),
+  "contentPackVersion": zod.string().min(1).max(createDriveDebriefBodyContentPackVersionMax),
   "durationMinutes": zod.number().int().min(1).max(createDriveDebriefBodyDurationMinutesMax),
   "distanceMiles": zod.number().min(createDriveDebriefBodyDistanceMilesMin).max(createDriveDebriefBodyDistanceMilesMax),
   "night": zod.boolean(),
@@ -131,6 +135,8 @@ export const CreateDriveDebriefResponse = zod.object({
  * Creates a short plan from bounded progress summaries. Video, routes, coordinates, identity, family notes, and raw answers are not accepted.
  * @summary Create a personalized plan for the next supervised drive
  */
+export const createNextDrivePlanBodyContentPackVersionMax = 80;
+
 export const createNextDrivePlanBodyWeakTopicsItemTopicMax = 120;
 
 export const createNextDrivePlanBodyWeakTopicsItemMasteryMin = 0;
@@ -162,6 +168,8 @@ export const createNextDrivePlanBodyRecentDrivesMax = 3;
 
 
 export const CreateNextDrivePlanBody = zod.object({
+  "jurisdiction": zod.enum(['US-CA']),
+  "contentPackVersion": zod.string().min(1).max(createNextDrivePlanBodyContentPackVersionMax),
   "weakTopics": zod.array(zod.object({
   "topic": zod.string().min(1).max(createNextDrivePlanBodyWeakTopicsItemTopicMax),
   "mastery": zod.number().min(createNextDrivePlanBodyWeakTopicsItemMasteryMin).max(createNextDrivePlanBodyWeakTopicsItemMasteryMax)

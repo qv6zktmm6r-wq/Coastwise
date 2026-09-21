@@ -7,6 +7,8 @@ import {
 } from "./drive-debrief";
 
 const safeInput = {
+  jurisdiction: "US-CA" as const,
+  contentPackVersion: "2026-01",
   durationMinutes: 30,
   distanceMiles: 8.2,
   night: false,
@@ -31,7 +33,8 @@ test("AI debrief accepts only the privacy-minimized contract", () => {
 test("AI prompt contains no route, video, position, or recording fields", () => {
   const prompt = buildDebriefPrompt(safeInput);
   assert.doesNotMatch(prompt, /coordinate|position|route|recording|video/i);
-  assert.match(prompt, /durationMinutes|observedCoachEvents|weakKnowledgeTopics/);
+  assert.match(prompt, /jurisdiction|contentPackVersion|durationMinutes|observedCoachEvents|weakKnowledgeTopics/);
+  assert.match(prompt, /US-CA|2026-01/);
 });
 
 test("AI debrief requests are rate limited per client", () => {

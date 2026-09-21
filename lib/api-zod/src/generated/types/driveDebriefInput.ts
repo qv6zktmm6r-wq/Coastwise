@@ -6,9 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DriveDebriefEvent } from './driveDebriefEvent';
+import type { DriveDebriefInputJurisdiction } from './driveDebriefInputJurisdiction';
 import type { DriveDebriefTopic } from './driveDebriefTopic';
 
 export interface DriveDebriefInput {
+  jurisdiction: DriveDebriefInputJurisdiction;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  contentPackVersion: string;
   /**
      * @minimum 1
      * @maximum 600

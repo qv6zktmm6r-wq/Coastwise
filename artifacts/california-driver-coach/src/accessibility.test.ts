@@ -126,7 +126,7 @@ test('privacy and safety notices remain reachable and complete for release', () 
   assert.match(legalSource, /const privacyContact = 'privacy@coastwise\.app'/);
   assert.match(legalSource, /href=\{`mailto:\$\{privacyContact\}`\}/);
   assert.match(legalSource, /Educational use only/);
-  assert.match(legalSource, /It is not the California DMV, a licensing authority, a driving school, a licensed driving instructor, legal advice, or a guarantee/i);
+  assert.match(legalSource, /It is not a DMV, a licensing authority, a driving school, a licensed driving instructor, legal advice, or a guarantee/i);
   assert.match(legalSource, /Drive recordings remain device-local\./);
   assert.match(legalSource, /They are not included in backups or uploaded by Coastwise\./);
 });

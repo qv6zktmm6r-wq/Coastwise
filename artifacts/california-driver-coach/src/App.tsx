@@ -77,9 +77,19 @@ import { buildDriveDebriefInput } from '@/lib/ai-debrief';
 import { buildNextDrivePlanInput } from '@/lib/ai-next-drive-plan';
 import coastwiseLogo from '@/assets/coastwise-logo.svg';
 import NotFound from '@/pages/not-found';
-import { AppState, createDriveSessionId, getStoredState, initialState, isRecord, parseStoredState, storageKey, type Appearance, type DriveSession, type PracticeQuestion, type Scenario, type Topic } from '@/lib/state';
+import { getJurisdictionPracticeProgress, practiceProgressKey, AppState, createDriveSessionId, getStoredState, initialState, isRecord, parseStoredState, storageKey, type Appearance, type DriveSession, type PracticeQuestion, type Scenario, type Topic } from '@/lib/state';
 import { ActionButton, PageHeader, SafetyNote } from '@/components/shared';
 import SettingsPage from '@/pages/settings';
+import {
+  checkContentManifest,
+  contentAcknowledgementStorageKey,
+  getContentAcknowledgements,
+  acknowledgeContentNotice,
+  getMaterialContentNotice,
+  type ContentChangeNotice,
+  type ContentManifestStatus,
+} from '@/lib/content-manifest';
+import { getJurisdiction } from '@/lib/jurisdiction';
 import {
   currentMaterialPolicyNotice,
   getPolicyAcknowledgements,
@@ -287,6 +297,50 @@ function Shell({ children, state, setState, persistenceWarning }: { children: Re
   </div>;
 }
 
+function MaterialContentNoticeDialog({ notice, onAcknowledge }: { notice: ContentChangeNotice; onAcknowledge: () => void }) {
+  const headingRef = useRef<HTMLHeadingElement | null>(null);
+  const dialogRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    headingRef.current?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const keepFocusInside = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === headingRef.current)) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener('keydown', keepFocusInside);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', keepFocusInside);
+    };
+  }, []);
+  return <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-[hsl(var(--foreground)/.5)] p-4 backdrop-blur-sm" role="presentation">
+    <section ref={dialogRef} role="alertdialog" aria-modal="true" aria-labelledby="material-content-title" aria-describedby="material-content-summary" className="my-auto w-full max-w-2xl rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-2xl md:p-8" data-testid="material-content-notice">
+      <div className="flex size-11 items-center justify-center rounded-2xl bg-[hsl(var(--secondary))] text-[hsl(var(--primary))]"><ShieldCheck aria-hidden="true" size={22} /></div>
+      <div className="mt-5 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Important update · Effective {notice.effectiveDate}</div>
+      <h2 ref={headingRef} tabIndex={-1} id="material-content-title" className="mt-2 font-display text-3xl leading-tight outline-none md:text-4xl">{notice.title}</h2>
+      <p id="material-content-summary" className="mt-3 text-sm leading-6 text-[hsl(var(--muted-foreground))]">{notice.summary}</p>
+      <ul className="mt-5 space-y-3">
+        {notice.affectedTopics.map((topic) => <li key={topic} className="flex gap-3 text-sm leading-6"><CheckCircle2 aria-hidden="true" size={18} className="mt-1 shrink-0 text-[hsl(var(--primary))]" /><span>{topic}</span></li>)}
+      </ul>
+      <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 border-t border-[hsl(var(--border))] pt-5 text-sm">
+        <a href={notice.sourceUrl} target="_blank" rel="noreferrer" className="font-bold text-[hsl(var(--primary))] hover:underline" data-testid="link-notice-source">Read official source <span className="sr-only">(opens in a new tab)</span></a>
+      </div>
+      <button type="button" onClick={onAcknowledge} className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))] hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2" data-testid="button-acknowledge-content">I understand and agree to continue</button>
+      <p className="mt-3 text-center text-xs leading-5 text-[hsl(var(--muted-foreground))]">Your acknowledgement is saved only on this device. You can review it later in Settings.</p>
+    </section>
+  </div>;
+}
+
 function MaterialPolicyNoticeDialog({ onAcknowledge }: { onAcknowledge: () => void }) {
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const dialogRef = useRef<HTMLElement | null>(null);
@@ -360,7 +414,7 @@ function NextDrivePlanCard({ state, setState, compact = false }: { state: AppSta
 function Dashboard({ state, setState }: { state: AppState; setState: (next: AppState) => void }) {
   const [selectedGoal, setSelectedGoal] = useState<'permit' | 'driving' | null>(null);
   const totalMinutes = state.sessions.reduce((sum, session) => sum + session.minutes, 0);
-  const permitAnswers = Object.values(state.practiceProgress);
+  const permitAnswers = Object.values(getJurisdictionPracticeProgress(state.practiceProgress, state.profile.jurisdiction));
   const permitCoverage = Math.round((permitAnswers.length / questionBank.length) * 100);
   const missedCount = permitAnswers.filter((answer) => !answer.correct).length;
   const nextMission = state.missions.find((mission) => !mission.completed);
@@ -437,7 +491,7 @@ function LegacyPractice({ state, setState }: { state: AppState; setState: (next:
     const topics = state.topics.map((item) => item.topic === topic ? { ...item, questions: item.questions + 1, mastery: Math.min(100, Math.round(item.mastery + (correct ? 4 : 1))) } : item);
     setState({ ...state, answers: { ...state.answers, [index]: correct }, topics });
   };
-  return <div><PageHeader eyebrow="Adaptive permit practice" title="Practice with a reason, not a score." copy="One question at a time. Every explanation points back to the judgment California drivers need on the road." action={<div className="flex items-center gap-2 rounded-xl bg-[hsl(var(--secondary))] px-3 py-2 text-xs font-bold text-[hsl(var(--primary))]"><Gauge size={16} />{Object.keys(state.answers).length} answered</div>} />
+  return <div><PageHeader eyebrow="Adaptive permit practice" title="Practice with a reason, not a score." copy={`One question at a time. Every explanation points back to the judgment ${getJurisdiction(state.profile.jurisdiction)?.name || 'California'} drivers need on the road.`} action={<div className="flex items-center gap-2 rounded-xl bg-[hsl(var(--secondary))] px-3 py-2 text-xs font-bold text-[hsl(var(--primary))]"><Gauge size={16} />{Object.keys(state.practiceProgress).length} answered</div>} />
     <div className="grid gap-6 lg:grid-cols-[1.5fr_.7fr]">
       <section className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 soft-shadow md:p-8">
         <div className="mb-7 flex items-center justify-between"><div className="font-mono-ui text-xs text-[hsl(var(--muted-foreground))]">QUESTION {String(index + 1).padStart(2, '0')} / {String(question.length).padStart(2, '0')}</div><div className="w-32"><ProgressBar value={((index + 1) / question.length) * 100} color="bg-[hsl(var(--accent))]" /></div></div>
@@ -452,8 +506,10 @@ function LegacyPractice({ state, setState }: { state: AppState; setState: (next:
 }
 
 function Practice({ state, setState }: { state: AppState; setState: (next: AppState) => void }) {
-  return <PracticeHub answers={state.practiceProgress} onAnswer={(question, selected) => {
-    const previous = state.practiceProgress[question.id];
+  const jurisdiction = getJurisdiction(state.profile.jurisdiction) || getJurisdiction('US-CA');
+  return <PracticeHub jurisdiction={jurisdiction} answers={getJurisdictionPracticeProgress(state.practiceProgress, state.profile.jurisdiction)} onAnswer={(question, selected) => {
+    const key = practiceProgressKey(state.profile.jurisdiction, question.id);
+    const previous = state.practiceProgress[key];
     const correct = selected === question.answer;
     const correctStreak = correct ? (previous?.correctStreak ?? 0) + 1 : 0;
     const reviewIntervals = [1, 3, 7, 14, 30];
@@ -463,7 +519,7 @@ function Practice({ state, setState }: { state: AppState; setState: (next: AppSt
       ...state,
       practiceProgress: {
         ...state.practiceProgress,
-        [question.id]: {
+        [key]: {
           selected,
           correct,
           answeredAt: new Date().toISOString(),
@@ -556,6 +612,8 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       plannedSkills: plannedRoute?.skills ?? [],
       events: coachEvents,
       topics: state.topics,
+      jurisdiction: state.profile.jurisdiction,
+      contentPackVersion: state.profile.contentPackVersion,
     });
     createDriveDebrief.mutate(
       { data: input },
@@ -1331,7 +1389,7 @@ function Parent({ state, setState }: { state: AppState; setState: (next: AppStat
   const [familyShareStatus, setFamilyShareStatus] = useState('');
   const total = state.sessions.reduce((sum, session) => sum + session.minutes, 0);
   const night = state.sessions.filter((session) => session.night).reduce((sum, session) => sum + session.minutes, 0);
-  const permitAnswered = Object.values(state.practiceProgress);
+  const permitAnswered = Object.values(getJurisdictionPracticeProgress(state.practiceProgress, state.profile.jurisdiction));
   const permitCorrect = permitAnswered.filter((answer) => answer.correct).length;
   const permitReadiness = permitAnswered.length ? Math.round(((permitAnswered.length / questionBank.length) * 0.45 + (permitCorrect / permitAnswered.length) * 0.55) * 100) : 0;
   const donePrompts = state.prompts.filter((prompt) => prompt.done).length;
@@ -1387,8 +1445,27 @@ function Router() {
   const [state, setState] = useState<AppState>(getStoredState);
   const syncManager = useSyncManager(state, setState);
   const [policyAcknowledgements, setPolicyAcknowledgements] = useState(getPolicyAcknowledgements);
+  const [contentAcknowledgements, setContentAcknowledgements] = useState(() => getContentAcknowledgements(window.localStorage));
+  const [contentNotice, setContentNotice] = useState<ContentChangeNotice | null>(null);
+  const [manifestStatus, setManifestStatus] = useState<ContentManifestStatus | null>(null);
   const [location] = useLocation();
   const isPolicyRoute = location === '/privacy' || location === '/terms' || location === '/policy-updates';
+
+  useEffect(() => {
+    let mounted = true;
+    checkContentManifest({
+      jurisdiction: state.profile.jurisdiction,
+      currentVersion: state.profile.contentPackVersion
+    }).then(status => {
+      if (!mounted) return;
+      setManifestStatus(status);
+      if (status.kind === 'update-available') {
+        const notice = getMaterialContentNotice(status.manifest, state.profile.jurisdiction, contentAcknowledgements);
+        if (notice) setContentNotice(notice);
+      }
+    });
+    return () => { mounted = false; };
+  }, [state.profile.jurisdiction, state.profile.contentPackVersion, contentAcknowledgements]);
 
   const [persistenceWarning, setPersistenceWarning] = useState('');
   useEffect(() => {
@@ -1408,12 +1485,16 @@ function Router() {
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
   useEffect(() => {
-    const handlePolicyStorage = (event: StorageEvent) => {
-      if (event.key !== policyAcknowledgementStorageKey || (event.storageArea && event.storageArea !== window.localStorage)) return;
-      setPolicyAcknowledgements(getPolicyAcknowledgements());
+    const handleAcknowledgementStorage = (event: StorageEvent) => {
+      if (event.storageArea && event.storageArea !== window.localStorage) return;
+      if (event.key === policyAcknowledgementStorageKey) {
+        setPolicyAcknowledgements(getPolicyAcknowledgements());
+      } else if (event.key === contentAcknowledgementStorageKey) {
+        setContentAcknowledgements(getContentAcknowledgements(window.localStorage));
+      }
     };
-    window.addEventListener('storage', handlePolicyStorage);
-    return () => window.removeEventListener('storage', handlePolicyStorage);
+    window.addEventListener('storage', handleAcknowledgementStorage);
+    return () => window.removeEventListener('storage', handleAcknowledgementStorage);
   }, []);
   useEffect(() => {
     const media = typeof window.matchMedia === 'function'
@@ -1442,20 +1523,30 @@ function Router() {
             <Route path="/scenarios"><Scenarios state={state} setState={setState} /></Route>
             <Route path="/drive"><Drive state={state} setState={setState} /></Route>
             <Route path="/parent"><Parent state={state} setState={setState} /></Route>
-            <Route path="/settings"><SettingsPage state={state} setState={setState} syncManager={syncManager} policyAcknowledgements={policyAcknowledgements} /></Route>
+            <Route path="/settings"><SettingsPage state={state} setState={setState} syncManager={syncManager} policyAcknowledgements={policyAcknowledgements} manifestStatus={manifestStatus} contentAcknowledgements={contentAcknowledgements} /></Route>
             <Route path="/privacy"><LegalPage kind="privacy" /></Route>
             <Route path="/terms"><LegalPage kind="terms" /></Route>
             <Route path="/policy-updates"><PolicyUpdatesPage /></Route>
             <Route component={NotFound} />
           </Switch>
         </Shell>
-        {!isPolicyRoute && requiresCurrentPolicyAcknowledgement(policyAcknowledgements) && <MaterialPolicyNoticeDialog onAcknowledge={() => {
-          try {
-            setPolicyAcknowledgements(saveCurrentPolicyAcknowledgement());
-          } catch {
-            setPersistenceWarning('This browser could not save your privacy and safety acknowledgement. Check browser storage settings before continuing.');
-          }
-        }} />}
+        {!isPolicyRoute && (requiresCurrentPolicyAcknowledgement(policyAcknowledgements)
+          ? <MaterialPolicyNoticeDialog onAcknowledge={() => {
+              try {
+                setPolicyAcknowledgements(saveCurrentPolicyAcknowledgement());
+              } catch {
+                setPersistenceWarning('This browser could not save your privacy and safety acknowledgement. Check browser storage settings before continuing.');
+              }
+            }} />
+          : contentNotice && <MaterialContentNoticeDialog notice={contentNotice} onAcknowledge={() => {
+              try {
+                const next = acknowledgeContentNotice(window.localStorage, contentNotice.id);
+                setContentAcknowledgements(next);
+                setContentNotice(null);
+              } catch {
+                setPersistenceWarning('This browser could not save your update acknowledgement. Check browser storage settings before continuing.');
+              }
+            }} />)}
       </Route>
     </Switch>
   );

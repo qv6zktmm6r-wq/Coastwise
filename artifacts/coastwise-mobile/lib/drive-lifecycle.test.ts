@@ -104,7 +104,7 @@ test('coordinates recording start, background interruption, parked resume, and s
 test('process recovery restores an unfinished drive and saves its recording on completion', async () => {
   const lifecycle = new DriveLifecycleCoordinator();
   const recovered = activeDrive();
-  let state: MobileState = { drives: [], activeDrive: recovered };
+  let state: MobileState = { drives: [], jurisdiction: 'US-CA', contentPackVersion: '2026-09-18', activeDrive: recovered };
   lifecycle.beginDrive();
   const withRecording = attachRecording(recovered, recovered.id, {
     uri: 'file:///recordings/drive-1.mp4',
@@ -132,7 +132,7 @@ test('process recovery restores an unfinished drive and saves its recording on c
 
 test('a late recording callback cannot recreate a completed active drive or attach to another drive', () => {
   const first = activeDrive('drive-1');
-  let state: MobileState = beginDriveState({ drives: [] }, first);
+  let state: MobileState = beginDriveState({ drives: [], jurisdiction: 'US-CA', contentPackVersion: '2026-09-18' }, first);
   state = finishDriveState(state, completeDrive(first, 65));
 
   const lateUpdate = {
@@ -240,7 +240,7 @@ test('discard cannot race a pending resume or end and always stops native tracki
 test('a failed recording task clears and still lets an active drive end and save', async () => {
   const lifecycle = new DriveLifecycleCoordinator();
   const drive = activeDrive();
-  let state: MobileState = beginDriveState({ drives: [] }, drive);
+  let state: MobileState = beginDriveState({ drives: [], jurisdiction: 'US-CA', contentPackVersion: '2026-09-18' }, drive);
   lifecycle.beginDrive();
   lifecycle.beginRecording(Promise.reject(new Error('recording could not be saved')));
 
@@ -280,7 +280,7 @@ test('a failed recording task cannot attach metadata to a recovered replacement 
   const lifecycle = new DriveLifecycleCoordinator();
   const recovered = activeDrive('drive-recovered');
   const replacement = activeDrive('drive-replacement');
-  let state: MobileState = beginDriveState({ drives: [] }, recovered);
+  let state: MobileState = beginDriveState({ drives: [], jurisdiction: 'US-CA', contentPackVersion: '2026-09-18' }, recovered);
   lifecycle.beginDrive();
   lifecycle.beginRecording(Promise.reject(new Error('recording metadata unavailable')));
 

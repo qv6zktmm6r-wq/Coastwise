@@ -1,6 +1,7 @@
 import type { DriveDebriefInput } from '@workspace/api-client-react';
 import type { CoachEvent } from './drive-review';
 import type { DriveSession, Topic } from './state';
+import type { JurisdictionCode } from './jurisdiction';
 
 export function buildDriveDebriefInput({
   session,
@@ -9,6 +10,8 @@ export function buildDriveDebriefInput({
   plannedSkills,
   events,
   topics,
+  jurisdiction,
+  contentPackVersion,
 }: {
   session?: DriveSession;
   elapsedSeconds: number;
@@ -16,8 +19,12 @@ export function buildDriveDebriefInput({
   plannedSkills: string[];
   events: CoachEvent[];
   topics: Topic[];
+  jurisdiction: JurisdictionCode;
+  contentPackVersion: string;
 }): DriveDebriefInput {
   return {
+    jurisdiction,
+    contentPackVersion,
     durationMinutes: Math.max(1, Math.round(elapsedSeconds / 60)),
     distanceMiles: session?.distanceMiles ?? distanceMiles,
     night: session?.night ?? false,

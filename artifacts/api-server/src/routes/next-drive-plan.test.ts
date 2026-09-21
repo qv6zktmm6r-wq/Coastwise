@@ -7,6 +7,8 @@ import {
 } from "./next-drive-plan";
 
 const safeInput = {
+  jurisdiction: "US-CA" as const,
+  contentPackVersion: "2026-01",
   weakTopics: [{ topic: "Right-of-way", mastery: 45 }],
   unfinishedMissions: [{ title: "Smooth starts", category: "Control", minutes: 25 }],
   recentDrives: [{
@@ -30,7 +32,8 @@ test("next-drive plans accept only the privacy-minimized contract", () => {
 test("next-drive prompt excludes sensitive local fields", () => {
   const prompt = buildNextDrivePlanPrompt(safeInput);
   assert.doesNotMatch(prompt, /coordinate|position|route|recording|video|identity|notes|rawAnswers/i);
-  assert.match(prompt, /weakKnowledgeTopics|unfinishedPracticeMissions|recentDriveSummaries/);
+  assert.match(prompt, /jurisdiction|contentPackVersion|weakKnowledgeTopics|unfinishedPracticeMissions|recentDriveSummaries/);
+  assert.match(prompt, /US-CA|2026-01/);
 });
 
 test("next-drive plan requests are rate limited", () => {

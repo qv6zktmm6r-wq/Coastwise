@@ -4,6 +4,12 @@ import type { CoachEvent } from './drive-review';
 import type { PlannedRoute } from './route-coach';
 
 import type { PracticeAnswer } from '../components/practice-hub';
+import {
+  defaultJurisdiction,
+  getCurrentContentPackVersion,
+  isJurisdictionCode,
+  type JurisdictionCode,
+} from './jurisdiction';
 
 export type Topic = { topic: string; mastery: number; questions: number };
 export type PracticeQuestion = { prompt: string; options: string[]; answer: number; explanation: string; topic: string };
@@ -14,7 +20,13 @@ export type ParentPrompt = { title: string; copy: string; done: boolean };
 export type Appearance = 'system' | 'light' | 'dark';
 
 export type AppState = {
-  profile: { name: string; permitDate: string; targetTestDate: string };
+  profile: {
+    name: string;
+    permitDate: string;
+    targetTestDate: string;
+    jurisdiction: JurisdictionCode;
+    contentPackVersion: string;
+  };
   topics: Topic[];
   answers: Record<number, boolean>;
   practiceProgress: Record<string, PracticeAnswer>;
@@ -28,7 +40,13 @@ export type AppState = {
 };
 
 export const initialState: AppState = {
-  profile: { name: '', permitDate: '', targetTestDate: '' },
+  profile: {
+    name: '',
+    permitDate: '',
+    targetTestDate: '',
+    jurisdiction: defaultJurisdiction,
+    contentPackVersion: getCurrentContentPackVersion(defaultJurisdiction),
+  },
   topics: [
     { topic: 'Right-of-way', mastery: 0, questions: 0 },
     { topic: 'Signs & signals', mastery: 0, questions: 0 },
@@ -62,6 +80,33 @@ export const initialState: AppState = {
 
 export const storageKey = 'california-driver-coach';
 
+export function practiceProgressKey(jurisdiction: JurisdictionCode, questionId: string) {
+  return `${jurisdiction}:${questionId}`;
+}
+
+export function getJurisdictionPracticeProgress(
+  progress: Record<string, PracticeAnswer>,
+  jurisdiction: JurisdictionCode,
+) {
+  const prefix = `${jurisdiction}:`;
+  return Object.fromEntries(
+    Object.entries(progress)
+      .filter(([key]) => key.startsWith(prefix))
+      .map(([key, answer]) => [key.slice(prefix.length), answer]),
+  );
+}
+
+function normalizePracticeProgress(value: unknown, jurisdiction: JurisdictionCode) {
+  if (!isRecord(value)) return {};
+  const normalized: Record<string, PracticeAnswer> = {};
+  Object.entries(value).forEach(([key, answer]) => {
+    if (!isRecord(answer)) return;
+    const scopedKey = key.startsWith('US-') ? key : practiceProgressKey(jurisdiction, key);
+    normalized[scopedKey] = answer as PracticeAnswer;
+  });
+  return normalized;
+}
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -88,12 +133,23 @@ export function parseStoredState(saved: string | null): AppState {
     const parsed: unknown = JSON.parse(saved);
     if (!isRecord(parsed)) return initialState;
     const storedProfile = isRecord(parsed.profile) ? parsed.profile : {};
+    const jurisdiction = isJurisdictionCode(storedProfile.jurisdiction)
+      ? storedProfile.jurisdiction
+      : defaultJurisdiction;
     const storedSettings = isRecord(parsed.settings) ? parsed.settings : {};
     const storedSessions = Array.isArray(parsed.sessions) ? normalizeDriveSessions(parsed.sessions) : initialState.sessions;
     return {
       ...initialState,
       ...parsed,
-      profile: { ...initialState.profile, ...storedProfile },
+      profile: {
+        ...initialState.profile,
+        ...storedProfile,
+        jurisdiction,
+        contentPackVersion: typeof storedProfile.contentPackVersion === 'string'
+          ? storedProfile.contentPackVersion
+          : getCurrentContentPackVersion(jurisdiction),
+      },
+      practiceProgress: normalizePracticeProgress(parsed.practiceProgress, jurisdiction),
       settings: {
         ...initialState.settings,
         ...storedSettings,

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { DriveDebrief, NextDrivePlan } from '@workspace/api-client-react';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { beginDriveState, finishDriveState, saveDriveState, updateDriveState } from './mobile-state';
+import { beginDriveState, CURRENT_CALIFORNIA_CONTENT_PACK_VERSION, DEFAULT_JURISDICTION, finishDriveState, hydrateMobileState, saveDriveState, updateDriveState } from './mobile-state';
 
 const STORAGE_KEY = 'coastwise-mobile-state';
 
@@ -23,8 +23,12 @@ export type ActiveMobileDrive = MobileDrive & {
   recordingRequested?: boolean;
 };
 
+export type MobileJurisdiction = 'US-CA';
+
 export type MobileState = {
   drives: MobileDrive[];
+  jurisdiction: MobileJurisdiction;
+  contentPackVersion: string;
   plan?: NextDrivePlan;
   acknowledgedPrivacyVersion?: string;
   activeDrive?: ActiveMobileDrive;
@@ -36,6 +40,7 @@ export type MobileState = {
 
 type CoastwiseContextValue = MobileState & {
   hydrated: boolean;
+  setJurisdiction: (jurisdiction: MobileJurisdiction) => void;
   setRole: (role: 'teen' | 'parent') => void;
   completeOnboarding: () => void;
   setRecordingRetention: (days: number | 'forever') => void;
@@ -54,13 +59,17 @@ type CoastwiseContextValue = MobileState & {
 const CoastwiseContext = createContext<CoastwiseContextValue | null>(null);
 
 export function CoastwiseProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<MobileState>({ drives: [] });
+  const [state, setState] = useState<MobileState>({
+    drives: [],
+    jurisdiction: DEFAULT_JURISDICTION,
+    contentPackVersion: CURRENT_CALIFORNIA_CONTENT_PACK_VERSION,
+  });
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
       .then((saved) => {
-        if (saved) setState(JSON.parse(saved) as MobileState);
+        if (saved) setState(hydrateMobileState(JSON.parse(saved)));
       })
       .catch(() => undefined)
       .finally(() => setHydrated(true));
@@ -73,6 +82,12 @@ export function CoastwiseProvider({ children }: { children: ReactNode }) {
   const value = useMemo<CoastwiseContextValue>(() => ({
     ...state,
     hydrated,
+    setJurisdiction: (jurisdiction) => setState((current) => ({
+      ...current,
+      jurisdiction,
+      // A jurisdiction change must never carry a pack from another state.
+      contentPackVersion: CURRENT_CALIFORNIA_CONTENT_PACK_VERSION,
+    })),
     setRole: (role) => setState((current) => ({ ...current, role })),
     completeOnboarding: () => setState((current) => ({ ...current, hasCompletedOnboarding: true })),
     setRecordingRetention: (days) => setState((current) => ({ ...current, recordingRetentionDays: days })),

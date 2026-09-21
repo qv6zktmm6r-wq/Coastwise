@@ -6,7 +6,9 @@ import { useCreateFamilyInvite, useGetFamilyMembership, useRevokeFamilyMember, u
 import { Link, useLocation } from 'wouter';
 import { mergeStates } from '../lib/sync';
 import { clearDriveRecordings } from '../lib/route-coach';
-import { Settings, SunMedium, Moon, HardDrive, Download, Upload, ShieldCheck, LockKeyhole, Pencil, Check, RefreshCw, AlertTriangle, Link as LinkIcon, Trash2, ChevronRight } from 'lucide-react';
+import { Settings, SunMedium, Moon, HardDrive, Download, Upload, ShieldCheck, LockKeyhole, Pencil, Check, RefreshCw, AlertTriangle, Link as LinkIcon, Trash2, ChevronRight, Globe, Info } from 'lucide-react';
+import { type ContentManifestStatus, getPackFromManifest } from '../lib/content-manifest';
+import { supportedJurisdictions, type JurisdictionCode, getJurisdiction } from '../lib/jurisdiction';
 import { materialPolicyNotices, type PolicyAcknowledgement } from '../lib/policy-notice';
 
 type BeforeInstallPromptEvent = Event & {
@@ -43,7 +45,7 @@ function InstallCoastwise() {
   return <ActionButton onClick={() => void install()} variant="secondary" testId="button-install-coastwise"><Download size={16} />Install Coastwise</ActionButton>;
 }
 
-export default function SettingsPage({ state, setState, syncManager, policyAcknowledgements }: { state: AppState; setState: (next: AppState) => void; syncManager: any; policyAcknowledgements: PolicyAcknowledgement[] }) {
+export default function SettingsPage({ state, setState, syncManager, policyAcknowledgements, manifestStatus, contentAcknowledgements }: { state: AppState; setState: (next: AppState) => void; syncManager: any; policyAcknowledgements: PolicyAcknowledgement[]; manifestStatus: ContentManifestStatus | null; contentAcknowledgements: string[] }) {
   const { user, isLoaded, isSignedIn } = useUser();
   const { signOut } = useClerk();
   const [location] = useLocation();
@@ -213,7 +215,7 @@ export default function SettingsPage({ state, setState, syncManager, policyAckno
           <div className="mt-5" data-testid="policy-acknowledgement-history">
             <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
               <div>
-                <h3 className="text-sm font-extrabold">Material update history</h3>
+                <h3 className="text-sm font-extrabold">Privacy and safety update history</h3>
                 <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Acknowledgements are kept only in this browser. They are not synced or included in progress backups.</p>
               </div>
             </div>
@@ -241,6 +243,56 @@ export default function SettingsPage({ state, setState, syncManager, policyAckno
                           <Link href="/terms" className="text-xs font-bold text-[hsl(var(--primary))] hover:underline" data-testid={`link-policy-terms-${notice.version}`}>Safety terms</Link>
                         </div>
                       : <Link href={`/policy-updates#policy-update-${notice.version}`} className="text-xs font-bold text-[hsl(var(--primary))] hover:underline" data-testid={`link-policy-archive-${notice.version}`}>Review archived summary</Link>}
+                  </div>
+                </li>;
+              })}
+            </ol>
+          </div>
+          <div className="mt-5 border-t border-[hsl(var(--border))] pt-5" data-testid="content-acknowledgement-history">
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-extrabold">Handbook content updates</h3>
+                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Acknowledgements are kept only in this browser. They are not synced or included in progress backups.</p>
+              </div>
+            </div>
+            
+            {manifestStatus && (
+              <div className="mb-4 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--secondary)/.3)] p-4 flex items-center gap-3">
+                {manifestStatus.kind === 'current' ? <Check size={18} className="text-[hsl(var(--success))]" /> : manifestStatus.kind === 'update-available' ? <AlertTriangle size={18} className="text-[hsl(var(--warning))]" /> : <Info size={18} className="text-[hsl(var(--muted-foreground))]" />}
+                <div className="text-xs">
+                  <strong className="block text-[hsl(var(--foreground))]">
+                    {manifestStatus.kind === 'current' ? 'Practice content is up to date' : manifestStatus.kind === 'update-available' ? 'A content update is available' : 'Update check failed'}
+                  </strong>
+                  <span className="text-[hsl(var(--muted-foreground))]">
+                    {manifestStatus.kind === 'unavailable' ? manifestStatus.message : `Source: ${manifestStatus.source}`}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <ol className="space-y-3">
+              {manifestStatus && getPackFromManifest(manifestStatus.manifest, state.profile.jurisdiction)?.notices.map((notice, index) => {
+                const isAcknowledged = contentAcknowledgements.includes(notice.id);
+                return <li id={`content-update-${notice.id}`} key={notice.id} className="rounded-xl bg-[hsl(var(--secondary)/.45)] p-4" data-testid={`content-update-${notice.id}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="text-sm font-extrabold">{index === 0 && notice.level === 'material' ? 'Latest material update: ' : ''}{notice.title}</h4>
+                    <span className="font-mono-ui text-[11px] text-[hsl(var(--muted-foreground))]">Effective {notice.effectiveDate}</span>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{notice.summary}</p>
+                  {notice.affectedTopics && notice.affectedTopics.length > 0 && (
+                    <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">
+                      {notice.affectedTopics.map((topic) => <li key={topic}>{topic}</li>)}
+                    </ul>
+                  )}
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    {notice.level === 'material' ? (
+                      <p className={`text-xs font-bold ${isAcknowledged ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'}`} data-testid={`status-content-acknowledgement-${notice.id}`}>
+                        {isAcknowledged ? 'Acknowledged on this device' : 'Acknowledgement required on this device'}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-[hsl(var(--muted-foreground))]">Standard correction (no acknowledgement required)</p>
+                    )}
+                    <a href={notice.sourceUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-[hsl(var(--primary))] hover:underline" data-testid={`link-content-source-${notice.id}`}>Review official source</a>
                   </div>
                 </li>;
               })}
@@ -372,6 +424,31 @@ export default function SettingsPage({ state, setState, syncManager, policyAckno
           </form>
         </div>
 
+        {/* Driving Jurisdiction Section */}
+        <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 md:p-7">
+          <div className="mb-5">
+            <h2 className="font-display text-2xl">Driving jurisdiction</h2>
+            <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Select your state or territory to see the correct practice rules.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {supportedJurisdictions.map((j) => (
+              <button
+                key={j.code}
+                onClick={() => setState({ ...state, profile: { ...state.profile, jurisdiction: j.code } })}
+                disabled={j.code !== 'US-CA'}
+                className={`flex flex-col items-start gap-2 rounded-xl border p-4 transition-all text-left ${state.profile.jurisdiction === j.code ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary)/.04)] text-[hsl(var(--primary))]' : 'border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:border-[hsl(var(--primary)/.3)] disabled:opacity-50 disabled:hover:border-[hsl(var(--border))]'}`}
+                data-testid={`button-jurisdiction-${j.code}`}
+              >
+                <div className="flex w-full items-center justify-between">
+                  <span className={`text-sm font-bold ${state.profile.jurisdiction === j.code ? 'text-[hsl(var(--foreground))]' : ''}`}>{j.name}</span>
+                  {state.profile.jurisdiction === j.code && <Check size={16} className="text-[hsl(var(--primary))]" />}
+                </div>
+                {j.code !== 'US-CA' && <span className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Coming soon</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Appearance Section */}
         <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 md:p-7">
           <div className="mb-5"><h2 className="font-display text-2xl">Appearance</h2><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Choose what feels comfortable. Device follows your system setting automatically.</p></div>
@@ -416,7 +493,7 @@ export default function SettingsPage({ state, setState, syncManager, policyAckno
         </div>
         <SafetyNote />
         <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
-          <div className="flex items-center gap-2 text-sm font-extrabold"><Pencil size={16} className="text-[hsl(var(--accent))]" />California essentials</div>
+          <div className="flex items-center gap-2 text-sm font-extrabold"><Pencil size={16} className="text-[hsl(var(--accent))]" />{getJurisdiction(state.profile.jurisdiction)?.name || 'California'} essentials</div>
           <ul className="mt-4 space-y-3 text-xs leading-5 text-[hsl(var(--muted-foreground))]">
             <li className="flex gap-2"><Check size={14} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" />Permit held at least 6 months before the drive test.</li>
             <li className="flex gap-2"><Check size={14} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" />50 supervised practice hours, including 10 at night.</li>

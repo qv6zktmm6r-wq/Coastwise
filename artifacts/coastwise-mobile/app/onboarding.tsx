@@ -9,15 +9,19 @@ import { colors } from '@/theme';
 export default function OnboardingScreen() {
   const palette = usePalette();
   const router = useRouter();
-  const { setRole, completeOnboarding, acknowledgePrivacy } = useCoastwise();
+  const { setRole, setJurisdiction, completeOnboarding, acknowledgePrivacy } = useCoastwise();
   const [step, setStep] = useState(1);
   const [selectedRole, setSelectedRole] = useState<'teen' | 'parent' | null>(null);
+  const [selectedJurisdiction, setSelectedJurisdiction] = useState<'US-CA' | null>(null);
 
   const handleNext = () => {
     if (step === 1 && selectedRole) {
       setRole(selectedRole);
       setStep(2);
-    } else if (step === 2) {
+    } else if (step === 2 && selectedJurisdiction) {
+      setJurisdiction(selectedJurisdiction);
+      setStep(3);
+    } else if (step === 3) {
       acknowledgePrivacy();
       completeOnboarding();
       router.replace('/(tabs)');
@@ -53,6 +57,21 @@ export default function OnboardingScreen() {
               </ActionButton>
             </View>
           </>
+        ) : step === 2 ? (
+          <>
+            <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: `${colors.primary}18`, alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+              <Ionicons name="map" size={32} color={colors.primary} />
+            </View>
+            <Eyebrow>Choose your state</Eyebrow>
+            <Title large>Which rules should guide your practice?</Title>
+            <Body muted>Select a state manually. Location is never used to infer your jurisdiction.</Body>
+            <View style={{ marginTop: 32, gap: 16 }}>
+              <ActionButton secondary={selectedJurisdiction !== 'US-CA'} selected={selectedJurisdiction === 'US-CA'} onPress={() => setSelectedJurisdiction('US-CA')}>
+                California (US-CA)
+              </ActionButton>
+              <Body muted>More states are coming soon. We will let you choose when they are available.</Body>
+            </View>
+          </>
         ) : (
           <>
             <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: `${colors.primary}18`, alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
@@ -78,9 +97,9 @@ export default function OnboardingScreen() {
         <View style={{ marginTop: 'auto', paddingTop: 40 }}>
           <ActionButton 
             onPress={handleNext} 
-            disabled={step === 1 && !selectedRole}
+            disabled={(step === 1 && !selectedRole) || (step === 2 && !selectedJurisdiction)}
           >
-            {step === 1 ? 'Continue' : 'Start practicing'}
+            {step === 1 || step === 2 ? 'Continue' : 'Start practicing'}
           </ActionButton>
         </View>
       </View>

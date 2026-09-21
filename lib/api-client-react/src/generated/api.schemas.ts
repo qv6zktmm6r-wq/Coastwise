@@ -130,7 +130,20 @@ export interface DriveDebriefTopic {
   mastery: number;
 }
 
+export type DriveDebriefInputJurisdiction = typeof DriveDebriefInputJurisdiction[keyof typeof DriveDebriefInputJurisdiction];
+
+
+export const DriveDebriefInputJurisdiction = {
+  'US-CA': 'US-CA',
+} as const;
+
 export interface DriveDebriefInput {
+  jurisdiction: DriveDebriefInputJurisdiction;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  contentPackVersion: string;
   /**
      * @minimum 1
      * @maximum 600
@@ -225,7 +238,20 @@ export interface RecentDriveSummary {
   debriefNextStep: string | null;
 }
 
+export type NextDrivePlanInputJurisdiction = typeof NextDrivePlanInputJurisdiction[keyof typeof NextDrivePlanInputJurisdiction];
+
+
+export const NextDrivePlanInputJurisdiction = {
+  'US-CA': 'US-CA',
+} as const;
+
 export interface NextDrivePlanInput {
+  jurisdiction: NextDrivePlanInputJurisdiction;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  contentPackVersion: string;
   /** @maxItems 3 */
   weakTopics: DriveDebriefTopic[];
   /** @maxItems 3 */

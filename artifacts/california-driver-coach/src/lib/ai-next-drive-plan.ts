@@ -3,6 +3,8 @@ import type { AppState } from './state';
 
 export function buildNextDrivePlanInput(state: AppState): NextDrivePlanInput {
   return {
+    jurisdiction: state.profile.jurisdiction,
+    contentPackVersion: state.profile.contentPackVersion,
     weakTopics: [...state.topics]
       .sort((a, b) => a.mastery - b.mastery)
       .slice(0, 3)

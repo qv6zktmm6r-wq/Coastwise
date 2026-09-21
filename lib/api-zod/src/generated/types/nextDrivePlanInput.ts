@@ -7,9 +7,16 @@
  */
 import type { DriveDebriefTopic } from './driveDebriefTopic';
 import type { NextDriveMissionSummary } from './nextDriveMissionSummary';
+import type { NextDrivePlanInputJurisdiction } from './nextDrivePlanInputJurisdiction';
 import type { RecentDriveSummary } from './recentDriveSummary';
 
 export interface NextDrivePlanInput {
+  jurisdiction: NextDrivePlanInputJurisdiction;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  contentPackVersion: string;
   /** @maxItems 3 */
   weakTopics: DriveDebriefTopic[];
   /** @maxItems 3 */

@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 export default function TodayScreen() {
   const palette = usePalette();
-  const { drives, plan, savePlan, acknowledgedPrivacyVersion, acknowledgePrivacy } = useCoastwise();
+  const { drives, plan, savePlan, acknowledgedPrivacyVersion, acknowledgePrivacy, jurisdiction, contentPackVersion } = useCoastwise();
   const createPlan = useCreateNextDrivePlan();
   const [showPrivacy, setShowPrivacy] = useState(!acknowledgedPrivacyVersion);
 
@@ -42,7 +42,7 @@ export default function TodayScreen() {
     );
   }
 
-  const generatePlan = () => createPlan.mutate({ data: buildNextDrivePlanInput(drives) }, { onSuccess: savePlan });
+  const generatePlan = () => createPlan.mutate({ data: buildNextDrivePlanInput(drives, jurisdiction, contentPackVersion) }, { onSuccess: savePlan });
   
   const now = new Date();
   const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
@@ -61,6 +61,16 @@ export default function TodayScreen() {
         <Title large>What are you working on today?</Title>
         <Body muted>One clear goal makes supervised practice calmer and more useful.</Body>
       </View>
+
+      <Card padding={16}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Ionicons name="map" size={20} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Eyebrow>Practice rules</Eyebrow>
+            <Text style={{ color: palette.text, fontSize: 15, fontWeight: '700' }}>{jurisdiction} · California pack {contentPackVersion}</Text>
+          </View>
+        </View>
+      </Card>
       
       {drives.length > 0 ? (
         <Card accent padding={24}>

@@ -1,3 +1,5 @@
+import { CALIFORNIA_CONTENT_PACK_VERSION, type JurisdictionCode } from '../lib/jurisdiction';
+
 export type HandbookSection = {
   id: string;
   title: string;
@@ -13,8 +15,34 @@ export type HandbookQuestion = {
   answer: number;
   explanation: string;
   source: string;
+  sourceUrl: string;
+  sourceRevision: string;
+  effectiveDate: string;
+  reviewedAt: string;
+  contentPackVersion: string;
+  jurisdiction: JurisdictionCode;
+  scope: 'universal' | 'jurisdiction-specific';
   difficulty: 'easy' | 'medium' | 'hard';
 };
+
+export type HandbookContentPack = {
+  jurisdiction: JurisdictionCode;
+  version: string;
+  sourceRevision: string;
+  effectiveDate: string;
+  reviewedAt: string;
+  sourceUrl: string;
+  sections: HandbookSection[];
+  universalSafetyQuestions: HandbookQuestion[];
+  jurisdictionQuestions: HandbookQuestion[];
+  questions: HandbookQuestion[];
+};
+
+const californiaSourceUrl = 'https://www.dmv.ca.gov/portal/handbook/california-driver-handbook/';
+const californiaSourceRevision = 'California Driver’s Handbook 2026';
+const californiaEffectiveDate = '2026-01-01';
+const californiaReviewedAt = '2026-09-20';
+const universalSections = new Set(['fundamentals', 'speed-space', 'safe-driving']);
 
 const q = (
   id: string,
@@ -26,7 +54,24 @@ const q = (
   explanation: string,
   source: string,
   difficulty: HandbookQuestion['difficulty'] = 'medium',
-): HandbookQuestion => ({ id, section, objective, prompt, options, answer, explanation, source, difficulty });
+): HandbookQuestion => ({
+  id,
+  section,
+  objective,
+  prompt,
+  options,
+  answer,
+  explanation,
+  source,
+  sourceUrl: californiaSourceUrl,
+  sourceRevision: californiaSourceRevision,
+  effectiveDate: californiaEffectiveDate,
+  reviewedAt: californiaReviewedAt,
+  contentPackVersion: CALIFORNIA_CONTENT_PACK_VERSION,
+  jurisdiction: 'US-CA',
+  scope: universalSections.has(section) ? 'universal' : 'jurisdiction-specific',
+  difficulty,
+});
 
 export const handbookSections: HandbookSection[] = [
   { id: 'licensing', title: 'Licensing & permits', description: 'Permits, licenses, restrictions, and responsible supervision.' },
@@ -152,3 +197,16 @@ export const questionBank: HandbookQuestion[] = [
   q('vehicle-responsibility-007', 'vehicle-responsibility', 'Vehicle load', 'Why should a driver secure cargo before moving?', ['Loose cargo can shift, fall, or interfere with control', 'It makes the vehicle turn faster', 'It eliminates the need for mirrors'], 0, 'Unsecured cargo can create hazards inside and outside the vehicle.', 'California Driver’s Handbook · Vehicle Equipment', 'easy'),
   q('vehicle-responsibility-008', 'vehicle-responsibility', 'Dashboard warnings', 'A red warning light appears while driving. What is a responsible response?', ['Safely reduce risk, stop when appropriate, and check the vehicle', 'Cover the light with tape', 'Accelerate until it disappears'], 0, 'Warning lights can signal a serious problem. Continuing may turn a manageable issue into a loss of control.', 'California Driver’s Handbook · Vehicle Equipment', 'easy'),
 ];
+
+export const californiaContentPack: HandbookContentPack = {
+  jurisdiction: 'US-CA',
+  version: CALIFORNIA_CONTENT_PACK_VERSION,
+  sourceRevision: californiaSourceRevision,
+  effectiveDate: californiaEffectiveDate,
+  reviewedAt: californiaReviewedAt,
+  sourceUrl: californiaSourceUrl,
+  sections: handbookSections,
+  universalSafetyQuestions: questionBank.filter((question) => question.scope === 'universal'),
+  jurisdictionQuestions: questionBank.filter((question) => question.scope === 'jurisdiction-specific'),
+  questions: questionBank,
+};

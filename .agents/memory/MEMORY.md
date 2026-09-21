@@ -5,3 +5,4 @@
 - [Policy acknowledgements](policy-acknowledgements.md) — material privacy and safety acceptance is device-local and must not travel through backup or family sync.
 - [Coastwise AI privacy](coastwise-ai-privacy.md) — optional AI uses minimal summaries; sensitive drive media, location, identity, and notes stay on-device.
 - [Mobile drive interruption](mobile-drive-interruption.md) — native coaching pauses outside the foreground and resumes only through an explicit parked-user action.
+- [Content pack update safety](content-pack-update-safety.md) — reject missing, mismatched, or rollback manifests before replacing last-known-good jurisdiction content.

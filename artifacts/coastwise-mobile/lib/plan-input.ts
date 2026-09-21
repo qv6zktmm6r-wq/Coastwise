@@ -1,13 +1,19 @@
 import type { NextDrivePlanInput } from '@workspace/api-client-react';
-import type { MobileDrive } from './coastwise-context';
+import type { MobileDrive, MobileJurisdiction } from './coastwise-context';
 
-export function buildNextDrivePlanInput(drives: MobileDrive[]): NextDrivePlanInput {
+export function buildNextDrivePlanInput(
+  drives: MobileDrive[],
+  jurisdiction: MobileJurisdiction,
+  contentPackVersion: string,
+): NextDrivePlanInput {
   const topics = [
     { topic: 'Right-of-way', mastery: 0 },
     { topic: 'Signs & signals', mastery: 0 },
     { topic: 'Safe speed', mastery: 0 },
   ];
   return {
+    jurisdiction,
+    contentPackVersion,
     weakTopics: topics,
     unfinishedMissions: [
       { title: 'Calm intersections', category: 'Judgment', minutes: 20 },

@@ -17,6 +17,8 @@ const REQUEST_WINDOW_MS = 60_000;
 const REQUEST_LIMIT = 10;
 
 const topLevelKeys = new Set([
+  "jurisdiction",
+  "contentPackVersion",
   "durationMinutes",
   "distanceMiles",
   "night",
@@ -56,6 +58,8 @@ export function allowDebriefRequest(clientId: string, now = Date.now()): boolean
 
 export function buildDebriefPrompt(input: DebriefInput): string {
   return JSON.stringify({
+    jurisdiction: input.jurisdiction,
+    contentPackVersion: input.contentPackVersion,
     drive: {
       durationMinutes: input.durationMinutes,
       distanceMiles: input.distanceMiles,
@@ -65,6 +69,10 @@ export function buildDebriefPrompt(input: DebriefInput): string {
     observedCoachEvents: input.events,
     weakKnowledgeTopics: input.weakTopics,
   });
+}
+
+function jurisdictionLabel(jurisdiction: DebriefInput["jurisdiction"]): string {
+  return jurisdiction === "US-CA" ? "California (US-CA)" : jurisdiction;
 }
 
 async function requestDebrief(input: DebriefInput) {
@@ -105,7 +113,7 @@ async function requestDebrief(input: DebriefInput) {
         {
           role: "system",
           content: [
-            "You are Coastwise, a calm California teen driving practice coach.",
+            `You are Coastwise, a calm teen driving practice coach for ${jurisdictionLabel(input.jurisdiction)}.`,
             "Create a concise post-drive debrief for a teen and supervising adult.",
             "Use only the supplied summary. Never claim to have watched video, observed road conditions, verified safe driving, or diagnosed a driver.",
             "Coach events are prompts the app delivered, not proof the driver made a mistake.",

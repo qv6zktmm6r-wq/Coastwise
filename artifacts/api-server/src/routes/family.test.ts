@@ -51,6 +51,12 @@ test("two initial revision-zero writes produce one save and one conflict", async
 
 test("server sanitizer strips local review, route, event, recording, and policy data", () => {
   const sanitizedState = {
+    profile: {
+      name: "Driver",
+      jurisdiction: "US-CA",
+      contentPackVersion: "2026-01",
+      policyAcknowledgements: [{ version: "secret-profile-policy" }],
+    },
     prompts: [],
     settings: { parentMode: false },
     sessions: [{
@@ -58,6 +64,7 @@ test("server sanitizer strips local review, route, event, recording, and policy 
       minutes: 20,
       night: false,
       notes: "Reviewed drive",
+      routeTitle: "Home to school",
       review: {
         id: "review-1",
         durationSeconds: 120,
@@ -70,10 +77,14 @@ test("server sanitizer strips local review, route, event, recording, and policy 
   };
 
   const accepted = sanitizeFamilySyncState(sanitizedState) as any;
-  assert.equal(accepted.sessions[0].notes, "Reviewed drive");
+  assert.equal(accepted.profile.jurisdiction, "US-CA");
+  assert.equal(accepted.profile.contentPackVersion, "2026-01");
+  assert.equal("notes" in accepted.sessions[0], false);
+  assert.equal("routeTitle" in accepted.sessions[0], false);
   assert.equal("review" in accepted.sessions[0], false);
   assert.equal("policyAcknowledgements" in accepted, false);
-  assert.doesNotMatch(JSON.stringify(accepted), /coordinates|events|review-1|secret-local-record/i);
+  assert.equal("policyAcknowledgements" in accepted.profile, false);
+  assert.doesNotMatch(JSON.stringify(accepted), /coordinates|events|review-1|secret-local-record|Reviewed drive|Home to school/i);
 });
 
 test("one account can concurrently join only one active family", async () => {

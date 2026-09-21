@@ -74,8 +74,8 @@ export default function LegalPage({ kind }: { kind: 'privacy' | 'terms' }) {
         </PolicySection>
       </> : <>
         <PolicySection title="Educational use only">
-          <p>Coastwise provides study questions, practice planning, progress tracking, and general driving guidance. It is not the California DMV, a licensing authority, a driving school, a licensed driving instructor, legal advice, or a guarantee that anyone will pass a test or drive safely.</p>
-          <p>The current California Driver’s Handbook, official DMV instructions, traffic laws, road signs, and directions from law enforcement take priority over Coastwise.</p>
+          <p>Coastwise provides study questions, practice planning, progress tracking, and general driving guidance. It is not a DMV, a licensing authority, a driving school, a licensed driving instructor, legal advice, or a guarantee that anyone will pass a test or drive safely.</p>
+          <p>The current official driver’s handbook for your jurisdiction, official instructions, traffic laws, road signs, and directions from law enforcement take priority over Coastwise.</p>
         </PolicySection>
         <PolicySection title="The supervising adult remains responsible">
           <p>A qualified, attentive supervising adult must be present whenever the law requires supervision. That adult—not Coastwise—must decide whether the driver, vehicle, route, weather, traffic, and conditions are safe.</p>
