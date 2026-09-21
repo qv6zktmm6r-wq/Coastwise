@@ -56,7 +56,8 @@ test('web beta surfaces local-data safeguards', () => {
 });
 
 test('web beta metadata describes Coastwise without starter copy', () => {
-  assert.match(documentSource, /<title>Coastwise — Teen Driver Coach<\/title>/);
+  assert.match(documentSource, /<title>Coastwise — Driving Practice Companion<\/title>/);
+  assert.doesNotMatch(documentSource, /Teen Driver Coach/i);
   assert.doesNotMatch(documentSource, /California Teen Driver Coach/i);
   assert.doesNotMatch(documentSource, /built on Replit|Update this description/i);
 });

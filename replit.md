@@ -1,6 +1,6 @@
 # Coastwise
 
-A calm co-pilot for teen permit study, supervised practice, and safer driving decisions across supported states.
+A calm co-pilot for learning, practice, and safer driving decisions across supported states.
 
 ## Run & Operate
 
