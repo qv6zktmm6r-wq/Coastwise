@@ -1,7 +1,7 @@
 {
-  "name": "Coastwise — California Teen Driver Coach",
+  "name": "Coastwise — A Calm Co-Pilot for Safer Driving Practice",
   "short_name": "Coastwise",
-  "description": "Prepare for the California permit test, build safer driving judgment, and track supervised practice.",
+  "description": "Practice driving decisions, build safer habits, and track progress across permit study and supervised drives.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",

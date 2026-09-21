@@ -30,10 +30,11 @@ test('approved source matrices contain no unresolved approval language', () => {
   }
 });
 
-test('California approval remains explicit when no accountable signoff exists', () => {
-  assert.equal(jurisdictions['US-CA'].sourceMatrixReview.status, 'pending');
+test('California approval records the accountable signoff', () => {
+  assert.equal(jurisdictions['US-CA'].sourceMatrixReview.status, 'approved');
   const path = repositoryPath(jurisdictions['US-CA'].sourceMatrixReview.recordPath);
   const matrix = readFileSync(path, 'utf8');
-  assert.match(matrix, /APPROVAL NOT RECORDED/i);
-  assert.match(matrix, /named accountable human approval/i);
+  assert.match(matrix, /Jorge Lozoya/i);
+  assert.match(matrix, /Program Manager/i);
+  assert.match(matrix, /approved `us-ca-2026\.09\.1` for release/i);
 });

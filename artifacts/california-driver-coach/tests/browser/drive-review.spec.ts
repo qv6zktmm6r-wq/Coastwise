@@ -79,9 +79,11 @@ test('generates an AI debrief from only the privacy-minimized review summary', a
 
   expect(requestBody).toBeTruthy();
   expect(Object.keys(requestBody!).sort()).toEqual([
+    'contentPackVersion',
     'distanceMiles',
     'durationMinutes',
     'events',
+    'jurisdiction',
     'night',
     'skills',
     'weakTopics',

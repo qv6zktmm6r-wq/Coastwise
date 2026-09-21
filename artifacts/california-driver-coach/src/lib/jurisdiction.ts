@@ -39,7 +39,7 @@ export const jurisdictions: Record<JurisdictionCode, Jurisdiction> = {
     permitHoldLabel: '6 month hold',
     educationLabel: '6 professional instruction hours separate',
     essentials: ['Permit held at least 6 months before the drive test.', '50 supervised practice hours, including 10 at night.', '6 hours of professional driver instruction.'],
-    sourceMatrixReview: { status: 'pending', reviewedAt: '2026-09-20', recordPath: 'docs/content-packs/california-source-matrix.md' },
+    sourceMatrixReview: { status: 'approved', reviewedAt: '2026-09-21', recordPath: 'docs/content-packs/california-source-matrix.md' },
   },
   'US-TX': {
     code: 'US-TX',

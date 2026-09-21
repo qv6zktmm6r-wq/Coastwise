@@ -1,12 +1,11 @@
 # California teen-driver content-pack source matrix
 
 **Pack:** `us-ca-2026.09.1` · **Jurisdiction:** `US-CA`  
-**Source review date:** 2026-09-20 · **Status:** APPROVAL NOT RECORDED
+**Source review date:** 2026-09-21 · **Status:** APPROVED
 
 This matrix records the official California DMV sources used by the existing
-pack. The repository contains no named accountable human approval record for
-California, so California must remain unavailable for staged enablement until
-that approval is added. The pack facts are not changed by this record.
+pack and the accountable release approval for its numerical and age-dependent
+requirements. The pack facts are not changed by this record.
 
 ## Official sources and drafting coverage
 
@@ -24,19 +23,18 @@ that approval is added. The pack facts are not changed by this record.
 - [x] The pack contains stable question identifiers, three answer options, and valid answer indexes.
 - [x] California terminology and the 50/10 practice, six-month permit, and six-hour instruction facts are represented in the registry and official source inventory.
 - [x] Sources are official California DMV or California Legislature pages.
-- [ ] Named accountable human approval is recorded in this repository.
+- [x] Named accountable human approval is recorded in this repository.
 
 ## Monitoring rules
 
 At each scheduled content review, re-fetch the handbook landing page and
 linked PDF, confirm the current Teen Driver Roadmap and Driver Education pages,
 check Vehicle Code §12814.6 for amendments, and record any source revision or
-effective-date change before a future pack release. Monitoring does not replace
-the missing approval record.
+effective-date change before a future pack release.
 
-## Approval gate
+## Human approval
 
-**Approval is not recorded.** No named accountable human reviewer or approval
-date for this California matrix was found in the existing repository. The
-California registry therefore remains pending until a qualified reviewer,
-qualification, approval date, and attestation are recorded here.
+Accountable reviewer: Jorge Lozoya. Qualification: Program Manager. Approval
+date: 2026-09-21. Jorge Lozoya attests that he reviewed this source matrix,
+verified every numerical and age-dependent requirement against the cited
+official sources, and approved `us-ca-2026.09.1` for release.

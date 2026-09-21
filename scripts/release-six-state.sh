@@ -12,7 +12,7 @@ echo "== Web unit/content tests =="
 pnpm --dir artifacts/california-driver-coach run test
 
 echo "== Web production build =="
-pnpm --dir artifacts/california-driver-coach run build
+PORT=4174 BASE_PATH=/california-driver-coach/ pnpm --dir artifacts/california-driver-coach run build
 
 echo "== Browser regression (Chromium, Firefox, WebKit) =="
 pnpm --dir artifacts/california-driver-coach run test:browser

@@ -34,7 +34,7 @@
 - [x] Human reviewer compared the 2023 handbook with newer FLHSMV material or amendments available at release.
 - [x] Project typecheck completed with the shared jurisdiction registry supporting `US-FL`.
 
-## Ongoing monitoring (not release blockers for the facts represented here)
+## Ongoing monitoring
 
 The FLHSMV pages generally expose no revision or effective date. The handbook is explicitly 2023, while the corrected pack was reviewed on 2026-09-21. Monitor the handbook landing page, statutory edition, school-bus wording, wireless-device exceptions, DUI thresholds/penalties, insurance exemptions, vehicle-equipment requirements, and course-provider procedures for future amendments. The pack intentionally does not expand beyond the verified summaries.
 
@@ -42,4 +42,4 @@ The FLHSMV pages generally expose no revision or effective date. The handbook is
 
 **Official-source URL/status validation and independent structural/content review: COMPLETE for the corrected content (2026-09-21).** The review confirmed that the DETS correction is tied to the current FLHSMV DETS page and that monitoring items are explicitly separated above.
 
-**Human legal/editorial source-matrix sign-off: AWAITING ACCOUNTABLE RE-APPROVAL.** The prior approval covered the superseded `us-fl-2026.09.1` wording and is not being reused for the material DETS correction. No new approval is claimed here.
+**Human legal/editorial source-matrix sign-off: APPROVED.** Accountable reviewer: Jorge Lozoya. Qualification: Program Manager. Approval date: 2026-09-21. Jorge Lozoya attests that he reviewed this source matrix, verified every numerical and age-dependent requirement against the cited official sources, and approved the corrected `us-fl-2026.09.2` pack for release.
