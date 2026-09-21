@@ -558,6 +558,8 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const [tracking, setTracking] = useState(false);
   const [paused, setPaused] = useState(false);
   const [trackingError, setTrackingError] = useState('');
+  const [gpsStatus, setGpsStatus] = useState<'idle' | 'acquiring' | 'live' | 'error'>('idle');
+  const [audioStatus, setAudioStatus] = useState<'ready' | 'speaking' | 'unavailable'>('ready');
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [distanceMiles, setDistanceMiles] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -590,7 +592,10 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const pausedRef = useRef(false);
   const currentPositionRef = useRef<RouteCoordinate | null>(null);
   const currentSpeedRef = useRef<number | null>(null);
+  const previousSpeedSample = useRef<{ metersPerSecond: number; at: number } | null>(null);
+  const lastSafetyWarningAt = useRef(0);
   const cameraPreview = useRef<HTMLVideoElement | null>(null);
+  const activeRecordingPanel = useRef<HTMLElement | null>(null);
   const reviewVideo = useRef<HTMLVideoElement | null>(null);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const videoChunks = useRef<Blob[]>([]);
@@ -685,19 +690,37 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     });
     return () => window.cancelAnimationFrame(frame);
   }, [showPreflight]);
+  useEffect(() => {
+    if (!tracking) return;
+    const frame = window.requestAnimationFrame(() => {
+      activeRecordingPanel.current?.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        block: 'start',
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [tracking]);
   const speak = (message: string) => {
     setCurrentCue(message);
-    if (!('speechSynthesis' in window)) return;
+    if (!('speechSynthesis' in window)) {
+      setAudioStatus('unavailable');
+      return;
+    }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(message);
     utterance.rate = 0.92;
+    utterance.onstart = () => setAudioStatus('speaking');
+    utterance.onend = () => setAudioStatus('ready');
+    utterance.onerror = () => setAudioStatus('unavailable');
     window.speechSynthesis.speak(utterance);
   };
   const playCoach = (src: string) => {
     coachAudio.current?.pause();
     const audio = new Audio(src);
     coachAudio.current = audio;
-    void audio.play().catch(() => undefined);
+    audio.addEventListener('playing', () => setAudioStatus('speaking'), { once: true });
+    audio.addEventListener('ended', () => setAudioStatus('ready'), { once: true });
+    void audio.play().catch(() => setAudioStatus('unavailable'));
   };
   const recordCoachEvent = ({ kind, title, detail, distanceToNext = null, stepIndex = null }: { kind: CoachEventKind; title: string; detail: string; distanceToNext?: number | null; stepIndex?: number | null }) => {
     const clockStart = recordingClockStartedAt.current;
@@ -901,6 +924,71 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       offRouteSince.current = null;
     }
   };
+  const handlePositionUpdate = (position: GeolocationPosition) => {
+    if (pausedRef.current) return;
+    const receivedAt = Date.now();
+    const reportedAt = Number.isFinite(position.timestamp) && position.timestamp > 0 ? position.timestamp : receivedAt;
+    const previous = lastPosition.current;
+    const previousAt = lastPositionAt.current;
+    const elapsed = previousAt === null ? 0 : (reportedAt - previousAt) / 1000;
+    const movedMeters = previous
+      ? distanceBetween(previous.coords.latitude, previous.coords.longitude, position.coords.latitude, position.coords.longitude)
+      : 0;
+    if (previous && elapsed > 0.4 && elapsed < 30 && movedMeters < 160) {
+      setDistanceMiles((value) => value + movedMeters / 1609.344);
+    }
+    const calculatedSpeed = previous && elapsed > 0.4 && elapsed < 15
+      ? movedMeters / elapsed
+      : Number.NaN;
+    const reportedSpeed = position.coords.speed;
+    const validReportedSpeed = reportedSpeed !== null && Number.isFinite(reportedSpeed) && reportedSpeed >= 0
+      ? reportedSpeed
+      : Number.NaN;
+    // Some mobile browsers report a stale zero while positions continue changing.
+    const metersPerSecond = validReportedSpeed > 0.3
+      ? validReportedSpeed
+      : Number.isFinite(calculatedSpeed)
+        ? calculatedSpeed
+        : Number.isFinite(validReportedSpeed)
+          ? validReportedSpeed
+          : 0;
+    const plausibleSpeed = metersPerSecond >= 0 && metersPerSecond < 60 ? metersPerSecond : 0;
+    const speedMph = plausibleSpeed * 2.236936;
+    const previousSample = previousSpeedSample.current;
+    if (
+      driveMode === 'free'
+      && previousSample
+      && reportedAt > previousSample.at
+      && previousSample.metersPerSecond >= 6
+    ) {
+      const sampleSeconds = (reportedAt - previousSample.at) / 1000;
+      const deceleration = sampleSeconds > 0.4 && sampleSeconds < 5
+        ? (plausibleSpeed - previousSample.metersPerSecond) / sampleSeconds
+        : 0;
+      if (deceleration <= -3.8 && receivedAt - lastSafetyWarningAt.current >= 30000) {
+        lastSafetyWarningAt.current = receivedAt;
+        speak('That was a hard stop. Look farther ahead and leave more space so you can brake smoothly.');
+        recordCoachEvent({
+          kind: 'safety',
+          title: 'Hard braking detected',
+          detail: 'Look farther ahead and leave more space for a smoother stop.',
+        });
+      }
+    }
+    previousSpeedSample.current = { metersPerSecond: plausibleSpeed, at: reportedAt };
+    currentSpeedRef.current = speedMph;
+    setCurrentSpeed(speedMph);
+    setGpsStatus('live');
+    updateRouteProgress(position.coords.latitude, position.coords.longitude, plausibleSpeed);
+    lastPosition.current = position;
+    lastPositionAt.current = reportedAt;
+  };
+  const handleGpsError = (message: string) => {
+    setGpsStatus('error');
+    setTrackingError(message);
+    if (watchId.current !== null) navigator.geolocation.clearWatch(watchId.current);
+    watchId.current = null;
+  };
   const stopTracking = () => {
     if (watchId.current !== null) navigator.geolocation.clearWatch(watchId.current);
     watchId.current = null;
@@ -935,6 +1023,8 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     recordingClockStartedAt.current = null;
     setCurrentSpeed(0);
     currentSpeedRef.current = null;
+    previousSpeedSample.current = null;
+    setGpsStatus('idle');
     setTracking(false);
     setPaused(false);
     pausedRef.current = false;
@@ -948,6 +1038,8 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     setElapsedSeconds(0);
     lastPosition.current = null;
     lastPositionAt.current = null;
+    previousSpeedSample.current = null;
+    lastSafetyWarningAt.current = 0;
     coachEventsRef.current = [];
     setCoachEvents([]);
     setSelectedEventId(null);
@@ -963,6 +1055,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     preparedStepRef.current = -1;
     finalStepRef.current = -1;
     setTracking(true);
+    setGpsStatus(navigator.geolocation ? 'acquiring' : 'error');
     playCoach(coachVoice.started);
     speak(driveMode === 'free'
       ? 'Free drive started. Follow posted signs, keep a safe following distance, and let your supervising passenger handle the screen.'
@@ -973,31 +1066,11 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       detail: `${driveMode === 'free' ? 'Free-drive coaching' : 'Route coaching'} is active without video recording.`,
     });
     if (navigator.geolocation) {
-      watchId.current = navigator.geolocation.watchPosition((position) => {
-        if (pausedRef.current) return;
-        const now = position.timestamp || Date.now();
-        const previous = lastPosition.current;
-        const previousAt = lastPositionAt.current;
-        if (previous && previousAt) {
-          const addedMiles = distanceBetween(previous.coords.latitude, previous.coords.longitude, position.coords.latitude, position.coords.longitude) / 1609.344;
-          if (addedMiles < 0.1) setDistanceMiles((value) => value + addedMiles);
-        }
-        const speedMetersPerSecond = position.coords.speed;
-        const calculatedSpeed = previous && previousAt
-          ? distanceBetween(previous.coords.latitude, previous.coords.longitude, position.coords.latitude, position.coords.longitude) / ((now - previousAt) / 1000)
-          : 0;
-        const metersPerSecond = speedMetersPerSecond !== null && speedMetersPerSecond >= 0 ? speedMetersPerSecond : calculatedSpeed;
-        const speedMph = Number.isFinite(metersPerSecond) ? metersPerSecond * 2.236936 : 0;
-        currentSpeedRef.current = Number.isFinite(metersPerSecond) ? speedMph : null;
-        setCurrentSpeed(speedMph);
-        updateRouteProgress(position.coords.latitude, position.coords.longitude, Number.isFinite(metersPerSecond) ? metersPerSecond : 0);
-        lastPosition.current = position;
-        lastPositionAt.current = now;
-      }, () => {
-        setTrackingError('Route coaching started, but live GPS is unavailable. Check location permission before driving.');
-        if (watchId.current !== null) navigator.geolocation.clearWatch(watchId.current);
-        watchId.current = null;
-      }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 });
+      watchId.current = navigator.geolocation.watchPosition(
+        handlePositionUpdate,
+        () => handleGpsError('Coaching started, but live GPS is unavailable. Check location permission before driving.'),
+        { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 },
+      );
     }
   };
   const startTracking = async () => {
@@ -1032,6 +1105,8 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     setElapsedSeconds(0);
     lastPosition.current = null;
     lastPositionAt.current = null;
+    previousSpeedSample.current = null;
+    lastSafetyWarningAt.current = 0;
     coachEventsRef.current = [];
     setCoachEvents([]);
     setSelectedEventId(null);
@@ -1095,6 +1170,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       preparedStepRef.current = -1;
       finalStepRef.current = -1;
       setTracking(true);
+      setGpsStatus(navigator.geolocation ? 'acquiring' : 'error');
       playCoach(coachVoice.started);
       speak(driveMode === 'free'
         ? 'Free drive started. Follow posted signs, keep a safe following distance, and let your supervising passenger handle the screen.'
@@ -1105,32 +1181,13 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
         detail: `Dashcam recording and ${driveMode === 'free' ? 'free-drive coaching' : 'route coaching'} are active.`,
       });
       if (navigator.geolocation) {
-        watchId.current = navigator.geolocation.watchPosition((position) => {
-          if (pausedRef.current) return;
-          const now = position.timestamp || Date.now();
-          const previous = lastPosition.current;
-          const previousAt = lastPositionAt.current;
-          if (previous && previousAt) {
-            const addedMiles = distanceBetween(previous.coords.latitude, previous.coords.longitude, position.coords.latitude, position.coords.longitude) / 1609.344;
-            if (addedMiles < 0.1) setDistanceMiles((value) => value + addedMiles);
-          }
-          const speedMetersPerSecond = position.coords.speed;
-          const calculatedSpeed = previous && previousAt
-            ? distanceBetween(previous.coords.latitude, previous.coords.longitude, position.coords.latitude, position.coords.longitude) / ((now - previousAt) / 1000)
-            : 0;
-          const metersPerSecond = speedMetersPerSecond !== null && speedMetersPerSecond >= 0 ? speedMetersPerSecond : calculatedSpeed;
-          const speedMph = Number.isFinite(metersPerSecond) ? metersPerSecond * 2.236936 : 0;
-          currentSpeedRef.current = Number.isFinite(metersPerSecond) ? speedMph : null;
-          setCurrentSpeed(speedMph);
-          updateRouteProgress(position.coords.latitude, position.coords.longitude, Number.isFinite(metersPerSecond) ? metersPerSecond : 0);
-          lastPosition.current = position;
-          lastPositionAt.current = now;
-        }, () => {
-          setTrackingError('The road camera is recording, but GPS is unavailable. Check location permission for speed and distance.');
-          if (watchId.current !== null) navigator.geolocation.clearWatch(watchId.current);
-          watchId.current = null;
-        }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 });
+        watchId.current = navigator.geolocation.watchPosition(
+          handlePositionUpdate,
+          () => handleGpsError('The road camera is recording, but GPS is unavailable. Check location permission for speed and distance.'),
+          { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 },
+        );
       } else {
+        setGpsStatus('error');
         setTrackingError('The road camera is recording, but GPS tracking is not available in this browser.');
       }
     } catch (error) {
@@ -1158,17 +1215,28 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     return () => window.clearInterval(timer);
   }, [tracking, startedAt]);
   useEffect(() => {
-    if (!tracking || elapsedSeconds === 0 || elapsedSeconds % 60 !== 0) return;
-    const isDistanceCue = cueIndex % 2 === 0;
-    playCoach(isDistanceCue ? coachVoice.distance : coachVoice.scan);
-    speak(isDistanceCue ? 'Leave enough space to stop smoothly.' : 'Scan left, right, and left again before moving.');
+    if (!tracking || paused || elapsedSeconds === 0 || elapsedSeconds % 45 !== 0) return;
+    const freeDriveCues = [
+      { title: 'Steady driving encouragement', detail: 'Nice work. Keep your eyes moving and your inputs smooth.' },
+      { title: 'Following distance reminder', detail: 'Keep at least three seconds of space from the vehicle ahead.' },
+      { title: 'Mirror scan reminder', detail: 'Check your mirrors, then bring your eyes back well ahead.' },
+      { title: 'Smooth control encouragement', detail: 'Good. Stay relaxed, hold a steady speed, and keep scanning.' },
+    ];
+    const routeCues = [
+      { title: 'Following distance reminder', detail: 'Leave enough space to stop smoothly.' },
+      { title: 'Intersection scan reminder', detail: 'Scan left, right, and left again before moving.' },
+    ];
+    const cues = driveMode === 'free' ? freeDriveCues : routeCues;
+    const cue = cues[cueIndex % cues.length];
+    playCoach(cue.title.includes('distance') ? coachVoice.distance : coachVoice.scan);
+    speak(cue.detail);
     recordCoachEvent({
       kind: 'safety',
-      title: isDistanceCue ? 'Following distance reminder' : 'Intersection scan reminder',
-      detail: isDistanceCue ? 'Leave enough space to stop smoothly.' : 'Scan left, right, and left again before moving.',
+      title: cue.title,
+      detail: cue.detail,
     });
     setCueIndex((value) => value + 1);
-  }, [elapsedSeconds, tracking]);
+  }, [elapsedSeconds, paused, tracking]);
   useEffect(() => () => {
     if (watchId.current !== null && navigator.geolocation) navigator.geolocation.clearWatch(watchId.current);
     cameraStream?.getTracks().forEach((track) => track.stop());
@@ -1362,7 +1430,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       ].map(([key, label]) => <label key={key} className="flex cursor-pointer items-start gap-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 text-sm font-semibold"><input type="checkbox" checked={preflightChecks[key as keyof typeof preflightChecks]} onChange={(event) => setPreflightChecks({ ...preflightChecks, [key]: event.target.checked })} className="mt-0.5 h-5 w-5 shrink-0 accent-[hsl(var(--primary))]" />{label}</label>)}</div>
        <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><ActionButton onClick={() => setShowPreflight(false)} variant="quiet" testId="button-cancel-preflight">Cancel</ActionButton><ActionButton onClick={() => void startTracking()} disabled={!preflightReady} testId="button-confirm-preflight"><Video size={16} />Start dashcam & coaching</ActionButton></div>
     </section>}
-    <section className={`mb-6 overflow-hidden rounded-2xl border ${tracking ? 'border-[hsl(var(--accent)/.45)] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'} p-5 md:p-6`}>
+    <section ref={activeRecordingPanel} data-testid="active-recording-panel" className={`mb-6 scroll-mt-4 overflow-hidden rounded-2xl border ${tracking ? 'border-[hsl(var(--accent)/.45)] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'} p-5 md:p-6`}>
       <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
         <div className="flex items-start gap-3">
           <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${tracking ? 'bg-[hsl(var(--sidebar-primary))] text-[hsl(var(--sidebar-primary-foreground))]' : 'bg-[hsl(var(--secondary))] text-[hsl(var(--primary))]'}`}><Camera size={21} /></div>
@@ -1372,7 +1440,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       </div>
       {trackingError && <div className="mt-4 rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert">{trackingError}</div>}
       {storageEstimate && storageEstimate.available < lowRecordingStorageBytes && <div className="mt-4 flex gap-3 rounded-xl border border-[hsl(var(--warning)/.4)] bg-[hsl(var(--warning)/.1)] p-4 text-xs leading-5" role="status" data-testid="drive-storage-warning"><HardDrive size={17} className="mt-0.5 shrink-0 text-[hsl(var(--warning-foreground))]" /><div><strong>{formatStorageBytes(storageEstimate.available)} available for this browser.</strong> Download or delete older drive recordings before starting another long recording. Below {formatStorageBytes(criticalRecordingStorageBytes)}, Coastwise continues without video.</div></div>}
-       {tracking && <div className="mt-6 grid gap-5 border-t border-white/10 pt-5 lg:grid-cols-[1.1fr_.9fr]"><div className="relative overflow-hidden rounded-2xl bg-black/40"><video ref={cameraPreview} autoPlay muted playsInline className="aspect-video w-full object-cover" /><div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/65 px-3 py-1.5 font-mono-ui text-[10px] uppercase tracking-[.12em] text-white"><span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />Road camera</div></div><div><div className="grid grid-cols-2 gap-4"><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Current speed</div><div className="mt-2 font-display text-3xl">{currentSpeed.toFixed(0)} <span className="font-sans text-sm font-bold text-white/55">mph</span></div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Miles tracked</div><div className="mt-2 font-display text-3xl">{distanceMiles.toFixed(1)} <span className="font-sans text-sm font-bold text-white/55">mi</span></div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Drive time</div><div className="mt-2 font-display text-3xl">{formatElapsed(elapsedSeconds)}</div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Average speed</div><div className="mt-2 font-display text-3xl">{averageSpeed.toFixed(0)} <span className="font-sans text-sm font-bold text-white/55">mph</span></div></div></div><div className="mt-5 flex items-start gap-2 rounded-xl border border-white/15 bg-white/8 px-4 py-3 text-xs text-white"><Volume2 size={16} className="mt-0.5 shrink-0" /><span><span className="block font-bold">{paused ? 'Coaching paused' : 'Natural coach is speaking automatically'}</span><span className="mt-1 block text-white/70" data-testid="text-current-voice-cue">{currentCue}</span></span></div></div></div>}
+       {tracking && <div className="mt-6 border-t border-white/10 pt-5"><div className="relative mx-auto min-h-[52vh] max-h-[72vh] w-full overflow-hidden rounded-2xl bg-black/40"><video ref={cameraPreview} autoPlay muted playsInline className="h-full min-h-[52vh] max-h-[72vh] w-full object-cover" /><div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/65 px-3 py-1.5 font-mono-ui text-[10px] uppercase tracking-[.12em] text-white"><span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />Road camera</div></div><div className="mt-5 grid gap-4 sm:grid-cols-5"><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Current speed</div><div className="mt-2 font-display text-3xl">{gpsStatus === 'live' ? currentSpeed.toFixed(0) : '—'} <span className="font-sans text-sm font-bold text-white/55">mph</span></div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Miles tracked</div><div className="mt-2 font-display text-3xl">{distanceMiles.toFixed(1)} <span className="font-sans text-sm font-bold text-white/55">mi</span></div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Drive time</div><div className="mt-2 font-display text-3xl">{formatElapsed(elapsedSeconds)}</div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Average speed</div><div className="mt-2 font-display text-3xl">{averageSpeed.toFixed(0)} <span className="font-sans text-sm font-bold text-white/55">mph</span></div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">GPS</div><div className="mt-2 text-sm font-extrabold" data-testid="text-gps-status">{gpsStatus === 'live' ? 'Live signal' : gpsStatus === 'acquiring' ? 'Finding signal…' : 'Unavailable'}</div></div></div><div className="mt-5 flex items-start gap-2 rounded-xl border border-white/15 bg-white/8 px-4 py-3 text-xs text-white"><Volume2 size={16} className="mt-0.5 shrink-0" /><span><span className="block font-bold">{paused ? 'Coaching paused' : audioStatus === 'unavailable' ? 'Spoken coaching is unavailable — follow the visible cue' : 'Spoken coaching is active'}</span><span className="mt-1 block text-white/70" data-testid="text-current-voice-cue">{currentCue}</span></span></div></div>}
     </section>
     {tracking && plannedRoute && <section className="mb-6 grid gap-5 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 md:p-6 lg:grid-cols-[.7fr_1.3fr]"><div className="flex flex-col justify-center"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Next instruction · automatic</div><h2 className="mt-3 font-display text-3xl">{plannedRoute.steps[Math.min(activeStep, plannedRoute.steps.length - 1)]?.instruction ?? 'Continue safely'}</h2><div className="mt-4 font-mono-ui text-sm font-medium text-[hsl(var(--primary))]">{distanceToNext > 0 ? `${distanceToNext * 3.28084 >= 500 ? Math.round(distanceToNext * 3.28084 / 50) * 50 : Math.round(distanceToNext * 3.28084)} feet` : 'Acquiring GPS position'}</div><p className="mt-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">No taps are needed. Coastwise prepares the driver, announces the maneuver, advances to the next step, and calmly recalculates after a missed turn.</p></div><RouteMap route={plannedRoute} currentPosition={currentPosition} /></section>}
      {reviewError && <div className="mb-6 rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert">{reviewError}</div>}
