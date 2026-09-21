@@ -32,8 +32,17 @@ test('next-drive plan strips identity, notes, answers, video, routes, and coordi
       },
     }],
   };
-  const input = buildNextDrivePlanInput(state);
+  const input = buildNextDrivePlanInput({
+    ...state,
+    profile: {
+      ...state.profile,
+      jurisdiction: 'US-IL',
+      contentPackVersion: 'us-il-2026.09.1',
+    },
+  });
   assert.deepEqual(input.unfinishedMissions, [{ title: 'Turns', category: 'Control', minutes: 20 }]);
   assert.deepEqual(input.recentDrives[0]?.skills, ['turns']);
+  assert.equal(input.jurisdiction, 'US-IL');
+  assert.equal(input.contentPackVersion, 'us-il-2026.09.1');
   assert.doesNotMatch(JSON.stringify(input), /private|notes|answer|video|route|coordinate|latitude|longitude|profile|identity|detail/i);
 });

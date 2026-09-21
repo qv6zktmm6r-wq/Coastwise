@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-20T00:00:00.000Z",
+  "generatedAt": "2026-09-21T00:00:00.000Z",
   "packs": [
     {
       "jurisdiction": "US-CA",
@@ -22,12 +22,27 @@
     },
     {
       "jurisdiction": "US-FL",
-      "version": "us-fl-2026.09.1",
-      "sourceRevision": "Florida Class E Driver License Handbook 2023 with current official FLHSMV and statute sources",
-      "effectiveDate": "2026-09-21",
+      "version": "us-fl-2026.09.2",
+      "sourceRevision": "Florida Class E Driver’s License Handbook 2023 with current official FLHSMV and statute sources; DETS rule checked 2026-09-21",
+      "effectiveDate": "2025-08-01",
       "reviewedAt": "2026-09-21",
       "sourceUrl": "https://www.flhsmv.gov/pdf/handbooks/englishdriverhandbook.pdf",
-      "notices": []
+      "notices": [
+        {
+          "id": "us-fl-dets-under-18-2025-08-01",
+          "jurisdiction": "US-FL",
+          "packVersion": "us-fl-2026.09.2",
+          "level": "material",
+          "effectiveDate": "2025-08-01",
+          "title": "Florida under-18 education path updated",
+          "summary": "For an under-18 first-time Florida applicant, FLHSMV generally requires the six-hour DETS course. TLSAE remains the over-18 path, with a limited pre-August 1, 2025 certificate exception and listed school-program alternatives.",
+          "affectedTopics": [
+            "Licensing & permits",
+            "Testing process"
+          ],
+          "sourceUrl": "https://www.flhsmv.gov/driver-licenses-id-cards/education-courses/driver-improvement-schools/driver-education-traffic-safety-dets"
+        }
+      ]
     },
     {
       "jurisdiction": "US-NY",

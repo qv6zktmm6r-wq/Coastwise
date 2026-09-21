@@ -2,11 +2,21 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { sanitizeForSync, mergeStates } from './sync';
 import { initialState, parseStoredState, type AppState } from './state';
+import { getCurrentContentPackVersion } from './jurisdiction';
+
+const syncBaseState: AppState = {
+  ...initialState,
+  profile: {
+    ...initialState.profile,
+    jurisdiction: 'US-TX',
+    contentPackVersion: getCurrentContentPackVersion('US-TX'),
+  },
+};
 
 describe('sync helpers', () => {
   it('sanitizes drive logs by removing the entire local review', () => {
     const state: AppState = {
-      ...initialState,
+      ...syncBaseState,
       sessions: [
         {
           id: 'session-1',
@@ -35,7 +45,7 @@ describe('sync helpers', () => {
 
   it('syncs only the explicit AppState contract and excludes local policy records', () => {
     const unsafeState = {
-      ...initialState,
+      ...syncBaseState,
       policyAcknowledgements: [{ version: 'local-only' }],
       sessions: [{
         id: 'session-1',
@@ -61,7 +71,7 @@ describe('sync helpers', () => {
 
   it('merges a cloud drive summary without replacing the local review', () => {
     const localState: AppState = {
-      ...initialState,
+      ...syncBaseState,
       sessions: [
         {
           id: 'session-1',
@@ -82,7 +92,7 @@ describe('sync helpers', () => {
     };
 
     const incomingState: AppState = {
-      ...initialState,
+      ...syncBaseState,
       sessions: [
         {
           id: 'session-1',
@@ -101,11 +111,11 @@ describe('sync helpers', () => {
 
   it('merges missions successfully', () => {
     const localState: AppState = {
-      ...initialState,
+      ...syncBaseState,
       missions: [{ title: 'Mission 1', detail: '', category: 'Control', minutes: 25, completed: false }],
     };
     const incomingState: AppState = {
-      ...initialState,
+      ...syncBaseState,
       missions: [{ title: 'Mission 1', detail: '', category: 'Control', minutes: 25, completed: true }],
     };
 
@@ -115,19 +125,19 @@ describe('sync helpers', () => {
 
   it('preserves separate drive logs with otherwise identical details', () => {
     const localState: AppState = {
-      ...initialState,
+      ...syncBaseState,
       sessions: [
         { id: 'session-1', date: '2026-09-17', minutes: 30, night: false, notes: 'Practice drive' },
         { id: 'session-2', date: '2026-09-17', minutes: 30, night: false, notes: 'Practice drive' },
       ],
     };
-    const merged = mergeStates(localState, { ...initialState, sessions: [] } as any);
+    const merged = mergeStates(localState, { ...syncBaseState, sessions: [] } as any);
     assert.deepEqual(merged.sessions.map((session) => session.id).sort(), ['session-1', 'session-2']);
   });
 
   it('assigns distinct stable IDs when migrating otherwise identical legacy drives', () => {
     const legacy = {
-      ...initialState,
+      ...syncBaseState,
       sessions: [
         { date: '2026-09-17', minutes: 30, night: false, notes: 'Practice drive' },
         { date: '2026-09-17', minutes: 30, night: false, notes: 'Practice drive' },
@@ -141,14 +151,53 @@ describe('sync helpers', () => {
 
   it('preserves every ID-less drive from a legacy cloud document', () => {
     const cloudState = {
-      ...initialState,
+      ...syncBaseState,
       sessions: [
         { date: '2026-09-17', minutes: 30, night: false, notes: 'Practice drive' },
         { date: '2026-09-17', minutes: 30, night: false, notes: 'Practice drive' },
       ],
     };
-    const merged = mergeStates({ ...initialState, sessions: [] }, cloudState as any);
+    const merged = mergeStates({ ...syncBaseState, sessions: [] }, cloudState as any);
     assert.equal(merged.sessions.length, 2);
     assert.equal(new Set(merged.sessions.map((session) => session.id)).size, 2);
+  });
+
+  it('rejects a family state whose jurisdiction and pack version do not match', () => {
+    const unsafe = {
+      ...initialState,
+      profile: {
+        ...initialState.profile,
+        jurisdiction: 'US-NY' as const,
+        contentPackVersion: getCurrentContentPackVersion('US-CA'),
+      },
+      scenarioAnswers: { 'US-NY:us-ny-2026.09.1:ny-scenario-001': 0 },
+    };
+    const sanitized = sanitizeForSync(unsafe);
+    assert.equal((sanitized.profile as Record<string, unknown>).jurisdiction, 'US-NY');
+    assert.equal((sanitized.profile as Record<string, unknown>).contentPackVersion, getCurrentContentPackVersion('US-CA'));
+    assert.deepEqual(sanitized.scenarioAnswers, {});
+    assert.equal(mergeStates(initialState, sanitized as any), initialState);
+  });
+
+  it('keeps scenario answers scoped to the incoming exact jurisdiction and version', () => {
+    const local = {
+      ...initialState,
+      profile: {
+        ...initialState.profile,
+        jurisdiction: 'US-NY' as const,
+        contentPackVersion: getCurrentContentPackVersion('US-NY'),
+      },
+      scenarioAnswers: { 'US-NY:us-ny-2026.09.1:ny-scenario-001': 1 },
+    };
+    const incoming = {
+      ...local,
+      scenarioAnswers: {
+        'US-NY:us-ny-2026.09.1:ny-scenario-001': 2,
+        'US-CA:us-ca-2026.09.1:ca-scenario-001': 0,
+      },
+    };
+    const merged = mergeStates(local, incoming as any);
+    assert.equal(merged.scenarioAnswers['US-NY:us-ny-2026.09.1:ny-scenario-001'], 2);
+    assert.equal(merged.scenarioAnswers['US-CA:us-ca-2026.09.1:ca-scenario-001'], undefined);
   });
 });

@@ -21,9 +21,16 @@
 - [x] Permit age, 21+ supervision, 50 hours/10 nighttime hours, nine-month permit duration, restrictions, testing, documentation, and representative Illinois road rules are represented.
 - [x] Every question includes an official citation URL, source revision/effective metadata, review date, and pack version.
 - [x] The pack uses exact terms such as “instruction permit,” “initial licensing phase,” “written examination,” and “driving examination.”
-- [x] Human legal/editorial reviewer independently verifies every GDL exception, restriction, and road-rule paraphrase against the 2026 edition.
-- [x] Human reviewer confirms the Secretary of State URLs, document list, and current revision/effective status at release.
-- [x] Human reviewer confirms that the 2026 Rules of the Road PDF remains the applicable edition and checks later amendments.
+- [x] Human legal/editorial reviewer independently verified every GDL exception, restriction, and road-rule paraphrase against the 2026 edition.
+- [x] Human reviewer confirmed the Secretary of State URLs, document list, and current revision/effective status for this pack.
+- [x] Human reviewer confirmed that the 2026 Rules of the Road PDF is the applicable edition and checked later amendments.
+
+## Monitoring rules
+
+At each scheduled content review, re-fetch the Secretary of State pages and
+PDF, record any new revision/effective metadata, and compare later amendments
+against the GDL restrictions, document list, and road-rule claims before a
+future pack release.
 
 ## Human approval
 Accountable reviewer: Jorge Lozoya. Qualification: Licensed driving instructor. Approval date: 2026-09-21. Jorge Lozoya attests that he reviewed this source matrix and verified every numerical and age-dependent requirement against the cited official sources.

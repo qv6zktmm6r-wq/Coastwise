@@ -3,7 +3,7 @@ import type { ActiveMobileDrive, MobileDrive, MobileJurisdiction, MobileState } 
 export const DEFAULT_JURISDICTION = 'US-CA';
 export const CURRENT_CALIFORNIA_CONTENT_PACK_VERSION = 'us-ca-2026.09.1';
 export const CURRENT_TEXAS_CONTENT_PACK_VERSION = 'us-tx-2026.09.1';
-export const CURRENT_FLORIDA_CONTENT_PACK_VERSION = 'us-fl-2026.09.1';
+export const CURRENT_FLORIDA_CONTENT_PACK_VERSION = 'us-fl-2026.09.2';
 export const CURRENT_NEW_YORK_CONTENT_PACK_VERSION = 'us-ny-2026.09.1';
 export const CURRENT_OHIO_CONTENT_PACK_VERSION = 'us-oh-2026.09.1';
 export const CURRENT_ILLINOIS_CONTENT_PACK_VERSION = 'us-il-2026.09.1';

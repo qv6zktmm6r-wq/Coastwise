@@ -81,7 +81,7 @@ function jurisdictionLabel(jurisdiction: DebriefInput["jurisdiction"]): string {
     "US-IL": "Illinois (US-IL)",
   }[jurisdiction];
 }
-const approvedPackVersions: Record<string, string> = { "US-CA": "us-ca-2026.09.1", "US-TX": "us-tx-2026.09.1", "US-FL": "us-fl-2026.09.1", "US-NY": "us-ny-2026.09.1", "US-OH": "us-oh-2026.09.1", "US-IL": "us-il-2026.09.1" };
+export const approvedPackVersions: Record<string, string> = { "US-CA": "us-ca-2026.09.1", "US-TX": "us-tx-2026.09.1", "US-FL": "us-fl-2026.09.2", "US-NY": "us-ny-2026.09.1", "US-OH": "us-oh-2026.09.1", "US-IL": "us-il-2026.09.1" };
 
 async function requestDebrief(input: DebriefInput) {
   const baseUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;

@@ -28,6 +28,34 @@ test('accepts all bundled versioned jurisdiction manifests', () => {
   assert.equal(compareContentPackVersions('us-ca-2026.08.9', 'us-ca-2026.09.1'), -1);
 });
 
+test('publishes the Florida DETS material notice under the corrected pack version', () => {
+  const florida = bundledContentManifest.packs.find((pack) => pack.jurisdiction === 'US-FL');
+  assert.ok(florida);
+  assert.equal(florida.version, 'us-fl-2026.09.2');
+  assert.equal(florida.notices[0]?.level, 'material');
+  assert.match(florida.notices[0]?.sourceUrl ?? '', /driver-education-traffic-safety-dets/);
+  assert.match(florida.notices[0]?.summary ?? '', /under-18.*DETS/i);
+});
+
+test('does not accept a superseded Florida manifest pack', async () => {
+  const stale = structuredClone(bundledContentManifest);
+  const florida = stale.packs.find((pack) => pack.jurisdiction === 'US-FL');
+  assert.ok(florida);
+  florida.version = 'us-fl-2026.09.1';
+  florida.notices = [];
+  const storage = memoryStorage();
+  const status = await checkContentManifest({
+    jurisdiction: 'US-FL',
+    storage,
+    fetcher: async () => new Response(JSON.stringify(stale), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }),
+  });
+  assert.equal(status.kind, 'unavailable');
+  assert.equal(storage.getItem(contentManifestStorageKey), null);
+});
+
 test('public manifest exactly mirrors the bundled manifest', () => {
   const publicManifest = JSON.parse(readFileSync(resolve(process.cwd(), 'public/content-manifest.json'), 'utf8'));
   assert.deepEqual(publicManifest, bundledContentManifest);
@@ -74,6 +102,98 @@ test('retains the bundled last-known-good pack when update checks fail', async (
   assert.equal(status.kind, 'unavailable');
   assert.equal(status.source, 'bundled');
   assert.match(status.message, /last-known-good/i);
+});
+
+test('accepts a current six-state manifest without reporting an update', async () => {
+  const status = await checkContentManifest({
+    jurisdiction: 'US-IL',
+    storage: memoryStorage(),
+    fetcher: async () => new Response(JSON.stringify(bundledContentManifest), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }),
+  });
+  assert.equal(status.kind, 'current');
+  assert.equal(status.source, 'network');
+  assert.equal(status.manifest.packs.length, 6);
+});
+
+test('reports a newer ordinary correction without requiring a material acknowledgement', async () => {
+  const manifest = structuredClone(bundledContentManifest);
+  const texas = manifest.packs.find((pack) => pack.jurisdiction === 'US-TX');
+  assert.ok(texas);
+  texas.version = 'us-tx-2026.10.0';
+  texas.notices.push({
+    id: 'tx-correction-2026-10',
+    jurisdiction: 'US-TX',
+    packVersion: texas.version,
+    level: 'correction',
+    effectiveDate: '2026-10-01',
+    title: 'Citation wording clarified',
+    summary: 'A source label was clarified without changing the answer.',
+    affectedTopics: ['Signs, signals & markings'],
+    sourceUrl: texas.sourceUrl,
+  });
+  const status = await checkContentManifest({
+    jurisdiction: 'US-TX',
+    storage: memoryStorage(),
+    currentVersion: 'us-tx-2026.09.1',
+    fetcher: async () => new Response(JSON.stringify(manifest), { status: 200 }),
+  });
+  assert.equal(status.kind, 'update-available');
+  assert.equal(status.pack.version, 'us-tx-2026.10.0');
+  assert.equal(getMaterialContentNotice(status.manifest, 'US-TX', []), undefined);
+});
+
+test('preserves a material notice and its official source link', () => {
+  const manifest = structuredClone(bundledContentManifest);
+  const ohio = manifest.packs.find((pack) => pack.jurisdiction === 'US-OH');
+  assert.ok(ohio);
+  ohio.notices.push({
+    id: 'oh-material-rule-2026',
+    jurisdiction: 'US-OH',
+    packVersion: ohio.version,
+    level: 'material',
+    effectiveDate: '2026-10-01',
+    title: 'Probationary restriction update',
+    summary: 'The official restriction guidance changed and requires review.',
+    affectedTopics: ['Licensing & permits'],
+    sourceUrl: 'https://bmv.ohio.gov/dl-gdl.aspx',
+  });
+  const notice = getMaterialContentNotice(manifest, 'US-OH', []);
+  assert.ok(notice);
+  assert.equal(notice.sourceUrl, 'https://bmv.ohio.gov/dl-gdl.aspx');
+  assert.equal(getMaterialContentNotice(manifest, 'US-OH', [notice.id]), undefined);
+});
+
+test('uses a newer cached manifest while offline and rejects a stale cache', async () => {
+  const newer = structuredClone(bundledContentManifest);
+  const illinois = newer.packs.find((pack) => pack.jurisdiction === 'US-IL');
+  assert.ok(illinois);
+  illinois.version = 'us-il-2026.10.0';
+  const cachedStorage = memoryStorage();
+  cachedStorage.setItem(contentManifestStorageKey, JSON.stringify(newer));
+  const cachedStatus = await checkContentManifest({
+    jurisdiction: 'US-IL',
+    storage: cachedStorage,
+    currentVersion: 'us-il-2026.09.1',
+    fetcher: async () => { throw new Error('offline'); },
+  });
+  assert.equal(cachedStatus.kind, 'update-available');
+  assert.equal(cachedStatus.source, 'cache');
+
+  const staleStorage = memoryStorage();
+  const stale = structuredClone(bundledContentManifest);
+  stale.packs[0].version = 'us-ca-2026.08.1';
+  staleStorage.setItem(contentManifestStorageKey, JSON.stringify(stale));
+  const staleStatus = await checkContentManifest({
+    jurisdiction: 'US-CA',
+    storage: staleStorage,
+    currentVersion: 'us-ca-2026.09.1',
+    fetcher: async () => { throw new Error('offline'); },
+  });
+  assert.equal(staleStatus.kind, 'unavailable');
+  assert.equal(staleStatus.source, 'bundled');
 });
 
 test('material content acknowledgements remain device-local', () => {

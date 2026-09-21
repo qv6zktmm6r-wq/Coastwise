@@ -51,7 +51,7 @@ export const contentAcknowledgementStorageKey = 'coastwise-content-acknowledgeme
 
 export const bundledContentManifest: ContentManifest = {
   schemaVersion: 1,
-  generatedAt: '2026-09-20T00:00:00.000Z',
+  generatedAt: '2026-09-21T00:00:00.000Z',
   packs: [
     {
       jurisdiction: 'US-CA',
@@ -74,11 +74,23 @@ export const bundledContentManifest: ContentManifest = {
     {
       jurisdiction: 'US-FL',
       version: FLORIDA_CONTENT_PACK_VERSION,
-      sourceRevision: 'Florida Class E Driver License Handbook 2023 with current official FLHSMV and statute sources',
-      effectiveDate: '2026-09-21',
+      sourceRevision: 'Florida Class E Driver’s License Handbook 2023 with current official FLHSMV and statute sources; DETS rule checked 2026-09-21',
+      effectiveDate: '2025-08-01',
       reviewedAt: '2026-09-21',
       sourceUrl: 'https://www.flhsmv.gov/pdf/handbooks/englishdriverhandbook.pdf',
-      notices: [],
+      notices: [
+        {
+          id: 'us-fl-dets-under-18-2025-08-01',
+          jurisdiction: 'US-FL',
+          packVersion: FLORIDA_CONTENT_PACK_VERSION,
+          level: 'material',
+          effectiveDate: '2025-08-01',
+          title: 'Florida under-18 education path updated',
+          summary: 'For an under-18 first-time Florida applicant, FLHSMV generally requires the six-hour DETS course. TLSAE remains the over-18 path, with a limited pre-August 1, 2025 certificate exception and listed school-program alternatives.',
+          affectedTopics: ['Licensing & permits', 'Testing process'],
+          sourceUrl: 'https://www.flhsmv.gov/driver-licenses-id-cards/education-courses/driver-improvement-schools/driver-education-traffic-safety-dets',
+        },
+      ],
     },
     {
       jurisdiction: 'US-NY', version: NEW_YORK_CONTENT_PACK_VERSION,
@@ -232,7 +244,8 @@ export async function checkContentManifest({
   } satisfies Record<JurisdictionCode, string>)[jurisdiction];
   const cached = loadCachedContentManifest(storage);
   try {
-    const response = await fetcher(`${import.meta.env.BASE_URL}content-manifest.json`, { cache: 'no-store' });
+    const baseUrl = typeof import.meta.env?.BASE_URL === 'string' ? import.meta.env.BASE_URL : '/';
+    const response = await fetcher(`${baseUrl}content-manifest.json`, { cache: 'no-store' });
     if (!response.ok) throw new Error(`manifest returned ${response.status}`);
     const manifest = parseContentManifest(await response.json());
     if (!manifest) throw new Error('manifest is invalid');

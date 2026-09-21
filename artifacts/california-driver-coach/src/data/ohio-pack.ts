@@ -1,7 +1,6 @@
 import type { HandbookContentPack, HandbookQuestion, HandbookSection } from './question-bank';
 import type { JurisdictionCode } from '../lib/jurisdiction';
 
-// This pack is intentionally not registered until its source-matrix review is approved.
 const OHIO = 'US-OH' as JurisdictionCode;
 const VERSION = 'us-oh-2026.09.1';
 const REVIEWED = '2026-09-21';

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { contentPacks, contentScenarios } from './content-packs';
-import { getCurrentContentPackVersion, getJurisdiction, supportedJurisdictions } from '../lib/jurisdiction';
+import { getCurrentContentPackVersion, getJurisdiction, jurisdictions, supportedJurisdictions } from '../lib/jurisdiction';
 
 const officialHosts: Record<string, string[]> = {
   'US-CA': ['dmv.ca.gov'],
@@ -33,7 +33,9 @@ test('every bundled jurisdiction has a current, complete, attributable pack', ()
       ids.add(question.id);
       assert.ok(officialHosts[jurisdictionCode].some((host) => new URL(question.sourceUrl).hostname.endsWith(host)), `${question.id} official source`);
       if (question.scope === 'universal') {
-        assert.ok(!/(California|Texas|Florida|DMV|DPS|FLHSMV)/i.test(question.prompt), `${question.id} has state-specific universal wording`);
+        assert.ok(!/(California|Texas|Florida|New York|Ohio|Illinois|US-[A-Z]{2}|DMV|DPS|FLHSMV|BMV|Secretary of State)/i.test(
+          [question.prompt, ...question.options, question.explanation].join(' '),
+        ), `${question.id} has state-specific universal wording`);
       }
     }
     assert.equal(contentScenarios[jurisdictionCode].length, 3);
@@ -45,11 +47,16 @@ test('every bundled jurisdiction has a current, complete, attributable pack', ()
   }
 });
 
-test('all six jurisdictions with approved source-matrix review are selectable', () => {
-  assert.deepEqual(supportedJurisdictions.map((jurisdiction) => jurisdiction.code), ['US-CA', 'US-TX', 'US-FL', 'US-NY', 'US-OH', 'US-IL']);
-  for (const jurisdiction of supportedJurisdictions) {
-    assert.equal(jurisdiction.sourceMatrixReview.status, 'approved');
+test('all six jurisdictions have source-matrix records and approval gates are enforced', () => {
+  const allCodes = Object.values(contentPacks).map((pack) => pack.jurisdiction);
+  assert.deepEqual(allCodes, ['US-CA', 'US-TX', 'US-FL', 'US-NY', 'US-OH', 'US-IL']);
+  for (const jurisdiction of Object.values(jurisdictions)) {
     assert.match(jurisdiction.sourceMatrixReview.reviewedAt, /^\d{4}-\d{2}-\d{2}$/);
+    assert.match(jurisdiction.sourceMatrixReview.recordPath, /^docs\/content-packs\/.+-source-matrix\.md$/);
+    assert.equal(
+      supportedJurisdictions.some((supported) => supported.code === jurisdiction.code),
+      jurisdiction.sourceMatrixReview.status === 'approved',
+    );
   }
 });
 
@@ -67,6 +74,17 @@ test('state-specific packs do not contain another state name or jurisdiction cod
       const text = [question.prompt, ...question.options, question.explanation].join(' ');
       assert.doesNotMatch(text, forbidden[jurisdiction as keyof typeof forbidden], question.id);
     }
+    for (const scenario of contentScenarios[jurisdiction as keyof typeof contentScenarios]) {
+      const text = [
+        scenario.situation,
+        ...scenario.choices,
+        scenario.coaching,
+        scenario.sourceUrl,
+        scenario.jurisdiction,
+        scenario.contentPackVersion,
+      ].join(' ');
+      assert.doesNotMatch(text, forbidden[jurisdiction as keyof typeof forbidden], `${jurisdiction} ${scenario.id}`);
+    }
   }
 });
 
@@ -79,6 +97,7 @@ test('Texas and Florida packs explicitly cover launch-critical state requirement
   const floridaText = contentPacks['US-FL'].questions.map((question) => `${question.objective} ${question.prompt} ${question.explanation}`).join(' ');
   assert.match(floridaText, /50 .*hours/i);
   assert.match(floridaText, /10 .*night/i);
+  assert.match(floridaText, /DETS/i);
   assert.match(floridaText, /TLSAE/i);
   assert.match(floridaText, /first three months/i);
 });

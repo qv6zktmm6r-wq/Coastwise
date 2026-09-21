@@ -21,7 +21,7 @@ export type Jurisdiction = {
 
 export const CALIFORNIA_CONTENT_PACK_VERSION = 'us-ca-2026.09.1';
 export const TEXAS_CONTENT_PACK_VERSION = 'us-tx-2026.09.1';
-export const FLORIDA_CONTENT_PACK_VERSION = 'us-fl-2026.09.1';
+export const FLORIDA_CONTENT_PACK_VERSION = 'us-fl-2026.09.2';
 export const NEW_YORK_CONTENT_PACK_VERSION = 'us-ny-2026.09.1';
 export const OHIO_CONTENT_PACK_VERSION = 'us-oh-2026.09.1';
 export const ILLINOIS_CONTENT_PACK_VERSION = 'us-il-2026.09.1';
@@ -39,7 +39,7 @@ export const jurisdictions: Record<JurisdictionCode, Jurisdiction> = {
     permitHoldLabel: '6 month hold',
     educationLabel: '6 professional instruction hours separate',
     essentials: ['Permit held at least 6 months before the drive test.', '50 supervised practice hours, including 10 at night.', '6 hours of professional driver instruction.'],
-    sourceMatrixReview: { status: 'approved', reviewedAt: '2026-09-20', recordPath: 'California Driver’s Handbook source record' },
+    sourceMatrixReview: { status: 'pending', reviewedAt: '2026-09-20', recordPath: 'docs/content-packs/california-source-matrix.md' },
   },
   'US-TX': {
     code: 'US-TX',
@@ -65,8 +65,8 @@ export const jurisdictions: Record<JurisdictionCode, Jurisdiction> = {
     supervisedHours: 50,
     nightHours: 10,
     permitHoldLabel: '12 month hold',
-    educationLabel: 'TLSAE course required for first-time drivers',
-    essentials: ['Learner license generally held for 12 months or until age 18.', '50 supervised practice hours, including 10 at night.', 'TLSAE and Class E testing requirements apply.'],
+    educationLabel: '6-hour DETS course for under-18 first-time applicants',
+    essentials: ['Learner license generally held for 12 months or until age 18.', '50 supervised practice hours, including 10 at night.', 'Under-18 first-time applicants generally need the 6-hour DETS course; TLSAE remains the over-18 path and limited transition exception.'],
     sourceMatrixReview: { status: 'approved', reviewedAt: '2026-09-21', recordPath: 'docs/content-packs/florida-source-matrix.md' },
   },
   'US-NY': {

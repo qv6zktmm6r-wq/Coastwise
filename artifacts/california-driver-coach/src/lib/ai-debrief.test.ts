@@ -44,10 +44,14 @@ test('AI debrief request strips local review, route, position, speed, and identi
       stepIndex: 2,
     }],
     topics: initialState.topics,
+    jurisdiction: 'US-NY',
+    contentPackVersion: 'us-ny-2026.09.1',
   });
 
   assert.deepEqual(input.events, [{ kind: 'maneuver', title: 'Turn announced', detail: 'Prepare early.' }]);
   assert.equal(input.distanceMiles, 7.5);
+  assert.equal(input.jurisdiction, 'US-NY');
+  assert.equal(input.contentPackVersion, 'us-ny-2026.09.1');
   assert.deepEqual(input.skills, ['turns']);
   assert.doesNotMatch(
     JSON.stringify(input),

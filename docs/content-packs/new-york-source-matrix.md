@@ -15,11 +15,12 @@
 | Road rules and representative safe-driving guidance | [NY DMV Driver’s Manual and Practice Tests (MV-21)](https://dmv.ny.gov/new-york-state-drivers-manual-practice-tests) | MV-21 (5/23); official page checked 2026-09-21 | ny-fundamentals-001 through ny-safe-driving-002 | Approved — Jorge Lozoya — Licensed driving instructor — 2026-09-21 | Approved — Jorge Lozoya — Licensed driving instructor — 2026-09-21 | Approved |
 | Statutory GDL authority | [NY Vehicle and Traffic Law §501](https://www.nysenate.gov/legislation/laws/VAT/501) | Current page checked 2026-09-21; amendments require verification | Supporting authority for regional restrictions | Approved — Jorge Lozoya — Licensed driving instructor — 2026-09-21 | Approved — Jorge Lozoya — Licensed driving instructor — 2026-09-21 | Approved |
 
-## Open verification items
+## Monitoring rules
 
-* Confirm the current MV-21 PDF revision and effective date, and map each road-rule claim to an exact page/section.
-* Recheck New York City, Nassau/Suffolk, and upstate junior-permit/junior-license restrictions and exceptions against current DMV wording.
-* Confirm road-test vehicle, insurance, inspection, and documentation requirements at release time.
-* Populate accountable reviewer names, dates, and decisions only after a human review. Human approval is recorded below.
+At each scheduled content review, re-fetch the MV-21 landing page, the
+regional junior-driver guidance, and the road-test/document pages. Record any
+new manual revision, statutory amendment, regional restriction, exception, or
+vehicle-document change before a future pack release. These are maintenance
+rules, not unresolved checks for this approved pack.
 ## Human approval
 Accountable reviewer: Jorge Lozoya. Qualification: Licensed driving instructor. Approval date: 2026-09-21. Jorge Lozoya attests that he reviewed this source matrix and verified every numerical and age-dependent requirement against the cited official sources.

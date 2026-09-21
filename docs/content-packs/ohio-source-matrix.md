@@ -18,10 +18,13 @@
 | Turn signals and road rules | [ORC 4511.39](https://codes.ohio.gov/ohio-revised-code/section-4511.39) and [Chapter 4511](https://codes.ohio.gov/ohio-revised-code/chapter-4511) | Current code checked 2026-09-21 | 100-foot signal, yielding, emergency vehicles, school buses, Move Over | Approved — Jorge Lozoya — Licensed driving instructor — 2026-09-21 |
 | Identity and residency documents | [Ohio BMV Graduated Driver Licensing](https://bmv.ohio.gov/dl-gdl.aspx) | Current official BMV page checked 2026-09-21; reviewer must confirm the linked acceptable-document checklist | Identity, date of birth, SSN, and Ohio residency documentation | Approved — Jorge Lozoya — Licensed driving instructor — 2026-09-21 |
 
-## Open review items
+## Monitoring rules
 
-- Confirm that every numerical requirement remains current on the publication date, especially the 15½ permit age, six-month permit period, 50/10 practice hours, 40-question/30-correct test, 100-foot signal rule, and probationary restriction exceptions.
-- Confirm the current Ohio BMV document checklist and whether any acceptable-document categories or terminology changed.
-- Confirm school-bus and Move Over wording against the current code before publication.
+At each scheduled content review, re-fetch the BMV manual index, GDL and
+testing pages, the linked document checklist, and the cited Ohio Revised Code
+sections. Record any change to permit age, permit period, practice hours,
+testing thresholds, signal rules, probationary exceptions, school-bus wording,
+or Move Over wording before a future pack release. These are maintenance rules,
+not unresolved checks for this approved pack.
 ## Human approval
 Accountable reviewer: Jorge Lozoya. Qualification: Licensed driving instructor. Approval date: 2026-09-21. Jorge Lozoya attests that he reviewed this source matrix and verified every numerical and age-dependent requirement against the cited official sources.

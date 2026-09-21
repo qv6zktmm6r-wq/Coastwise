@@ -16,10 +16,11 @@ test('mobile practice uses distinct state packs with official sources', () => {
 test('mobile weak topics only use answers from the active jurisdiction and pack version', () => {
   const progress = {
     'US-TX:us-tx-2026.09.1:tx-mobile-supervision': { correct: true, topic: 'Licensing & permits' },
-    'US-FL:us-fl-2026.09.1:fl-mobile-age': { correct: false, topic: 'Licensing & permits' },
+    'US-FL:us-fl-2026.09.2:fl-mobile-age': { correct: false, topic: 'Licensing & permits' },
+    'US-FL:us-fl-2026.09.1:fl-mobile-age': { correct: true, topic: 'Licensing & permits' },
   };
   const texas = getMobileWeakTopics('US-TX', 'us-tx-2026.09.1', progress);
-  const florida = getMobileWeakTopics('US-FL', 'us-fl-2026.09.1', progress);
+  const florida = getMobileWeakTopics('US-FL', 'us-fl-2026.09.2', progress);
   assert.equal(texas.find((topic) => topic.topic === 'Licensing & permits')?.mastery, 100);
   assert.equal(florida.find((topic) => topic.topic === 'Licensing & permits')?.mastery, 0);
 });

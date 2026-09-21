@@ -4,6 +4,7 @@ import {
   allowDebriefRequest,
   buildDebriefPrompt,
   containsOnlyDebriefFields,
+  approvedPackVersions,
 } from "./drive-debrief";
 
 const safeInput = {
@@ -44,4 +45,9 @@ test("AI debrief requests are rate limited per client", () => {
   }
   assert.equal(allowDebriefRequest(clientId, 1_000), false);
   assert.equal(allowDebriefRequest(clientId, 61_001), true);
+});
+
+test("rejects the superseded Florida pack while accepting the DETS correction", () => {
+  assert.equal(approvedPackVersions["US-FL"], "us-fl-2026.09.2");
+  assert.notEqual(approvedPackVersions["US-FL"], "us-fl-2026.09.1");
 });
