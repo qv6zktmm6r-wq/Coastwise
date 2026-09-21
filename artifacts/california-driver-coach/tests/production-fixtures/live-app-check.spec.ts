@@ -9,10 +9,10 @@ const healthyStartScreen = `
   </main>
 `;
 
-async function serveFixture(page: Page, body: string, script = '') {
+async function serveFixture(page: Page, body: string, script = '', status = 200) {
   await page.route('https://live-app.fixture/**', async (route) => {
     await route.fulfill({
-      status: 200,
+      status,
       contentType: 'text/html',
       body: `<!doctype html><html><body>${body}<script>${script}</script></body></html>`,
     });
@@ -25,6 +25,13 @@ test('accepts a healthy API and usable start screen', async ({ page, request }) 
   await serveFixture(page, healthyStartScreen);
 
   await expect(checkLiveApp({ page, request, getHealth: healthyApi })).resolves.toBeUndefined();
+});
+
+test('rejects a non-200 app document', async ({ page, request }) => {
+  await serveFixture(page, healthyStartScreen, '', 503);
+
+  await expect(checkLiveApp({ page, request, getHealth: healthyApi }))
+    .rejects.toThrow('App document must return HTTP 200 (received 503)');
 });
 
 test('rejects an unhealthy API', async ({ page, request }) => {
