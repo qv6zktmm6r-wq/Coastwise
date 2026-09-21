@@ -156,6 +156,23 @@ function formatElapsed(seconds: number) {
   return `${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`;
 }
 
+function chooseCoachVoice(voices: SpeechSynthesisVoice[]) {
+  const englishVoices = voices.filter((voice) => /^en(?:-|_)/i.test(voice.lang));
+  const candidates = englishVoices.length > 0 ? englishVoices : voices;
+  const preferredNames = ['samantha', 'ava', 'zoe', 'siri', 'allison', 'karen', 'moira', 'serena'];
+  const undesirableNames = ['compact', 'novelty', 'whisper', 'organ', 'bells'];
+  const score = (voice: SpeechSynthesisVoice) => {
+    const name = voice.name.toLowerCase();
+    return (voice.localService ? 30 : 0)
+      + (voice.lang.toLowerCase() === 'en-us' ? 20 : 0)
+      + (voice.default ? 10 : 0)
+      + (preferredNames.some((preferred) => name.includes(preferred)) ? 25 : 0)
+      + (/(premium|enhanced|natural)/i.test(name) ? 20 : 0)
+      - (undesirableNames.some((undesirable) => name.includes(undesirable)) ? 100 : 0);
+  };
+  return [...candidates].sort((a, b) => score(b) - score(a))[0] ?? null;
+}
+
 function routeProgressPercent(route: PlannedRoute, position: RouteCoordinate | null) {
   if (!position || route.coordinates.length < 2) return null;
   let nearestIndex = 0;
@@ -716,7 +733,16 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(message);
-    utterance.rate = 0.92;
+    const voice = chooseCoachVoice(window.speechSynthesis.getVoices());
+    if (voice) {
+      utterance.voice = voice;
+      utterance.lang = voice.lang;
+    } else {
+      utterance.lang = 'en-US';
+    }
+    utterance.rate = 0.88;
+    utterance.pitch = 1;
+    utterance.volume = 1;
     utterance.onstart = () => setAudioStatus('speaking');
     utterance.onend = () => setAudioStatus('ready');
     utterance.onerror = () => setAudioStatus('unavailable');
@@ -732,7 +758,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   };
   const testSpokenCoaching = () => {
     setAudioStatus('ready');
-    speak('Spoken coaching is ready.');
+    speak('Coastwise coaching is ready. Keep your eyes on the road and let your supervising passenger handle the phone.');
   };
   const recordCoachEvent = ({ kind, title, detail, distanceToNext = null, stepIndex = null }: { kind: CoachEventKind; title: string; detail: string; distanceToNext?: number | null; stepIndex?: number | null }) => {
     const clockStart = recordingClockStartedAt.current;
@@ -1154,7 +1180,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     void enableMotionTracking();
     playCoach(coachVoice.started);
     speak(driveMode === 'free'
-      ? 'Free drive started. Follow posted signs, keep a safe following distance, and let your supervising passenger handle the screen.'
+      ? 'Free drive started. Keep looking around your surroundings, notice posted signs, and let your supervising passenger handle the screen.'
       : `Coached route started. ${coaching[route.steps[0]?.modifier === 'left' ? 'turns' : 'speed-control']}`);
     recordCoachEvent({
       kind: 'start',
@@ -1274,7 +1300,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       setGpsStatus(navigator.geolocation ? 'acquiring' : 'error');
       playCoach(coachVoice.started);
       speak(driveMode === 'free'
-        ? 'Free drive started. Follow posted signs, keep a safe following distance, and let your supervising passenger handle the screen.'
+        ? 'Free drive started. Keep looking around your surroundings, notice posted signs, and let your supervising passenger handle the screen.'
         : `Coached route started. ${coaching[activeRoute.steps[0]?.modifier === 'left' ? 'turns' : 'speed-control']}`);
       recordCoachEvent({
         kind: 'start',
@@ -1317,11 +1343,19 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   }, [tracking, startedAt]);
   useEffect(() => {
     if (!tracking || paused || elapsedSeconds === 0 || elapsedSeconds % 45 !== 0) return;
+    const hasTrustworthySpeed = gpsStatus === 'live'
+      && speedSampleCount >= 3
+      && gpsAccuracy !== null
+      && gpsAccuracy <= 50
+      && currentSpeedRef.current !== null;
+    const estimatedSpeed = hasTrustworthySpeed ? Math.round(currentSpeedRef.current ?? 0) : null;
     const freeDriveCues = [
-      { title: 'Steady driving encouragement', detail: 'Nice work. Keep your eyes moving and your inputs smooth.' },
-      { title: 'Following distance reminder', detail: 'Keep at least three seconds of space from the vehicle ahead.' },
-      { title: 'Mirror scan reminder', detail: 'Check your mirrors, then bring your eyes back well ahead.' },
-      { title: 'Smooth control encouragement', detail: 'Good. Stay relaxed, hold a steady speed, and keep scanning.' },
+      { title: 'Surroundings scan', detail: 'Look around your surroundings. What signs, intersections, people, or changing conditions do you notice?' },
+      { title: 'Posted speed check', detail: estimatedSpeed === null
+        ? 'Look for the posted speed limit and choose a safe, legal pace for the conditions.'
+        : `Your GPS speed estimate is ${estimatedSpeed} miles per hour. Compare that with the posted limit and adjust smoothly if needed.` },
+      { title: 'Mirror and forward scan', detail: 'Check your mirrors, then bring your eyes back well ahead. Keep your scan moving.' },
+      { title: 'Smooth control encouragement', detail: 'Nice work. Stay relaxed, keep your steering and pedals smooth, and continue scanning.' },
     ];
     const routeCues = [
       { title: 'Following distance reminder', detail: 'Leave enough space to stop smoothly.' },
@@ -1337,7 +1371,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       detail: cue.detail,
     });
     setCueIndex((value) => value + 1);
-  }, [elapsedSeconds, paused, tracking]);
+  }, [elapsedSeconds, gpsAccuracy, gpsStatus, paused, speedSampleCount, tracking]);
   useEffect(() => () => {
     if (watchId.current !== null && navigator.geolocation) navigator.geolocation.clearWatch(watchId.current);
     if (motionListener.current) window.removeEventListener('devicemotion', motionListener.current);

@@ -7,3 +7,4 @@
 - [Mobile drive interruption](mobile-drive-interruption.md) — native coaching pauses outside the foreground and resumes only through an explicit parked-user action.
 - [Content pack update safety](content-pack-update-safety.md) — reject missing, mismatched, or rollback manifests before replacing last-known-good jurisdiction content.
 - [Mobile GPS speed estimates](mobile-gps-speed-estimates.md) — iPhone browser speed fields can be badly wrong; use recent coordinate movement and expose sensor status.
+- [Evidence-based drive coaching](evidence-based-drive-coaching.md) — never state that traffic, signs, hazards, or violations exist unless Coastwise directly observes them.
