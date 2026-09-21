@@ -21,6 +21,7 @@ if (
 
 export default defineConfig({
   testDir: './tests/production',
+  testMatch: 'live-app.spec.ts',
   fullyParallel: false,
   workers: 1,
   reporter: 'line',
