@@ -559,6 +559,9 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const [paused, setPaused] = useState(false);
   const [trackingError, setTrackingError] = useState('');
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'acquiring' | 'live' | 'error'>('idle');
+  const [gpsFixCount, setGpsFixCount] = useState(0);
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
+  const [speedSampleCount, setSpeedSampleCount] = useState(0);
   const [motionStatus, setMotionStatus] = useState<'idle' | 'ready' | 'unavailable'>('idle');
   const [audioStatus, setAudioStatus] = useState<'ready' | 'speaking' | 'unavailable'>('ready');
   const [currentSpeed, setCurrentSpeed] = useState(0);
@@ -1011,10 +1014,12 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       : 0;
     const accuracy = Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : 100;
     const movementIsPlausible = movedMeters < Math.max(35, elapsed * 35);
-    if (previous && elapsed > 0.4 && elapsed < 30 && accuracy <= 80 && movementIsPlausible) {
+    setGpsFixCount((value) => value + 1);
+    setGpsAccuracy(accuracy);
+    if (previous && elapsed > 0.4 && elapsed < 30 && accuracy <= 100 && movementIsPlausible) {
       setDistanceMiles((value) => value + movedMeters / 1609.344);
     }
-    const calculatedSpeed = previous && elapsed > 0.4 && elapsed < 15 && accuracy <= 50 && movementIsPlausible
+    const calculatedSpeed = previous && elapsed > 0.4 && elapsed < 15 && accuracy <= 100 && movementIsPlausible
       ? movedMeters / elapsed
       : Number.NaN;
     // Do not trust coords.speed as the primary value. On iPhone it can be
@@ -1025,6 +1030,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
         ...speedSamples.current.filter((sample) => reportedAt - sample.at < 5000),
         { metersPerSecond: calculatedSpeed, at: reportedAt },
       ].slice(-5);
+      setSpeedSampleCount(speedSamples.current.length);
     }
     const sortedSamples = [...speedSamples.current].sort((a, b) => a.metersPerSecond - b.metersPerSecond);
     const medianSpeed = sortedSamples.length >= 3
@@ -1096,6 +1102,9 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     currentSpeedRef.current = null;
     previousSpeedSample.current = null;
     speedSamples.current = [];
+    setGpsFixCount(0);
+    setGpsAccuracy(null);
+    setSpeedSampleCount(0);
     motionBaseline.current = null;
     motionBrakeSamples.current = 0;
     if (motionListener.current) window.removeEventListener('devicemotion', motionListener.current);
@@ -1117,6 +1126,9 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     lastPositionAt.current = null;
     previousSpeedSample.current = null;
     speedSamples.current = [];
+    setGpsFixCount(0);
+    setGpsAccuracy(null);
+    setSpeedSampleCount(0);
     lastSafetyWarningAt.current = 0;
     coachEventsRef.current = [];
     setCoachEvents([]);
@@ -1186,6 +1198,9 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     lastPositionAt.current = null;
     previousSpeedSample.current = null;
     speedSamples.current = [];
+    setGpsFixCount(0);
+    setGpsAccuracy(null);
+    setSpeedSampleCount(0);
     lastSafetyWarningAt.current = 0;
     coachEventsRef.current = [];
     setCoachEvents([]);
