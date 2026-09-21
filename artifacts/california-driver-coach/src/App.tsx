@@ -559,6 +559,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const [paused, setPaused] = useState(false);
   const [trackingError, setTrackingError] = useState('');
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'acquiring' | 'live' | 'error'>('idle');
+  const [motionStatus, setMotionStatus] = useState<'idle' | 'ready' | 'unavailable'>('idle');
   const [audioStatus, setAudioStatus] = useState<'ready' | 'speaking' | 'unavailable'>('ready');
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [distanceMiles, setDistanceMiles] = useState(0);
@@ -593,7 +594,11 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const currentPositionRef = useRef<RouteCoordinate | null>(null);
   const currentSpeedRef = useRef<number | null>(null);
   const previousSpeedSample = useRef<{ metersPerSecond: number; at: number } | null>(null);
+  const speedSamples = useRef<Array<{ metersPerSecond: number; at: number }>>([]);
   const lastSafetyWarningAt = useRef(0);
+  const motionBaseline = useRef<{ x: number; y: number; z: number } | null>(null);
+  const motionBrakeSamples = useRef(0);
+  const motionListener = useRef<((event: DeviceMotionEvent) => void) | null>(null);
   const cameraPreview = useRef<HTMLVideoElement | null>(null);
   const activeRecordingPanel = useRef<HTMLElement | null>(null);
   const reviewVideo = useRef<HTMLVideoElement | null>(null);
@@ -741,6 +746,73 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     if (nextEvents === coachEventsRef.current) return;
     coachEventsRef.current = nextEvents;
     setCoachEvents(nextEvents);
+  };
+  const reportHardBraking = (detail: string) => {
+    const now = Date.now();
+    if (now - lastSafetyWarningAt.current < 30000) return;
+    lastSafetyWarningAt.current = now;
+    speak('Hard braking detected. Look farther ahead and leave more space so you can brake smoothly.');
+    recordCoachEvent({
+      kind: 'safety',
+      title: 'Hard braking detected',
+      detail,
+    });
+  };
+  const handleDeviceMotion = (event: DeviceMotionEvent) => {
+    if (pausedRef.current || (currentSpeedRef.current ?? 0) < 5) return;
+    const acceleration = event.acceleration;
+    const includingGravity = event.accelerationIncludingGravity;
+    const sample = acceleration && acceleration.x !== null && acceleration.y !== null && acceleration.z !== null
+      ? { x: acceleration.x, y: acceleration.y, z: acceleration.z }
+      : includingGravity && includingGravity.x !== null && includingGravity.y !== null && includingGravity.z !== null
+        ? { x: includingGravity.x, y: includingGravity.y, z: includingGravity.z }
+        : null;
+    if (!sample || !Object.values(sample).every(Number.isFinite)) return;
+    const baseline = motionBaseline.current;
+    if (!baseline) {
+      motionBaseline.current = sample;
+      return;
+    }
+    const change = Math.hypot(sample.x - baseline.x, sample.y - baseline.y, sample.z - baseline.z);
+    motionBaseline.current = {
+      x: baseline.x * 0.92 + sample.x * 0.08,
+      y: baseline.y * 0.92 + sample.y * 0.08,
+      z: baseline.z * 0.92 + sample.z * 0.08,
+    };
+    if (change >= 2.8) {
+      motionBrakeSamples.current += 1;
+      if (motionBrakeSamples.current >= 2) {
+        motionBrakeSamples.current = 0;
+        reportHardBraking('The phone detected a sharp change in motion while the vehicle was moving.');
+      }
+    } else {
+      motionBrakeSamples.current = 0;
+    }
+  };
+  const enableMotionTracking = async () => {
+    const motionEvent = window.DeviceMotionEvent as typeof DeviceMotionEvent & {
+      requestPermission?: () => Promise<'granted' | 'denied'>;
+    };
+    if (!motionEvent || typeof window === 'undefined' || !('DeviceMotionEvent' in window)) {
+      setMotionStatus('unavailable');
+      return;
+    }
+    try {
+      if (motionEvent.requestPermission) {
+        const permission = await motionEvent.requestPermission();
+        if (permission !== 'granted') {
+          setMotionStatus('unavailable');
+          return;
+        }
+      }
+      motionBaseline.current = null;
+      motionBrakeSamples.current = 0;
+      motionListener.current = handleDeviceMotion;
+      window.addEventListener('devicemotion', handleDeviceMotion);
+      setMotionStatus('ready');
+    } catch {
+      setMotionStatus('unavailable');
+    }
   };
   const buildRoute = () => {
     if (!navigator.onLine) {
@@ -926,32 +998,38 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   };
   const handlePositionUpdate = (position: GeolocationPosition) => {
     if (pausedRef.current) return;
+    // Use callback arrival time for deltas. iOS Safari can reuse a stale
+    // GeolocationPosition timestamp while the coordinates are still changing.
     const receivedAt = Date.now();
-    const reportedAt = Number.isFinite(position.timestamp) && position.timestamp > 0 ? position.timestamp : receivedAt;
+    const reportedAt = receivedAt;
     const previous = lastPosition.current;
     const previousAt = lastPositionAt.current;
     const elapsed = previousAt === null ? 0 : (reportedAt - previousAt) / 1000;
     const movedMeters = previous
       ? distanceBetween(previous.coords.latitude, previous.coords.longitude, position.coords.latitude, position.coords.longitude)
       : 0;
-    if (previous && elapsed > 0.4 && elapsed < 30 && movedMeters < 160) {
+    const accuracy = Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : 100;
+    const movementIsPlausible = movedMeters < Math.max(35, elapsed * 35);
+    if (previous && elapsed > 0.4 && elapsed < 30 && accuracy <= 80 && movementIsPlausible) {
       setDistanceMiles((value) => value + movedMeters / 1609.344);
     }
-    const calculatedSpeed = previous && elapsed > 0.4 && elapsed < 15
+    const calculatedSpeed = previous && elapsed > 0.4 && elapsed < 15 && accuracy <= 50 && movementIsPlausible
       ? movedMeters / elapsed
       : Number.NaN;
-    const reportedSpeed = position.coords.speed;
-    const validReportedSpeed = reportedSpeed !== null && Number.isFinite(reportedSpeed) && reportedSpeed >= 0
-      ? reportedSpeed
-      : Number.NaN;
-    // Some mobile browsers report a stale zero while positions continue changing.
-    const metersPerSecond = validReportedSpeed > 0.3
-      ? validReportedSpeed
-      : Number.isFinite(calculatedSpeed)
-        ? calculatedSpeed
-        : Number.isFinite(validReportedSpeed)
-          ? validReportedSpeed
-          : 0;
+    // Do not trust coords.speed as the primary value. On iPhone it can be
+    // stale or describe a noisy GPS jump; movement over several fixes is
+    // more useful for a visible coaching estimate.
+    if (Number.isFinite(calculatedSpeed)) {
+      speedSamples.current = [
+        ...speedSamples.current.filter((sample) => reportedAt - sample.at < 5000),
+        { metersPerSecond: calculatedSpeed, at: reportedAt },
+      ].slice(-5);
+    }
+    const sortedSamples = [...speedSamples.current].sort((a, b) => a.metersPerSecond - b.metersPerSecond);
+    const medianSpeed = sortedSamples.length > 0
+      ? sortedSamples[Math.floor(sortedSamples.length / 2)].metersPerSecond
+      : 0;
+    const metersPerSecond = Number.isFinite(medianSpeed) ? medianSpeed : 0;
     const plausibleSpeed = metersPerSecond >= 0 && metersPerSecond < 60 ? metersPerSecond : 0;
     const speedMph = plausibleSpeed * 2.236936;
     const previousSample = previousSpeedSample.current;
@@ -965,15 +1043,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       const deceleration = sampleSeconds > 0.4 && sampleSeconds < 5
         ? (plausibleSpeed - previousSample.metersPerSecond) / sampleSeconds
         : 0;
-      if (deceleration <= -3.8 && receivedAt - lastSafetyWarningAt.current >= 30000) {
-        lastSafetyWarningAt.current = receivedAt;
-        speak('That was a hard stop. Look farther ahead and leave more space so you can brake smoothly.');
-        recordCoachEvent({
-          kind: 'safety',
-          title: 'Hard braking detected',
-          detail: 'Look farther ahead and leave more space for a smoother stop.',
-        });
-      }
+      if (deceleration <= -2.8) reportHardBraking('GPS speed dropped sharply. Look farther ahead and leave more space for a smoother stop.');
     }
     previousSpeedSample.current = { metersPerSecond: plausibleSpeed, at: reportedAt };
     currentSpeedRef.current = speedMph;
@@ -1024,6 +1094,12 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     setCurrentSpeed(0);
     currentSpeedRef.current = null;
     previousSpeedSample.current = null;
+    speedSamples.current = [];
+    motionBaseline.current = null;
+    motionBrakeSamples.current = 0;
+    if (motionListener.current) window.removeEventListener('devicemotion', motionListener.current);
+    motionListener.current = null;
+    setMotionStatus('idle');
     setGpsStatus('idle');
     setTracking(false);
     setPaused(false);
@@ -1039,6 +1115,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     lastPosition.current = null;
     lastPositionAt.current = null;
     previousSpeedSample.current = null;
+    speedSamples.current = [];
     lastSafetyWarningAt.current = 0;
     coachEventsRef.current = [];
     setCoachEvents([]);
@@ -1056,6 +1133,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     finalStepRef.current = -1;
     setTracking(true);
     setGpsStatus(navigator.geolocation ? 'acquiring' : 'error');
+    void enableMotionTracking();
     playCoach(coachVoice.started);
     speak(driveMode === 'free'
       ? 'Free drive started. Follow posted signs, keep a safe following distance, and let your supervising passenger handle the screen.'
@@ -1106,6 +1184,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     lastPosition.current = null;
     lastPositionAt.current = null;
     previousSpeedSample.current = null;
+    speedSamples.current = [];
     lastSafetyWarningAt.current = 0;
     coachEventsRef.current = [];
     setCoachEvents([]);
@@ -1113,6 +1192,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     setPaused(false);
     pausedRef.current = false;
     try {
+      await enableMotionTracking();
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
