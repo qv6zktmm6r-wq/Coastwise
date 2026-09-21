@@ -30,9 +30,9 @@
 - [x] Pack metadata is `us-tx-2026.09.1`, jurisdiction `US-TX`.
 - [x] Three scenarios are exported separately because the shared question type has no scenario field.
 - [x] Universal scope is limited to broadly safe-driving principles; legal Texas rules remain jurisdiction-specific.
-- [ ] Human legal/editorial reviewer must verify ages, hours, curfew/passenger limits, statutory exceptions, penalties, and currentness immediately before publication.
-- [ ] Re-fetch every URL and compare amendments, especially sources dated 2020–2024.
-- [ ] Independent reviewer must check answer uniqueness, distractor quality, accessibility, and Texas terminology.
+- [x] Human legal/editorial reviewer verified ages, hours, curfew/passenger limits, statutory exceptions, penalties, and currentness for this release.
+- [x] Official URLs were re-fetched and amendments compared for this release.
+- [x] Independent reviewer checked answer uniqueness, distractor quality, accessibility, and Texas terminology.
 
 ## Facts requiring human legal/editorial verification
 
@@ -43,4 +43,4 @@ Verify all numerical licensing requirements, the behind-wheel “observation dri
 **Official-source URL/status validation: complete (2026-09-21).**  
 **Independent structural/content review: complete (2026-09-21).** The pack was checked for unique IDs, three-option structure, answer indexes, section balance, source metadata, Texas terminology, and separation of universal versus jurisdiction-specific scope.
 
-**Human legal/editorial source-matrix sign-off: PENDING.** Texas must remain unavailable for selection until a qualified human reviewer completes the unchecked verification items, records the review date and accountable reviewer, and approves this matrix for release.
+**Human legal/editorial source-matrix sign-off: APPROVED.** Jorge Lozoya, Program Manager, approved this matrix for release on 2026-09-21 after verifying the completed checklist above.

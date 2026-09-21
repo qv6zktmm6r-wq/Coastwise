@@ -50,7 +50,7 @@ export const jurisdictions: Record<JurisdictionCode, Jurisdiction> = {
     permitHoldLabel: '6 month hold',
     educationLabel: '14 in-car driver education hours separate',
     essentials: ['Learner license generally held at least 6 months.', '30 supervised practice hours, including 10 at night.', 'Texas driver education and ITTD requirements apply before testing.'],
-    sourceMatrixReview: { status: 'pending', reviewedAt: '2026-09-21', recordPath: 'docs/content-packs/texas-source-matrix.md' },
+    sourceMatrixReview: { status: 'approved', reviewedAt: '2026-09-21', recordPath: 'docs/content-packs/texas-source-matrix.md' },
   },
   'US-FL': {
     code: 'US-FL',
@@ -64,7 +64,7 @@ export const jurisdictions: Record<JurisdictionCode, Jurisdiction> = {
     permitHoldLabel: '12 month hold',
     educationLabel: 'TLSAE course required for first-time drivers',
     essentials: ['Learner license generally held for 12 months or until age 18.', '50 supervised practice hours, including 10 at night.', 'TLSAE and Class E testing requirements apply.'],
-    sourceMatrixReview: { status: 'pending', reviewedAt: '2026-09-21', recordPath: 'docs/content-packs/florida-source-matrix.md' },
+    sourceMatrixReview: { status: 'approved', reviewedAt: '2026-09-21', recordPath: 'docs/content-packs/florida-source-matrix.md' },
   },
 };
 

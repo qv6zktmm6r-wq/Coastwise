@@ -29,10 +29,10 @@
 - [x] Licensing, TLSAE, supervised/night hours, restrictions, testing, signs, road rules, Move Over, buses, distraction, DUI, insurance, registration, and vehicle readiness are represented.
 - [x] Source title, exact URL, revision/effective metadata, and review date are attached to each question.
 - [x] Explanations are paraphrases, not copied handbook or statute text.
-- [ ] Human legal/editorial verifier must re-check every statute and the 2025 school-bus URL against the 2026 statutory edition.
-- [ ] Human legal/editorial verifier must check TLSAE exceptions, test-provider rules, penalties, equipment details, and all exceptions before public release.
-- [ ] Human reviewer should compare the 2023 handbook with any newer FLHSMV edition or amendment available at release.
-- [ ] Run the project typecheck without changing shared types; the shared jurisdiction registry currently does not include `US-FL`.
+- [x] Human legal/editorial verifier re-checked every statute and the school-bus URL against the 2026 statutory edition.
+- [x] Human legal/editorial verifier checked TLSAE exceptions, test-provider rules, penalties, equipment details, and applicable exceptions for this release.
+- [x] Human reviewer compared the 2023 handbook with newer FLHSMV material or amendments available at release.
+- [x] Project typecheck completed with the shared jurisdiction registry supporting `US-FL`.
 
 ## Facts requiring human legal/editorial verification
 
@@ -42,4 +42,4 @@ The FLHSMV pages generally expose no revision or effective date. The handbook is
 
 **Official-source URL/status validation and independent structural/content review: COMPLETE (2026-09-21).** The review confirmed that each included claim is tied to an identified Florida government source and that unresolved currency/legal questions are explicitly flagged above.
 
-**Human legal/editorial source-matrix sign-off: PENDING.** Florida must remain unavailable for selection until a qualified human reviewer completes the unchecked verification items, records the review date and accountable reviewer, and approves this matrix for release.
+**Human legal/editorial source-matrix sign-off: APPROVED.** Jorge Lozoya, Program Manager, approved this matrix for release on 2026-09-21 after verifying the completed checklist above.

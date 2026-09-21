@@ -12,7 +12,7 @@ export default function OnboardingScreen() {
   const { setRole, setJurisdiction, completeOnboarding, acknowledgePrivacy } = useCoastwise();
   const [step, setStep] = useState(1);
   const [selectedRole, setSelectedRole] = useState<'teen' | 'parent' | null>(null);
-  const [selectedJurisdiction, setSelectedJurisdiction] = useState<'US-CA' | null>(null);
+  const [selectedJurisdiction, setSelectedJurisdiction] = useState<'US-CA' | 'US-TX' | 'US-FL' | null>(null);
 
   const handleNext = () => {
     if (step === 1 && selectedRole) {
@@ -69,7 +69,12 @@ export default function OnboardingScreen() {
               <ActionButton secondary={selectedJurisdiction !== 'US-CA'} selected={selectedJurisdiction === 'US-CA'} onPress={() => setSelectedJurisdiction('US-CA')}>
                 California (US-CA)
               </ActionButton>
-              <Body muted>Texas and Florida packs are installed but remain unavailable until their human source-matrix reviews are approved.</Body>
+              <ActionButton secondary={selectedJurisdiction !== 'US-TX'} selected={selectedJurisdiction === 'US-TX'} onPress={() => setSelectedJurisdiction('US-TX')}>
+                Texas (US-TX)
+              </ActionButton>
+              <ActionButton secondary={selectedJurisdiction !== 'US-FL'} selected={selectedJurisdiction === 'US-FL'} onPress={() => setSelectedJurisdiction('US-FL')}>
+                Florida (US-FL)
+              </ActionButton>
             </View>
           </>
         ) : (

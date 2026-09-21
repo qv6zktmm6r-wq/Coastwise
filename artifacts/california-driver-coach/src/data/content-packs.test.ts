@@ -43,7 +43,7 @@ test('every bundled jurisdiction has a current, complete, attributable pack', ()
 });
 
 test('only jurisdictions with approved source-matrix review are selectable', () => {
-  assert.deepEqual(supportedJurisdictions.map((jurisdiction) => jurisdiction.code), ['US-CA']);
+  assert.deepEqual(supportedJurisdictions.map((jurisdiction) => jurisdiction.code), ['US-CA', 'US-TX', 'US-FL']);
   for (const jurisdiction of supportedJurisdictions) {
     assert.equal(jurisdiction.sourceMatrixReview.status, 'approved');
     assert.match(jurisdiction.sourceMatrixReview.reviewedAt, /^\d{4}-\d{2}-\d{2}$/);

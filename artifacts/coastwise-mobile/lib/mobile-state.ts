@@ -22,7 +22,7 @@ export function getMobileContentPackVersion(jurisdiction: MobileJurisdiction) {
  */
 export function hydrateMobileState(value: unknown): MobileState {
   const legacy = value && typeof value === 'object' ? value as Partial<MobileState> : {};
-  const jurisdiction = legacy.jurisdiction === 'US-CA'
+  const jurisdiction = isMobileJurisdiction(legacy.jurisdiction)
     ? legacy.jurisdiction
     : DEFAULT_JURISDICTION;
   return {
