@@ -1027,7 +1027,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       ].slice(-5);
     }
     const sortedSamples = [...speedSamples.current].sort((a, b) => a.metersPerSecond - b.metersPerSecond);
-    const medianSpeed = sortedSamples.length > 0
+    const medianSpeed = sortedSamples.length >= 3
       ? sortedSamples[Math.floor(sortedSamples.length / 2)].metersPerSecond
       : 0;
     const metersPerSecond = Number.isFinite(medianSpeed) ? medianSpeed : 0;
