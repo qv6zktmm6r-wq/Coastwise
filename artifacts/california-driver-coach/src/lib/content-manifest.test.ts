@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   acknowledgeContentNotice,
   bundledContentManifest,
@@ -24,6 +26,11 @@ test('accepts all bundled versioned jurisdiction manifests', () => {
   assert.deepEqual(bundledContentManifest.packs.map((pack) => pack.jurisdiction), ['US-CA', 'US-TX', 'US-FL', 'US-NY', 'US-OH', 'US-IL']);
   assert.equal(compareContentPackVersions('us-ca-2026.10.0', 'us-ca-2026.09.1'), 1);
   assert.equal(compareContentPackVersions('us-ca-2026.08.9', 'us-ca-2026.09.1'), -1);
+});
+
+test('public manifest exactly mirrors the bundled manifest', () => {
+  const publicManifest = JSON.parse(readFileSync(resolve(process.cwd(), 'public/content-manifest.json'), 'utf8'));
+  assert.deepEqual(publicManifest, bundledContentManifest);
 });
 
 test('distinguishes ordinary corrections from material updates', () => {

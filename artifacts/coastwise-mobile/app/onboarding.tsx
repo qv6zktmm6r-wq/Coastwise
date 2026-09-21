@@ -12,7 +12,7 @@ export default function OnboardingScreen() {
   const { setRole, setJurisdiction, completeOnboarding, acknowledgePrivacy } = useCoastwise();
   const [step, setStep] = useState(1);
   const [selectedRole, setSelectedRole] = useState<'teen' | 'parent' | null>(null);
-  const [selectedJurisdiction, setSelectedJurisdiction] = useState<'US-CA' | 'US-TX' | 'US-FL' | null>(null);
+  const [selectedJurisdiction, setSelectedJurisdiction] = useState<'US-CA' | 'US-TX' | 'US-FL' | 'US-NY' | 'US-OH' | 'US-IL' | null>(null);
 
   const handleNext = () => {
     if (step === 1 && selectedRole) {
@@ -74,6 +74,15 @@ export default function OnboardingScreen() {
               </ActionButton>
               <ActionButton secondary={selectedJurisdiction !== 'US-FL'} selected={selectedJurisdiction === 'US-FL'} onPress={() => setSelectedJurisdiction('US-FL')}>
                 Florida (US-FL)
+              </ActionButton>
+              <ActionButton secondary={selectedJurisdiction !== 'US-NY'} selected={selectedJurisdiction === 'US-NY'} onPress={() => setSelectedJurisdiction('US-NY')}>
+                New York (US-NY)
+              </ActionButton>
+              <ActionButton secondary={selectedJurisdiction !== 'US-OH'} selected={selectedJurisdiction === 'US-OH'} onPress={() => setSelectedJurisdiction('US-OH')}>
+                Ohio (US-OH)
+              </ActionButton>
+              <ActionButton secondary={selectedJurisdiction !== 'US-IL'} selected={selectedJurisdiction === 'US-IL'} onPress={() => setSelectedJurisdiction('US-IL')}>
+                Illinois (US-IL)
               </ActionButton>
             </View>
           </>

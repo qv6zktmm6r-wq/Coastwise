@@ -90,7 +90,7 @@ export const bundledContentManifest: ContentManifest = {
       jurisdiction: 'US-OH', version: OHIO_CONTENT_PACK_VERSION,
       sourceRevision: 'Ohio Driver Manual and official BMV sources checked 2026-09-21',
       effectiveDate: '2026-09-21', reviewedAt: '2026-09-21',
-      sourceUrl: 'https://www.bmv.ohio.gov/forms-general.aspx', notices: [],
+      sourceUrl: 'https://publicsafety.ohio.gov/who-we-are/resources/digest-of-motor-vehicle-laws', notices: [],
     },
     {
       jurisdiction: 'US-IL', version: ILLINOIS_CONTENT_PACK_VERSION,

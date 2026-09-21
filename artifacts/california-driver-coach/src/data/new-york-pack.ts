@@ -110,7 +110,7 @@ export const newYorkScenarios: NewYorkScenario[] = [
 export const newYorkContentPack: HandbookContentPack = {
   jurisdiction: NY, version: VERSION,
   sourceRevision: 'New York DMV official pages and MV-21 manual sources checked 2026-09-21; statutory currentness requires final human review',
-  effectiveDate: 'Official sources checked 2026-09-21; publication effective date pending approval',
+  effectiveDate: 'Official sources checked and approved 2026-09-21',
   reviewedAt: REVIEWED, sourceUrl: handbookUrl, sections,
   universalSafetyQuestions: [], jurisdictionQuestions: newYorkQuestions, questions: newYorkQuestions,
 };

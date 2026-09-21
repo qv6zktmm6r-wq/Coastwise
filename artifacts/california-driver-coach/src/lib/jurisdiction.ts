@@ -75,7 +75,7 @@ export const jurisdictions: Record<JurisdictionCode, Jurisdiction> = {
     supervisedHours: 50, nightHours: 15, permitHoldLabel: '6 month hold',
     educationLabel: 'pre-licensing education requirements apply',
     essentials: ['50 supervised hours including 15 after sunset.', 'Junior-driver restrictions vary by region.', 'Complete required education before the road test.'],
-    sourceMatrixReview: { status: 'pending', reviewedAt: '2026-09-21', recordPath: 'docs/content-packs/new-york-source-matrix.md' },
+    sourceMatrixReview: { status: 'approved', reviewedAt: '2026-09-21', recordPath: 'docs/content-packs/new-york-source-matrix.md' },
   },
   'US-OH': {
     code: 'US-OH', name: 'Ohio', shortName: 'OH', agencyName: 'Ohio Bureau of Motor Vehicles',
@@ -83,7 +83,7 @@ export const jurisdictions: Record<JurisdictionCode, Jurisdiction> = {
     supervisedHours: 50, nightHours: 10, permitHoldLabel: '12 month probationary restrictions',
     educationLabel: 'driver education and testing requirements apply',
     essentials: ['50 supervised hours including 10 at night.', 'Probationary restrictions apply during the first year.', 'Complete knowledge, vision, maneuverability, and road tests.'],
-    sourceMatrixReview: { status: 'pending', reviewedAt: '2026-09-21', recordPath: 'docs/content-packs/ohio-source-matrix.md' },
+    sourceMatrixReview: { status: 'approved', reviewedAt: '2026-09-21', recordPath: 'docs/content-packs/ohio-source-matrix.md' },
   },
   'US-IL': {
     code: 'US-IL', name: 'Illinois', shortName: 'IL', agencyName: 'Illinois Secretary of State',
@@ -91,7 +91,7 @@ export const jurisdictions: Record<JurisdictionCode, Jurisdiction> = {
     supervisedHours: 50, nightHours: 10, permitHoldLabel: '9 month permit phase',
     educationLabel: 'graduated driver licensing requirements apply',
     essentials: ['50 supervised hours including 10 at night.', 'Under-18 permit phase generally lasts at least 9 months.', 'Nighttime and passenger restrictions apply to initial licensing.'],
-    sourceMatrixReview: { status: 'pending', reviewedAt: '2026-09-21', recordPath: 'docs/content-packs/illinois-source-matrix.md' },
+    sourceMatrixReview: { status: 'approved', reviewedAt: '2026-09-21', recordPath: 'docs/content-packs/illinois-source-matrix.md' },
   },
 };
 

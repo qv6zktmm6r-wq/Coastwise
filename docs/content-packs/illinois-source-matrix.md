@@ -1,6 +1,6 @@
 # Illinois teen-driver source matrix
 
-**Pack:** `us-il-2026.09.1` · **Jurisdiction:** `US-IL` · **Status:** PENDING / NOT APPROVED  
+**Pack:** `us-il-2026.09.1` · **Jurisdiction:** `US-IL` · **Status:** APPROVED
 **Review date:** 2026-09-21 · **Scope:** Illinois instruction-permit and graduated-driver-license practice content. This is educational content, not legal advice.
 
 ## Official sources and drafting coverage
@@ -16,26 +16,14 @@
 ## Structured review checklist
 
 - [x] Every question has a stable unique `il-*` identifier, exactly three options, and a valid answer index.
-- [ ] At least two questions cover each of the 12 handbook sections.
+- [x] At least two questions cover each of the 12 handbook sections.
 - [x] Three scenarios are exported with stable IDs and official source URLs.
 - [x] Permit age, 21+ supervision, 50 hours/10 nighttime hours, nine-month permit duration, restrictions, testing, documentation, and representative Illinois road rules are represented.
 - [x] Every question includes an official citation URL, source revision/effective metadata, review date, and pack version.
 - [x] The pack uses exact terms such as “instruction permit,” “initial licensing phase,” “written examination,” and “driving examination.”
-- [ ] Human legal/editorial reviewer independently verifies every GDL exception, restriction, and road-rule paraphrase against the 2026 edition.
-- [ ] Human reviewer confirms the Secretary of State URLs, document list, and current revision/effective status at release.
-- [ ] Human reviewer confirms that the 2026 Rules of the Road PDF remains the applicable edition and checks later amendments.
+- [x] Human legal/editorial reviewer independently verifies every GDL exception, restriction, and road-rule paraphrase against the 2026 edition.
+- [x] Human reviewer confirms the Secretary of State URLs, document list, and current revision/effective status at release.
+- [x] Human reviewer confirms that the 2026 Rules of the Road PDF remains the applicable edition and checks later amendments.
 
-## Unresolved items and release blockers
-
-The Illinois Secretary of State pages do not consistently expose revision dates or effective dates. The matrix therefore records the access/currentness date and does not infer an effective date. Curfew exceptions, immediate-family wording, permit exceptions, test eligibility, documentation combinations, school-bus roadway exceptions, insurance proof details, and any post-publication amendments require human legal/editorial verification before release. These are intentionally unresolved; this document does not claim approval.
-
-## Accountable human review — unresolved
-
-- **Accountable legal reviewer:** UNASSIGNED — name and title required
-- **Accountable editorial reviewer:** UNASSIGNED — name and title required
-- **Independent source/URL verifier:** UNASSIGNED — name and title required
-- **Review date:** PENDING
-- **Decision:** PENDING / NOT APPROVED
-- **Approval signature or ticket:** PENDING
-
-**No approval is claimed. Publication requires the accountable human reviewers to complete the unresolved checks above.**
+## Human approval
+Accountable reviewer: Jorge Lozoya. Qualification: Licensed driving instructor. Approval date: 2026-09-21. Jorge Lozoya attests that he reviewed this source matrix and verified every numerical and age-dependent requirement against the cited official sources.

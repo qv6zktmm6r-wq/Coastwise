@@ -8,6 +8,7 @@ import { requireAuth } from "../middlewares/auth";
 const router = Router();
 const approvedPacks: Record<string, string> = {
   "US-CA": "us-ca-2026.09.1", "US-TX": "us-tx-2026.09.1", "US-FL": "us-fl-2026.09.1",
+  "US-NY": "us-ny-2026.09.1", "US-OH": "us-oh-2026.09.1", "US-IL": "us-il-2026.09.1",
 };
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
 class FamilyMembershipConflict extends Error {}

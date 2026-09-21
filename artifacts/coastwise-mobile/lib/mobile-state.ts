@@ -7,12 +7,16 @@ export const CURRENT_FLORIDA_CONTENT_PACK_VERSION = 'us-fl-2026.09.1';
 export const CURRENT_NEW_YORK_CONTENT_PACK_VERSION = 'us-ny-2026.09.1';
 export const CURRENT_OHIO_CONTENT_PACK_VERSION = 'us-oh-2026.09.1';
 export const CURRENT_ILLINOIS_CONTENT_PACK_VERSION = 'us-il-2026.09.1';
+export const MOBILE_JURISDICTION_LABELS = {
+  'US-CA': 'California', 'US-TX': 'Texas', 'US-FL': 'Florida',
+  'US-NY': 'New York', 'US-OH': 'Ohio', 'US-IL': 'Illinois',
+} as const;
 
 export function isMobileJurisdiction(value: unknown): value is MobileJurisdiction {
   return value === 'US-CA' || value === 'US-TX' || value === 'US-FL' || value === 'US-NY' || value === 'US-OH' || value === 'US-IL';
 }
 export function isApprovedMobileJurisdiction(value: unknown): value is MobileJurisdiction {
-  return value === 'US-CA' || value === 'US-TX' || value === 'US-FL';
+  return value === 'US-CA' || value === 'US-TX' || value === 'US-FL' || value === 'US-NY' || value === 'US-OH' || value === 'US-IL';
 }
 
 export function getMobileContentPackVersion(jurisdiction: MobileJurisdiction) {

@@ -45,8 +45,8 @@ test('every bundled jurisdiction has a current, complete, attributable pack', ()
   }
 });
 
-test('only jurisdictions with approved source-matrix review are selectable', () => {
-  assert.deepEqual(supportedJurisdictions.map((jurisdiction) => jurisdiction.code), ['US-CA', 'US-TX', 'US-FL']);
+test('all six jurisdictions with approved source-matrix review are selectable', () => {
+  assert.deepEqual(supportedJurisdictions.map((jurisdiction) => jurisdiction.code), ['US-CA', 'US-TX', 'US-FL', 'US-NY', 'US-OH', 'US-IL']);
   for (const jurisdiction of supportedJurisdictions) {
     assert.equal(jurisdiction.sourceMatrixReview.status, 'approved');
     assert.match(jurisdiction.sourceMatrixReview.reviewedAt, /^\d{4}-\d{2}-\d{2}$/);
@@ -83,7 +83,7 @@ test('Texas and Florida packs explicitly cover launch-critical state requirement
   assert.match(floridaText, /first three months/i);
 });
 
-test('pending packs retain explicit launch facts for later review', () => {
+test('approved New York, Ohio, and Illinois packs retain explicit launch facts', () => {
   const text = (code: 'US-NY' | 'US-OH' | 'US-IL') => contentPacks[code].questions
     .map((question) => `${question.objective} ${question.prompt} ${question.explanation}`).join(' ');
   assert.match(text('US-NY'), /50 .*hours/i);
