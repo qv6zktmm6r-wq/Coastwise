@@ -1,7 +1,7 @@
 {
-  "name": "Coastwise — A Calm Co-Pilot for Safer Driving Practice",
+  "name": "Coastwise — Teen Driver Coach",
   "short_name": "Coastwise",
-  "description": "Practice driving decisions, build safer habits, and track progress across permit study and supervised drives.",
+  "description": "A calm co-pilot for teen practice, progress, and safer driving decisions across permit study and supervised drives.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",

@@ -1,6 +1,6 @@
-# California Teen Driver Coach
+# Coastwise
 
-A responsive study and supervised-practice coach that helps California teens prepare for the permit and behind-the-wheel tests.
+A calm co-pilot for teen permit study, supervised practice, and safer driving decisions across supported states.
 
 ## Run & Operate
 
@@ -29,12 +29,12 @@ A responsive study and supervised-practice coach that helps California teens pre
 ## Architecture decisions
 
 - The initial release is frontend-only and stores progress in localStorage so it is immediately usable without an account.
-- California licensing requirements are displayed as educational guidance, with an explicit disclaimer that the app is not the DMV or a licensed instructor.
+- State licensing requirements are displayed as educational guidance, with an explicit disclaimer that the app is not a DMV or a licensed instructor.
 
 ## Product
 
 - Student dashboard with readiness and next-action guidance
-- A 96-question California handbook study bank with stable IDs, section coverage, explanations, missed-question review, spaced repetition, topic practice, full review, and DMV-style simulations
+- Versioned state handbook study packs with stable IDs, section coverage, explanations, missed-question review, spaced repetition, topic practice, full review, and DMV-style simulations
 - Real-world judgment scenarios
 - Supervised drive missions and a 50-hour practice log
 - Foreground dashcam recording with GPS speed, distance, elapsed time, spoken coaching cues, review, and local download
