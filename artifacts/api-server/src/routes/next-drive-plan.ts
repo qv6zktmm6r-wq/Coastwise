@@ -57,7 +57,11 @@ export function buildNextDrivePlanPrompt(input: PlanInput): string {
 }
 
 function jurisdictionLabel(jurisdiction: PlanInput["jurisdiction"]): string {
-  return jurisdiction === "US-CA" ? "California (US-CA)" : jurisdiction;
+  return {
+    "US-CA": "California (US-CA)",
+    "US-TX": "Texas (US-TX)",
+    "US-FL": "Florida (US-FL)",
+  }[jurisdiction];
 }
 
 async function requestNextDrivePlan(input: PlanInput) {

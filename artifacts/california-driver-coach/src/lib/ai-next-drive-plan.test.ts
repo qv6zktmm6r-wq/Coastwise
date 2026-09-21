@@ -6,7 +6,13 @@ import { initialState, type AppState } from './state';
 test('next-drive plan strips identity, notes, answers, video, routes, and coordinates', () => {
   const state: AppState = {
     ...initialState,
-    profile: { name: 'Private', permitDate: '2026-01-01', targetTestDate: '2026-12-01' },
+    profile: {
+      name: 'Private',
+      permitDate: '2026-01-01',
+      targetTestDate: '2026-12-01',
+      jurisdiction: initialState.profile.jurisdiction,
+      contentPackVersion: initialState.profile.contentPackVersion,
+    },
     answers: { 1: false },
     missions: [{ title: 'Turns', detail: 'private detail', category: 'Control', minutes: 20, completed: false }],
     sessions: [{

@@ -17,6 +17,7 @@ import {
 } from '@/lib/recordings';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@/theme';
+import { getMobileWeakTopics } from '@/lib/practice-content';
 import {
   attachRecording,
   DriveLifecycleCoordinator,
@@ -24,12 +25,6 @@ import {
 } from '@/lib/drive-lifecycle';
 
 const DRIVE_SKILLS = ['turns', 'intersections'];
-const WEAK_TOPICS = [
-  { topic: 'Right-of-way', mastery: 0 },
-  { topic: 'Signs & signals', mastery: 0 },
-  { topic: 'Safe speed', mastery: 0 },
-];
-
 function explainPermission(title: string, permission: { granted: boolean; canAskAgain?: boolean } | null | undefined) {
   if (permission?.granted) return;
   const canAskAgain = permission?.canAskAgain !== false;
@@ -70,6 +65,7 @@ export default function DriveScreen() {
     forgetAllRecordings,
     jurisdiction,
     contentPackVersion,
+    practiceProgress,
   } = useCoastwise();
   const cameraRef = useRef<CameraViewType | null>(null);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
@@ -439,7 +435,7 @@ export default function DriveScreen() {
         night: drive.night,
         skills: drive.skills,
         events: [],
-        weakTopics: WEAK_TOPICS,
+        weakTopics: getMobileWeakTopics(jurisdiction, contentPackVersion, practiceProgress ?? {}),
         jurisdiction,
         contentPackVersion,
       },

@@ -19,10 +19,44 @@ function memoryStorage() {
   };
 }
 
-test('accepts the bundled versioned California manifest', () => {
+test('accepts all bundled versioned jurisdiction manifests', () => {
   assert.deepEqual(parseContentManifest(bundledContentManifest), bundledContentManifest);
+  assert.deepEqual(bundledContentManifest.packs.map((pack) => pack.jurisdiction), ['US-CA', 'US-TX', 'US-FL']);
   assert.equal(compareContentPackVersions('us-ca-2026.10.0', 'us-ca-2026.09.1'), 1);
   assert.equal(compareContentPackVersions('us-ca-2026.08.9', 'us-ca-2026.09.1'), -1);
+});
+
+test('distinguishes ordinary corrections from material updates', () => {
+  const manifest = structuredClone(bundledContentManifest);
+  const texas = manifest.packs.find((pack) => pack.jurisdiction === 'US-TX');
+  assert.ok(texas);
+  texas.notices.push(
+    {
+      id: 'tx-wording-correction',
+      jurisdiction: 'US-TX',
+      packVersion: texas.version,
+      level: 'correction',
+      effectiveDate: '2026-09-21',
+      title: 'Source wording clarified',
+      summary: 'A citation label was clarified without changing the correct answer.',
+      affectedTopics: ['Signs, signals & markings'],
+      sourceUrl: texas.sourceUrl,
+    },
+    {
+      id: 'tx-material-rule',
+      jurisdiction: 'US-TX',
+      packVersion: texas.version,
+      level: 'material',
+      effectiveDate: '2026-09-21',
+      title: 'Practice requirement changed',
+      summary: 'A rule changed and requires acknowledgement.',
+      affectedTopics: ['Licensing & permits'],
+      sourceUrl: texas.sourceUrl,
+    },
+  );
+  assert.equal(parseContentManifest(manifest)?.packs.length, 3);
+  assert.equal(getMaterialContentNotice(manifest, 'US-TX', [])?.id, 'tx-material-rule');
+  assert.equal(getMaterialContentNotice(manifest, 'US-TX', ['tx-material-rule']), undefined);
 });
 
 test('retains the bundled last-known-good pack when update checks fail', async () => {

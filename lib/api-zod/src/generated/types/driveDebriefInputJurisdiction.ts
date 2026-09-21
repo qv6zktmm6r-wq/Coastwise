@@ -11,4 +11,6 @@ export type DriveDebriefInputJurisdiction = typeof DriveDebriefInputJurisdiction
 
 export const DriveDebriefInputJurisdiction = {
   'US-CA': 'US-CA',
+  'US-TX': 'US-TX',
+  'US-FL': 'US-FL',
 } as const;

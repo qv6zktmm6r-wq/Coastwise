@@ -72,7 +72,11 @@ export function buildDebriefPrompt(input: DebriefInput): string {
 }
 
 function jurisdictionLabel(jurisdiction: DebriefInput["jurisdiction"]): string {
-  return jurisdiction === "US-CA" ? "California (US-CA)" : jurisdiction;
+  return {
+    "US-CA": "California (US-CA)",
+    "US-TX": "Texas (US-TX)",
+    "US-FL": "Florida (US-FL)",
+  }[jurisdiction];
 }
 
 async function requestDebrief(input: DebriefInput) {

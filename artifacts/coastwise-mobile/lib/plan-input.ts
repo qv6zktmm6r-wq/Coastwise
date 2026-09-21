@@ -1,16 +1,14 @@
 import type { NextDrivePlanInput } from '@workspace/api-client-react';
 import type { MobileDrive, MobileJurisdiction } from './coastwise-context';
+import { getMobileWeakTopics } from './practice-content';
 
 export function buildNextDrivePlanInput(
   drives: MobileDrive[],
   jurisdiction: MobileJurisdiction,
   contentPackVersion: string,
+  practiceProgress: Record<string, { correct: boolean; topic: string }>,
 ): NextDrivePlanInput {
-  const topics = [
-    { topic: 'Right-of-way', mastery: 0 },
-    { topic: 'Signs & signals', mastery: 0 },
-    { topic: 'Safe speed', mastery: 0 },
-  ];
+  const topics = getMobileWeakTopics(jurisdiction, contentPackVersion, practiceProgress);
   return {
     jurisdiction,
     contentPackVersion,

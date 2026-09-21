@@ -60,7 +60,7 @@ export function sanitizeFamilySyncState(value: unknown): unknown {
       name: text(profile.name, 200),
       permitDate: text(profile.permitDate, 20),
       targetTestDate: text(profile.targetTestDate, 20),
-      ...(profile.jurisdiction === "US-CA" ? { jurisdiction: profile.jurisdiction } : {}),
+      ...(["US-CA", "US-TX", "US-FL"].includes(String(profile.jurisdiction)) ? { jurisdiction: profile.jurisdiction } : {}),
       ...(typeof profile.contentPackVersion === "string"
         ? { contentPackVersion: text(profile.contentPackVersion, 80) }
         : {}),

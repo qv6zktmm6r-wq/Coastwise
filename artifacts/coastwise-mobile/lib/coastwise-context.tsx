@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { DriveDebrief, NextDrivePlan } from '@workspace/api-client-react';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { beginDriveState, CURRENT_CALIFORNIA_CONTENT_PACK_VERSION, DEFAULT_JURISDICTION, finishDriveState, hydrateMobileState, saveDriveState, updateDriveState } from './mobile-state';
+import { beginDriveState, CURRENT_CALIFORNIA_CONTENT_PACK_VERSION, DEFAULT_JURISDICTION, finishDriveState, getMobileContentPackVersion, hydrateMobileState, saveDriveState, updateDriveState } from './mobile-state';
 
 const STORAGE_KEY = 'coastwise-mobile-state';
 
@@ -23,7 +23,7 @@ export type ActiveMobileDrive = MobileDrive & {
   recordingRequested?: boolean;
 };
 
-export type MobileJurisdiction = 'US-CA';
+export type MobileJurisdiction = 'US-CA' | 'US-TX' | 'US-FL';
 
 export type MobileState = {
   drives: MobileDrive[];
@@ -36,6 +36,7 @@ export type MobileState = {
   hasCompletedOnboarding?: boolean;
   recordingRetentionDays?: number | 'forever';
   parentGoal?: { targetMinutes: number; skill: string };
+  practiceProgress?: Record<string, { correct: boolean; topic: string }>;
 };
 
 type CoastwiseContextValue = MobileState & {
@@ -54,6 +55,7 @@ type CoastwiseContextValue = MobileState & {
   saveDrive: (drive: MobileDrive) => void;
   savePlan: (plan: NextDrivePlan) => void;
   acknowledgePrivacy: () => void;
+  recordPracticeAnswer: (questionId: string, topic: string, correct: boolean) => void;
 };
 
 const CoastwiseContext = createContext<CoastwiseContextValue | null>(null);
@@ -63,6 +65,7 @@ export function CoastwiseProvider({ children }: { children: ReactNode }) {
     drives: [],
     jurisdiction: DEFAULT_JURISDICTION,
     contentPackVersion: CURRENT_CALIFORNIA_CONTENT_PACK_VERSION,
+    practiceProgress: {},
   });
   const [hydrated, setHydrated] = useState(false);
 
@@ -86,7 +89,8 @@ export function CoastwiseProvider({ children }: { children: ReactNode }) {
       ...current,
       jurisdiction,
       // A jurisdiction change must never carry a pack from another state.
-      contentPackVersion: CURRENT_CALIFORNIA_CONTENT_PACK_VERSION,
+      contentPackVersion: getMobileContentPackVersion(jurisdiction),
+      plan: undefined,
     })),
     setRole: (role) => setState((current) => ({ ...current, role })),
     completeOnboarding: () => setState((current) => ({ ...current, hasCompletedOnboarding: true })),
@@ -119,6 +123,13 @@ export function CoastwiseProvider({ children }: { children: ReactNode }) {
     saveDrive: (drive) => setState((current) => saveDriveState(current, drive)),
     savePlan: (plan) => setState((current) => ({ ...current, plan })),
     acknowledgePrivacy: () => setState((current) => ({ ...current, acknowledgedPrivacyVersion: '2026-09-18-ios-ai' })),
+    recordPracticeAnswer: (questionId, topic, correct) => setState((current) => ({
+      ...current,
+      practiceProgress: {
+        ...(current.practiceProgress ?? {}),
+        [`${current.jurisdiction}:${current.contentPackVersion}:${questionId}`]: { correct, topic },
+      },
+    })),
   }), [hydrated, state]);
 
   return <CoastwiseContext.Provider value={value}>{children}</CoastwiseContext.Provider>;

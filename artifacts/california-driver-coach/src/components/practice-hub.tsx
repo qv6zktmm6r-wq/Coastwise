@@ -12,7 +12,7 @@ import {
   Sparkles,
   Target,
 } from 'lucide-react';
-import { handbookSections, questionBank, type HandbookQuestion } from '@/data/question-bank';
+import { type HandbookContentPack, type HandbookQuestion } from '@/data/question-bank';
 
 export type PracticeAnswer = {
   selected: number;
@@ -27,6 +27,7 @@ type PracticeMode = 'daily' | 'continue' | 'missed' | 'exam' | 'full' | 'topic';
 
 type Props = {
   jurisdiction: import("@/lib/jurisdiction").Jurisdiction;
+  pack: HandbookContentPack;
   answers: Record<string, PracticeAnswer>;
   onAnswer: (question: HandbookQuestion, selected: number) => void;
 };
@@ -40,7 +41,7 @@ const shuffle = <T,>(values: T[]) => {
   return copy;
 };
 
-function sectionStats(sectionId: string, answers: Record<string, PracticeAnswer>) {
+function sectionStats(questionBank: HandbookQuestion[], sectionId: string, answers: Record<string, PracticeAnswer>) {
   const questions = questionBank.filter((question) => question.section === sectionId);
   const answered = questions.filter((question) => answers[question.id]);
   const correct = answered.filter((question) => answers[question.id]?.correct).length;
@@ -69,7 +70,8 @@ function modeLabel(mode: PracticeMode) {
   return 'Topic practice';
 }
 
-export function PracticeHub({ jurisdiction, answers, onAnswer }: Props) {
+export function PracticeHub({ jurisdiction, pack, answers, onAnswer }: Props) {
+  const { questions: questionBank, sections: handbookSections } = pack;
   const [queue, setQueue] = useState<HandbookQuestion[]>([]);
   const [mode, setMode] = useState<PracticeMode | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
@@ -249,7 +251,7 @@ export function PracticeHub({ jurisdiction, answers, onAnswer }: Props) {
       <div className="mb-5 flex items-end justify-between gap-4"><div><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Handbook coverage</div><h2 className="mt-1 font-display text-3xl">Practice by section.</h2></div><span className="font-mono-ui text-xs text-[hsl(var(--muted-foreground))]">{handbookSections.length} sections</span></div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {handbookSections.map((section) => {
-          const stats = sectionStats(section.id, answers);
+          const stats = sectionStats(questionBank, section.id, answers);
           return <button key={section.id} onClick={() => startSession('topic', section.id)} className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-left hover:border-[hsl(var(--primary))] hover:shadow-md" data-testid={`button-topic-${section.id}`}>
             <div className="flex items-start justify-between gap-3"><div><div className="text-sm font-extrabold">{section.title}</div><p className="mt-1 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{section.description}</p></div><span className="font-mono-ui text-xs text-[hsl(var(--primary))]">{stats.mastery}%</span></div>
             <div className="mt-4"><ProgressBar value={stats.mastery} /></div>

@@ -10,9 +10,10 @@ import { Ionicons } from '@expo/vector-icons';
 
 export default function TodayScreen() {
   const palette = usePalette();
-  const { drives, plan, savePlan, acknowledgedPrivacyVersion, acknowledgePrivacy, jurisdiction, contentPackVersion } = useCoastwise();
+  const { drives, plan, savePlan, acknowledgedPrivacyVersion, acknowledgePrivacy, jurisdiction, contentPackVersion, practiceProgress } = useCoastwise();
   const createPlan = useCreateNextDrivePlan();
   const [showPrivacy, setShowPrivacy] = useState(!acknowledgedPrivacyVersion);
+  const jurisdictionName = jurisdiction === 'US-TX' ? 'Texas' : jurisdiction === 'US-FL' ? 'Florida' : 'California';
 
   if (showPrivacy) {
     return (
@@ -42,7 +43,7 @@ export default function TodayScreen() {
     );
   }
 
-  const generatePlan = () => createPlan.mutate({ data: buildNextDrivePlanInput(drives, jurisdiction, contentPackVersion) }, { onSuccess: savePlan });
+  const generatePlan = () => createPlan.mutate({ data: buildNextDrivePlanInput(drives, jurisdiction, contentPackVersion, practiceProgress ?? {}) }, { onSuccess: savePlan });
   
   const now = new Date();
   const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
@@ -67,7 +68,7 @@ export default function TodayScreen() {
           <Ionicons name="map" size={20} color={colors.primary} />
           <View style={{ flex: 1 }}>
             <Eyebrow>Practice rules</Eyebrow>
-            <Text style={{ color: palette.text, fontSize: 15, fontWeight: '700' }}>{jurisdiction} · California pack {contentPackVersion}</Text>
+            <Text style={{ color: palette.text, fontSize: 15, fontWeight: '700' }}>{jurisdiction} · {jurisdictionName} pack {contentPackVersion}</Text>
           </View>
         </View>
       </Card>

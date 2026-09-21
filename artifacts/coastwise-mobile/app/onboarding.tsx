@@ -69,7 +69,7 @@ export default function OnboardingScreen() {
               <ActionButton secondary={selectedJurisdiction !== 'US-CA'} selected={selectedJurisdiction === 'US-CA'} onPress={() => setSelectedJurisdiction('US-CA')}>
                 California (US-CA)
               </ActionButton>
-              <Body muted>More states are coming soon. We will let you choose when they are available.</Body>
+              <Body muted>Texas and Florida packs are installed but remain unavailable until their human source-matrix reviews are approved.</Body>
             </View>
           </>
         ) : (

@@ -1,16 +1,15 @@
 import { useState } from 'react';
-import { Pressable, Text, View, AccessibilityInfo } from 'react-native';
+import { Pressable, Text, View, AccessibilityInfo, Linking } from 'react-native';
 import { Card, Body, Eyebrow, Screen, Title, usePalette, styles } from '@/components/ui';
 import { colors } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
-
-const questions = [
-  { prompt: 'At a four-way stop, you arrive at the same time as another driver on your right. Who goes first?', options: ['You, because you are already rolling', 'The driver on your right', 'Whoever waves first'], answer: 1, explanation: 'When arrival is simultaneous, yield to the driver on your right.' },
-  { prompt: 'Rain reduces visibility. What should guide your speed?', options: ['The posted limit only', 'A speed that lets you see and stop comfortably', 'The speed of traffic behind you'], answer: 1, explanation: 'The posted limit is not a target in every condition.' },
-];
+import { useCoastwise } from '@/lib/coastwise-context';
+import { getMobilePracticePack } from '@/lib/practice-content';
 
 export default function PracticeScreen() {
   const palette = usePalette();
+  const { jurisdiction, contentPackVersion, recordPracticeAnswer } = useCoastwise();
+  const questions = getMobilePracticePack(jurisdiction);
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const question = questions[index];
@@ -18,6 +17,7 @@ export default function PracticeScreen() {
   const choose = (option: number) => {
     if (selected === null) {
       setSelected(option);
+      recordPracticeAnswer(question.id, question.topic, option === question.answer);
       if (option === question.answer) {
         AccessibilityInfo.announceForAccessibility("Correct. Good call.");
       } else {
@@ -119,6 +119,10 @@ export default function PracticeScreen() {
               </Text>
             </View>
             <Body muted>{question.explanation}</Body>
+            <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(question.sourceUrl)} style={{ marginTop: 14 }}>
+              <Text style={{ color: colors.primary, fontWeight: '700' }}>Official source: {question.sourceTitle}</Text>
+              <Text style={{ color: palette.muted, fontSize: 12, marginTop: 3 }}>Pack {contentPackVersion}</Text>
+            </Pressable>
             <Pressable onPress={handleNext} style={({ pressed }) => [{ marginTop: 24, flexDirection: 'row', alignItems: 'center', gap: 6, opacity: pressed ? 0.7 : 1 }]}>
               <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 16 }}>Next question</Text>
               <Ionicons name="arrow-forward" size={18} color={colors.primary} />

@@ -1,5 +1,7 @@
 import {
   CALIFORNIA_CONTENT_PACK_VERSION,
+  FLORIDA_CONTENT_PACK_VERSION,
+  TEXAS_CONTENT_PACK_VERSION,
   defaultJurisdiction,
   isJurisdictionCode,
   type JurisdictionCode,
@@ -54,6 +56,24 @@ export const bundledContentManifest: ContentManifest = {
       effectiveDate: '2026-01-01',
       reviewedAt: '2026-09-20',
       sourceUrl: 'https://www.dmv.ca.gov/portal/handbook/california-driver-handbook/',
+      notices: [],
+    },
+    {
+      jurisdiction: 'US-TX',
+      version: TEXAS_CONTENT_PACK_VERSION,
+      sourceRevision: 'Texas Driver Handbook DL-7, January 2026, with current official DPS/TxDOT/TxDMV/TDI sources',
+      effectiveDate: '2026-09-21',
+      reviewedAt: '2026-09-21',
+      sourceUrl: 'https://www.dps.texas.gov/internetforms/forms/dl-7.pdf',
+      notices: [],
+    },
+    {
+      jurisdiction: 'US-FL',
+      version: FLORIDA_CONTENT_PACK_VERSION,
+      sourceRevision: 'Florida Class E Driver License Handbook 2023 with current official FLHSMV and statute sources',
+      effectiveDate: '2026-09-21',
+      reviewedAt: '2026-09-21',
+      sourceUrl: 'https://www.flhsmv.gov/pdf/handbooks/englishdriverhandbook.pdf',
       notices: [],
     },
   ],
@@ -159,7 +179,7 @@ export function acknowledgeContentNotice(storage: Pick<Storage, 'getItem' | 'set
 
 export async function checkContentManifest({
   jurisdiction = defaultJurisdiction,
-  currentVersion = CALIFORNIA_CONTENT_PACK_VERSION,
+  currentVersion,
   fetcher = fetch,
   storage = window.localStorage,
 }: {
@@ -168,6 +188,13 @@ export async function checkContentManifest({
   fetcher?: typeof fetch;
   storage?: Pick<Storage, 'getItem' | 'setItem'>;
 } = {}): Promise<ContentManifestStatus> {
+  const installedVersion = currentVersion ?? (
+    jurisdiction === 'US-CA'
+      ? CALIFORNIA_CONTENT_PACK_VERSION
+      : jurisdiction === 'US-TX'
+        ? TEXAS_CONTENT_PACK_VERSION
+        : FLORIDA_CONTENT_PACK_VERSION
+  );
   const cached = loadCachedContentManifest(storage);
   try {
     const response = await fetcher(`${import.meta.env.BASE_URL}content-manifest.json`, { cache: 'no-store' });
@@ -176,7 +203,7 @@ export async function checkContentManifest({
     if (!manifest) throw new Error('manifest is invalid');
     const pack = getPackFromManifest(manifest, jurisdiction);
     if (!pack) throw new Error('manifest does not contain the selected jurisdiction');
-    const comparison = compareContentPackVersions(pack.version, currentVersion);
+    const comparison = compareContentPackVersions(pack.version, installedVersion);
     if (comparison === null || comparison < 0) throw new Error('manifest pack version is invalid or older than the installed pack');
     storage.setItem(contentManifestStorageKey, JSON.stringify(manifest));
     return comparison > 0
@@ -185,7 +212,7 @@ export async function checkContentManifest({
   } catch {
     const cachedPack = cached ? getPackFromManifest(cached, jurisdiction) : undefined;
     const cachedComparison = cachedPack
-      ? compareContentPackVersions(cachedPack.version, currentVersion)
+      ? compareContentPackVersions(cachedPack.version, installedVersion)
       : null;
     const canUseCached = cached && cachedPack && cachedComparison !== null && cachedComparison >= 0;
     const fallback = canUseCached ? cached : bundledContentManifest;

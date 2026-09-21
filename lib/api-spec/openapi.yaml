@@ -322,7 +322,7 @@ components:
       properties:
         jurisdiction:
           type: string
-          enum: [US-CA]
+          enum: [US-CA, US-TX, US-FL]
         contentPackVersion:
           type: string
           minLength: 1
@@ -407,7 +407,7 @@ components:
       properties:
         jurisdiction:
           type: string
-          enum: [US-CA]
+          enum: [US-CA, US-TX, US-FL]
         contentPackVersion:
           type: string
           minLength: 1

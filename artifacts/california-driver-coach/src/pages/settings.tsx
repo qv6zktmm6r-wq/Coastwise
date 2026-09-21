@@ -8,7 +8,7 @@ import { mergeStates } from '../lib/sync';
 import { clearDriveRecordings } from '../lib/route-coach';
 import { Settings, SunMedium, Moon, HardDrive, Download, Upload, ShieldCheck, LockKeyhole, Pencil, Check, RefreshCw, AlertTriangle, Link as LinkIcon, Trash2, ChevronRight, Globe, Info } from 'lucide-react';
 import { type ContentManifestStatus, getPackFromManifest } from '../lib/content-manifest';
-import { supportedJurisdictions, type JurisdictionCode, getJurisdiction } from '../lib/jurisdiction';
+import { supportedJurisdictions, type JurisdictionCode, getCurrentContentPackVersion, getJurisdiction } from '../lib/jurisdiction';
 import { materialPolicyNotices, type PolicyAcknowledgement } from '../lib/policy-notice';
 
 type BeforeInstallPromptEvent = Event & {
@@ -434,8 +434,14 @@ export default function SettingsPage({ state, setState, syncManager, policyAckno
             {supportedJurisdictions.map((j) => (
               <button
                 key={j.code}
-                onClick={() => setState({ ...state, profile: { ...state.profile, jurisdiction: j.code } })}
-                disabled={j.code !== 'US-CA'}
+                onClick={() => setState({
+                  ...state,
+                  profile: {
+                    ...state.profile,
+                    jurisdiction: j.code,
+                    contentPackVersion: getCurrentContentPackVersion(j.code),
+                  },
+                })}
                 className={`flex flex-col items-start gap-2 rounded-xl border p-4 transition-all text-left ${state.profile.jurisdiction === j.code ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary)/.04)] text-[hsl(var(--primary))]' : 'border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:border-[hsl(var(--primary)/.3)] disabled:opacity-50 disabled:hover:border-[hsl(var(--border))]'}`}
                 data-testid={`button-jurisdiction-${j.code}`}
               >
@@ -443,7 +449,7 @@ export default function SettingsPage({ state, setState, syncManager, policyAckno
                   <span className={`text-sm font-bold ${state.profile.jurisdiction === j.code ? 'text-[hsl(var(--foreground))]' : ''}`}>{j.name}</span>
                   {state.profile.jurisdiction === j.code && <Check size={16} className="text-[hsl(var(--primary))]" />}
                 </div>
-                {j.code !== 'US-CA' && <span className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Coming soon</span>}
+                <span className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">{getCurrentContentPackVersion(j.code)}</span>
               </button>
             ))}
           </div>
@@ -495,9 +501,7 @@ export default function SettingsPage({ state, setState, syncManager, policyAckno
         <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
           <div className="flex items-center gap-2 text-sm font-extrabold"><Pencil size={16} className="text-[hsl(var(--accent))]" />{getJurisdiction(state.profile.jurisdiction)?.name || 'California'} essentials</div>
           <ul className="mt-4 space-y-3 text-xs leading-5 text-[hsl(var(--muted-foreground))]">
-            <li className="flex gap-2"><Check size={14} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" />Permit held at least 6 months before the drive test.</li>
-            <li className="flex gap-2"><Check size={14} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" />50 supervised practice hours, including 10 at night.</li>
-            <li className="flex gap-2"><Check size={14} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" />6 hours of professional driver instruction.</li>
+            {(getJurisdiction(state.profile.jurisdiction)?.essentials ?? []).map((essential) => <li key={essential} className="flex gap-2"><Check size={14} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" />{essential}</li>)}
           </ul>
         </div>
       </aside>

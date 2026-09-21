@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-20T00:00:00.000Z",
+  "generatedAt": "2026-09-21T00:00:00.000Z",
   "packs": [
     {
       "jurisdiction": "US-CA",
@@ -9,6 +9,24 @@
       "effectiveDate": "2026-01-01",
       "reviewedAt": "2026-09-20",
       "sourceUrl": "https://www.dmv.ca.gov/portal/handbook/california-driver-handbook/",
+      "notices": []
+    },
+    {
+      "jurisdiction": "US-TX",
+      "version": "us-tx-2026.09.1",
+      "sourceRevision": "Texas Driver Handbook DL-7, January 2026, with current official DPS/TxDOT/TxDMV/TDI sources",
+      "effectiveDate": "2026-09-21",
+      "reviewedAt": "2026-09-21",
+      "sourceUrl": "https://www.dps.texas.gov/internetforms/forms/dl-7.pdf",
+      "notices": []
+    },
+    {
+      "jurisdiction": "US-FL",
+      "version": "us-fl-2026.09.1",
+      "sourceRevision": "Florida Class E Driver License Handbook 2023 with current official FLHSMV and statute sources",
+      "effectiveDate": "2026-09-21",
+      "reviewedAt": "2026-09-21",
+      "sourceUrl": "https://www.flhsmv.gov/pdf/handbooks/englishdriverhandbook.pdf",
       "notices": []
     }
   ]
