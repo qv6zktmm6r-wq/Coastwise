@@ -52,7 +52,9 @@ test('web beta surfaces local-data safeguards', () => {
   assert.match(appSource, /data-testid="drive-storage-warning"/);
   assert.match(settingsSource, /testId="button-export-progress"/);
   assert.match(settingsSource, /data-testid="input-import-progress"/);
-  assert.match(appSource, /Route coaching has started without video/);
+  assert.match(appSource, /Coaching has started without video/);
+  assert.match(appSource, /testId="button-start-free-drive"/);
+  assert.match(appSource, /No route required/);
 });
 
 test('web beta metadata describes Coastwise without starter copy', () => {

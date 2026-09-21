@@ -14,7 +14,12 @@ export default defineConfig({
           executablePath: process.env.REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE
             ?? process.env.CHROMIUM_PATH
             ?? '/repl/tools/bin/chromium',
-          args: ['--no-sandbox', '--disable-dev-shm-usage'],
+          args: [
+            '--no-sandbox',
+            '--disable-dev-shm-usage',
+            '--use-fake-device-for-media-stream',
+            '--use-fake-ui-for-media-stream',
+          ],
         },
       },
     },

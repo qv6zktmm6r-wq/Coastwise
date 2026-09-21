@@ -61,3 +61,22 @@ test('keeps each start-screen goal tied to its own study tools', async ({ page }
   }
   await expect(page.locator('[data-testid^="link-mobile-nav-"]')).toHaveCount(4);
 });
+
+test('starts a free-drive dashcam without building a route', async ({ page, context, browserName }) => {
+  test.skip(browserName !== 'chromium', 'The deterministic fake camera is configured for Chromium.');
+  await context.grantPermissions(['camera', 'geolocation'], { origin: 'http://127.0.0.1:4174' });
+  await context.setGeolocation({ latitude: 34.0522, longitude: -118.2437 });
+  await page.goto('/drive');
+
+  await page.getByTestId('button-start-free-drive').click();
+  await expect(page.getByTestId('preflight-checklist')).toContainText('Free Drive');
+
+  for (const checkbox of await page.getByRole('checkbox').all()) {
+    await checkbox.check();
+  }
+  await page.getByTestId('button-confirm-preflight').click();
+
+  await expect(page.getByText('Recording locally')).toBeVisible();
+  await expect(page.locator('video[autoplay]')).toBeVisible();
+  await page.getByTestId('button-stop-gps-drive').click();
+});

@@ -11,10 +11,15 @@ export function RouteMap({ route, currentPosition }: { route: PlannedRoute; curr
 
   useEffect(() => {
     if (!host.current || map.current) return;
-    map.current = L.map(host.current, { zoomControl: false, attributionControl: true });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 19,
+    map.current = L.map(host.current, {
+      zoomControl: false,
+      attributionControl: true,
+      zoomSnap: 0.5,
+    });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+      maxZoom: 20,
+      subdomains: 'abcd',
     }).addTo(map.current);
     L.control.zoom({ position: 'bottomright' }).addTo(map.current);
     return () => {
@@ -29,9 +34,22 @@ export function RouteMap({ route, currentPosition }: { route: PlannedRoute; curr
       if (layer instanceof L.Polyline || layer instanceof L.CircleMarker) map.current?.removeLayer(layer);
     });
     const points = route.coordinates.map(([longitude, latitude]) => L.latLng(latitude, longitude));
-    const line = L.polyline(points, { color: '#0a84ff', weight: 6, opacity: 0.9, lineCap: 'round' }).addTo(map.current);
+    if (points.length === 0) {
+      if (route.origin[0] !== 0 || route.origin[1] !== 0) {
+        map.current.setView([route.origin[1], route.origin[0]], 16);
+      }
+      return;
+    }
+    const casing = L.polyline(points, { color: '#ffffff', weight: 10, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }).addTo(map.current);
+    L.polyline(points, { color: '#0a84ff', weight: 6, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(map.current);
     L.circleMarker([route.origin[1], route.origin[0]], { radius: 8, color: '#ffffff', fillColor: '#0a84ff', fillOpacity: 1, weight: 3 }).addTo(map.current);
-    map.current.fitBounds(line.getBounds(), { padding: [28, 28], animate: !reduceMotion() });
+    const finish = points[points.length - 1];
+    if (points.length > 1) {
+      L.circleMarker(finish, { radius: 7, color: '#ffffff', fillColor: '#17202b', fillOpacity: 1, weight: 3 }).addTo(map.current);
+      map.current.fitBounds(casing.getBounds(), { padding: [32, 32], animate: !reduceMotion() });
+    } else {
+      map.current.setView(points[0], 16, { animate: !reduceMotion() });
+    }
   }, [route]);
 
   useEffect(() => {

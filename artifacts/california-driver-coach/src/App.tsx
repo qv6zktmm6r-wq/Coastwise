@@ -61,7 +61,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { getContentPack, getContentScenarios } from '@/data/content-packs';
 import { RouteMap } from '@/components/route-map';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { deleteDriveRecording as deleteSavedDriveRecording, loadDriveRecording, requestPracticeLoop, requestReturnRoute, saveDriveRecording, type PlannedRoute, type RouteCoordinate } from '@/lib/route-coach';
+import { deleteDriveRecording as deleteSavedDriveRecording, loadDriveRecording, requestReturnRoute, saveDriveRecording, type PlannedRoute, type RouteCoordinate } from '@/lib/route-coach';
 import {
   appendCoachEvent,
   deleteCoachEvent,
@@ -566,8 +566,9 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const [recordedVideoUrl, setRecordedVideoUrl] = useState(reviewFixture?.recordedVideoUrl ?? '');
   const [recordedVideoType, setRecordedVideoType] = useState(reviewFixture?.recordedVideoType ?? 'video/webm');
   const [cueIndex, setCueIndex] = useState(0);
-  const [routeMinutes, setRouteMinutes] = useState(15);
+  const [routeMinutes, setRouteMinutes] = useState<20 | 35 | 50>(20);
   const [plannedRoute, setPlannedRoute] = useState<PlannedRoute | null>(reviewFixture?.plannedRoute ?? null);
+  const [driveMode, setDriveMode] = useState<'free' | 'route'>('free');
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState('');
   const [activeStep, setActiveStep] = useState(0);
@@ -719,24 +720,32 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     }
     setRouteLoading(true);
     setRouteError('');
-    navigator.geolocation.getCurrentPosition(async (position) => {
-      try {
-        const route = await requestPracticeLoop(position.coords.latitude, position.coords.longitude, routeMinutes);
-        setPlannedRoute(route);
-        setCurrentCue('Route ready. Review it with the supervising adult before starting.');
-        routeRef.current = route;
-        const originPosition: RouteCoordinate = [position.coords.longitude, position.coords.latitude];
-        currentPositionRef.current = originPosition;
-        setCurrentPosition(originPosition);
-        setActiveStep(0);
-        activeStepRef.current = 0;
-        preparedStepRef.current = -1;
-        finalStepRef.current = -1;
-      } catch {
-        setRouteError('I could not create a safe local loop right now. Check your connection and try again.');
-      } finally {
-        setRouteLoading(false);
-      }
+    navigator.geolocation.getCurrentPosition((position) => {
+      createRoute.mutate({
+        data: {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          durationMinutes: routeMinutes,
+          difficulty: 'beginner',
+          skills: ['turns', 'intersections'],
+        },
+      }, {
+        onSuccess: (route) => {
+          const convertedRoute = convertApiRoute(route);
+          setPlannedRoute(convertedRoute);
+          setCurrentCue('Route ready. Review it with your supervising passenger before starting.');
+          routeRef.current = convertedRoute;
+          const originPosition: RouteCoordinate = [position.coords.longitude, position.coords.latitude];
+          currentPositionRef.current = originPosition;
+          setCurrentPosition(originPosition);
+          setActiveStep(0);
+          activeStepRef.current = 0;
+          preparedStepRef.current = -1;
+          finalStepRef.current = -1;
+        },
+        onError: () => setRouteError('I could not create a realistic local loop right now. Check your connection and try again.'),
+        onSettled: () => setRouteLoading(false),
+      });
     }, () => {
       setRouteError('Allow location access so Coastwise can build a route from where you are.');
       setRouteLoading(false);
@@ -783,11 +792,27 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   };
   const updateRouteProgress = (latitude: number, longitude: number, metersPerSecond: number) => {
     const route = routeRef.current;
-    if (!route || route.steps.length === 0) return;
     const position: RouteCoordinate = [longitude, latitude];
     currentPositionRef.current = position;
     currentSpeedRef.current = Number.isFinite(metersPerSecond) ? metersPerSecond * 2.236936 : null;
     setCurrentPosition(position);
+    if (!route) return;
+    if (driveMode === 'free') {
+      const coordinates = route.coordinates;
+      const previous = coordinates[coordinates.length - 1];
+      const shouldAppend = !previous || distanceBetween(latitude, longitude, previous[1], previous[0]) >= 8;
+      if (shouldAppend) {
+        routeRef.current = {
+          ...route,
+          origin: coordinates.length === 0 ? position : route.origin,
+          coordinates: [...coordinates, position],
+          distanceMeters: distanceMiles * 1609.344,
+          durationSeconds: elapsedSeconds,
+        };
+      }
+      return;
+    }
+    if (route.steps.length === 0) return;
     const stepIndex = activeStepRef.current;
     const step = route.steps[Math.min(stepIndex, route.steps.length - 1)];
     const metersAway = distanceBetween(latitude, longitude, step.location[1], step.location[0]);
@@ -889,9 +914,9 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
           date: new Date(startedAt ?? Date.now()).toISOString().slice(0, 10),
           minutes,
           night: false,
-          notes: `Coached route · ${distanceMiles.toFixed(1)} miles tracked · no video`,
+          notes: `${driveMode === 'free' ? 'Free drive' : 'Coached route'} · ${distanceMiles.toFixed(1)} miles tracked · no video`,
           distanceMiles,
-          routeTitle: 'Coached practice route',
+          routeTitle: driveMode === 'free' ? 'Free drive' : 'Coached practice route',
         }, ...state.sessions],
       });
     }
@@ -904,8 +929,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     setPaused(false);
     pausedRef.current = false;
   };
-  const startGuidanceWithoutCamera = (message: string) => {
-    if (!plannedRoute) return;
+  const startGuidanceWithoutCamera = (route: PlannedRoute, message: string) => {
     mediaRecorder.current = null;
     setTrackingError(message);
     setDistanceMiles(0);
@@ -923,18 +947,20 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     recordingClockStartedAt.current = performance.now();
     eventSequence.current = 0;
     setCueIndex(1);
-    routeRef.current = plannedRoute;
+    routeRef.current = route;
     activeStepRef.current = 0;
     setActiveStep(0);
     preparedStepRef.current = -1;
     finalStepRef.current = -1;
     setTracking(true);
     playCoach(coachVoice.started);
-    speak(`Coached route started. ${coaching[plannedRoute.steps[0]?.modifier === 'left' ? 'turns' : 'speed-control']}`);
+    speak(driveMode === 'free'
+      ? 'Free drive started. Follow posted signs, keep a safe following distance, and let your supervising passenger handle the screen.'
+      : `Coached route started. ${coaching[route.steps[0]?.modifier === 'left' ? 'turns' : 'speed-control']}`);
     recordCoachEvent({
       kind: 'start',
       title: 'Drive started',
-      detail: 'Route coaching is active without video recording.',
+      detail: `${driveMode === 'free' ? 'Free-drive coaching' : 'Route coaching'} is active without video recording.`,
     });
     if (navigator.geolocation) {
       watchId.current = navigator.geolocation.watchPosition((position) => {
@@ -965,17 +991,26 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     }
   };
   const startTracking = async () => {
-    if (!plannedRoute) {
+    const activeRoute = driveMode === 'free'
+      ? routeRef.current ?? {
+          coordinates: [],
+          steps: [],
+          distanceMeters: 0,
+          durationSeconds: 0,
+          origin: currentPosition ?? [0, 0],
+        }
+      : plannedRoute;
+    if (!activeRoute) {
       setTrackingError('Build and review a practice route before starting the camera.');
       return;
     }
     setShowPreflight(false);
     if (storageEstimate && storageEstimate.available < criticalRecordingStorageBytes) {
-      startGuidanceWithoutCamera(`Only ${formatStorageBytes(storageEstimate.available)} of browser storage is available. Route coaching has started without video so this drive does not fill the device.`);
+      startGuidanceWithoutCamera(activeRoute, `Only ${formatStorageBytes(storageEstimate.available)} of browser storage is available. Coaching has started without video so this drive does not fill the device.`);
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-      startGuidanceWithoutCamera('Camera recording is unavailable. Route coaching has started without video.');
+      startGuidanceWithoutCamera(activeRoute, 'Camera recording is unavailable. Coaching has started without video.');
       return;
     }
     setTrackingError('');
@@ -1023,13 +1058,14 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
           void saveDriveRecording(reviewId, blob).then(() => {
             setState({
               ...state,
-              sessions: [{
+            sessions: [{
                 id: createDriveSessionId(),
                 date: new Date(startedAt ?? Date.now()).toISOString().slice(0, 10),
                 minutes: Math.max(1, Math.round(durationSeconds / 60)),
                 night: false,
-                notes: `Coached drive · ${distanceMiles.toFixed(1)} miles tracked`,
+                notes: `${driveMode === 'free' ? 'Free drive' : 'Coached drive'} · ${distanceMiles.toFixed(1)} miles tracked`,
                 distanceMiles,
+                routeTitle: driveMode === 'free' ? 'Free drive' : 'Coached practice route',
                 review: { id: reviewId, durationSeconds, eventCount: reviewEvents.length, events: reviewEvents, route: reviewRoute, videoType },
               }, ...state.sessions],
             });
@@ -1043,18 +1079,20 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       recordingClockStartedAt.current = performance.now();
       eventSequence.current = 0;
       setCueIndex(1);
-      routeRef.current = plannedRoute;
+      routeRef.current = activeRoute;
       activeStepRef.current = 0;
       setActiveStep(0);
       preparedStepRef.current = -1;
       finalStepRef.current = -1;
       setTracking(true);
       playCoach(coachVoice.started);
-      speak(`Coached route started. ${coaching[plannedRoute.steps[0]?.modifier === 'left' ? 'turns' : 'speed-control']}`);
+      speak(driveMode === 'free'
+        ? 'Free drive started. Follow posted signs, keep a safe following distance, and let your supervising passenger handle the screen.'
+        : `Coached route started. ${coaching[activeRoute.steps[0]?.modifier === 'left' ? 'turns' : 'speed-control']}`);
       recordCoachEvent({
         kind: 'start',
         title: 'Drive started',
-        detail: 'Dashcam recording and route coaching are active.',
+        detail: `Dashcam recording and ${driveMode === 'free' ? 'free-drive coaching' : 'route coaching'} are active.`,
       });
       if (navigator.geolocation) {
         watchId.current = navigator.geolocation.watchPosition((position) => {
@@ -1085,10 +1123,16 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       } else {
         setTrackingError('The road camera is recording, but GPS tracking is not available in this browser.');
       }
-    } catch {
+    } catch (error) {
       cameraStream?.getTracks().forEach((track) => track.stop());
       setCameraStream(null);
-      startGuidanceWithoutCamera('Camera access was not available. Route coaching has started without video.');
+      const permissionDenied = error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'SecurityError');
+      startGuidanceWithoutCamera(
+        activeRoute,
+        permissionDenied
+          ? 'Camera permission was denied. Allow camera access in this browser to record video. Coaching has started without video.'
+          : 'The camera could not start on this device. Coaching has started without video.',
+      );
     }
   };
   useEffect(() => {
@@ -1215,13 +1259,30 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     if (!next) speak('Route coaching resumed.');
   };
   const addSession = (event: React.FormEvent) => { event.preventDefault(); const minutes = Number(form.minutes); if (!minutes || minutes < 1) return; setState({ ...state, sessions: [{ id: createDriveSessionId(), date: form.date, minutes, night: form.night, notes: form.notes || 'Practice drive' }, ...state.sessions] }); setForm({ date: new Date().toISOString().slice(0, 10), minutes: '30', night: false, notes: '' }); setShowForm(false); };
+  const requestFreeDriveStart = () => {
+    setDriveMode('free');
+    routeRef.current = {
+      coordinates: currentPosition ? [currentPosition] : [],
+      steps: [],
+      distanceMeters: 0,
+      durationSeconds: 0,
+      origin: currentPosition ?? [0, 0],
+    };
+    setTrackingError('');
+    setShareStatus('');
+    setPreflightChecks({ parked: false, adult: false, mounted: false, reviewed: false });
+    setShowPreflight(true);
+  };
   const requestDriveStart = () => {
     if (!plannedRoute) {
       setTrackingError('Build and review a practice route before starting.');
       return;
     }
+    setDriveMode('route');
+    routeRef.current = plannedRoute;
     setTrackingError('');
     setShareStatus('');
+    setPreflightChecks({ parked: false, adult: false, mounted: false, reviewed: false });
     setShowPreflight(true);
   };
   const shareDriveSummary = async () => {
@@ -1255,10 +1316,20 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   };
   return <div><PageHeader eyebrow="Behind the wheel" title="Every drive is a building block." copy="Choose one mission, drive with an adult, and log the time while it is fresh. Progress here is measured in minutes, not pressure." action={<ActionButton onClick={() => setShowForm(!showForm)} variant="secondary" testId="button-toggle-drive-log"><Plus size={17} />Log drive</ActionButton>} />
     {!tracking && <div className="mb-6"><NextDrivePlanCard state={state} setState={setState} compact /></div>}
+    {!tracking && <section className="mb-6 overflow-hidden rounded-2xl border border-[hsl(var(--primary)/.35)] bg-gradient-to-br from-[hsl(var(--primary)/.12)] via-[hsl(var(--card))] to-[hsl(var(--accent)/.08)] p-5 soft-shadow md:p-6" data-testid="free-drive-card">
+      <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
+        <div className="max-w-2xl">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--primary))]"><Video size={16} />Free Drive</div>
+          <h2 className="mt-2 font-display text-3xl">Just start driving. Coastwise follows along.</h2>
+          <p className="mt-2 text-sm leading-6 text-[hsl(var(--muted-foreground))]">No route required. Mount the phone while parked, follow every posted sign, and drive with an attentive supervising passenger. Coastwise records the road, tracks the drive, and gives occasional safety reminders without telling you where to turn.</p>
+        </div>
+        <ActionButton onClick={requestFreeDriveStart} className="shrink-0" testId="button-start-free-drive"><Video size={16} />Start free drive</ActionButton>
+      </div>
+    </section>}
     {!tracking && <section className="mb-6 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 soft-shadow md:p-6">
       <div className="flex flex-col justify-between gap-5 md:flex-row md:items-start">
         <div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]"><RouteIcon size={16} />GPS practice route</div><h2 className="mt-2 font-display text-3xl">Build a loop from where you are.</h2><p className="mt-2 max-w-2xl text-xs leading-5 text-[hsl(var(--muted-foreground))]">Choose a target length. Coastwise maps nearby roads, returns to your starting area, and automatically speaks every upcoming maneuver.</p></div>
-        <div className="flex flex-wrap gap-2">{[10, 15, 25, 35].map((minutes) => <button key={minutes} onClick={() => { setRouteMinutes(minutes); setPlannedRoute(null); }} className={`rounded-xl border px-3 py-2 text-xs font-bold ${routeMinutes === minutes ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : 'border-[hsl(var(--border))] bg-[hsl(var(--background))]'}`} data-testid={`button-route-${minutes}`}>{minutes === 10 ? 'Around the block' : `${minutes} min`}</button>)}</div>
+        <div className="flex flex-wrap gap-2">{([20, 35, 50] as const).map((minutes) => <button key={minutes} onClick={() => { setRouteMinutes(minutes); setPlannedRoute(null); }} className={`rounded-xl border px-3 py-2 text-xs font-bold ${routeMinutes === minutes ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : 'border-[hsl(var(--border))] bg-[hsl(var(--background))]'}`} data-testid={`button-route-${minutes}`}>{minutes === 20 ? 'Quick loop · 20 min' : `${minutes} min`}</button>)}</div>
       </div>
        <fieldset className="mt-5 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--secondary)/.25)] p-4">
          <legend className="px-1 text-xs font-bold">Optional coached skills</legend>
@@ -1271,13 +1342,13 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       {routeError && <div className="mt-4 rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert">{routeError}</div>}
         {plannedRoute && <div className="mt-6 grid gap-5 border-t border-[hsl(var(--border))] pt-5 lg:grid-cols-[1.25fr_.75fr]"><RouteMap route={plannedRoute} currentPosition={currentPosition} /><div className="flex flex-col justify-center"><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]"><Camera size={15} />Route ready for dashcam</div><div className="mt-3 grid grid-cols-2 gap-3"><div className="rounded-xl bg-[hsl(var(--secondary)/.55)] p-4"><div className="font-display text-3xl">{(plannedRoute.distanceMeters / 1609.344).toFixed(1)}</div><div className="mt-1 text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">miles</div></div><div className="rounded-xl bg-[hsl(var(--secondary)/.55)] p-4"><div className="font-display text-3xl">{Math.max(1, Math.round(plannedRoute.durationSeconds / 60))}</div><div className="mt-1 text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">estimated min</div></div></div><p className="mt-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">Review the route while parked. Starting opens the dashcam safety check and asks for camera access only after you confirm it is safe. If video is unavailable, GPS and spoken coaching can still continue.</p><ActionButton onClick={requestDriveStart} className="mt-5 w-full" testId="button-start-ready-route"><Video size={16} />Start dashcam route</ActionButton></div></div>}
     </section>}
-     {showPreflight && !tracking && <section className="mb-6 rounded-2xl border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--card))] p-5 soft-shadow md:p-6" data-testid="preflight-checklist">
-       <div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--primary))]"><Video size={16} />Dashcam preflight</div><h2 className="mt-2 font-display text-3xl">Start the camera only when parked.</h2><p className="mt-2 text-xs leading-5 text-[hsl(var(--muted-foreground))]">The supervising adult should complete this before the route begins. After confirmation, Coastwise opens the forward-facing camera and starts local recording.</p></div><button onClick={() => setShowPreflight(false)} className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]" aria-label="Close safety check"><X size={19} /></button></div>
+      {showPreflight && !tracking && <section className="mb-6 rounded-2xl border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--card))] p-5 soft-shadow md:p-6" data-testid="preflight-checklist">
+        <div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--primary))]"><Video size={16} />Dashcam preflight · {driveMode === 'free' ? 'Free Drive' : 'Planned Route'}</div><h2 className="mt-2 font-display text-3xl">Start the camera only when parked.</h2><p className="mt-2 text-xs leading-5 text-[hsl(var(--muted-foreground))]">The supervising passenger should complete this before the drive begins. After confirmation, Coastwise opens the forward-facing camera and starts local recording.</p></div><button onClick={() => setShowPreflight(false)} className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]" aria-label="Close safety check"><X size={19} /></button></div>
       <div className="mt-5 grid gap-3 sm:grid-cols-2">{[
         ['parked', 'The vehicle is parked in a safe place.'],
-        ['adult', 'An attentive, licensed adult is supervising.'],
+         ['adult', 'A supervising passenger is present, or I am licensed and will not touch the phone while driving.'],
         ['mounted', 'The phone is mounted and does not block the driver’s view.'],
-        ['reviewed', 'We reviewed the route and current conditions together.'],
+         ['reviewed', driveMode === 'free' ? 'We chose a safe practice area and discussed today’s focus.' : 'We reviewed the route and current conditions together.'],
       ].map(([key, label]) => <label key={key} className="flex cursor-pointer items-start gap-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 text-sm font-semibold"><input type="checkbox" checked={preflightChecks[key as keyof typeof preflightChecks]} onChange={(event) => setPreflightChecks({ ...preflightChecks, [key]: event.target.checked })} className="mt-0.5 h-5 w-5 shrink-0 accent-[hsl(var(--primary))]" />{label}</label>)}</div>
        <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><ActionButton onClick={() => setShowPreflight(false)} variant="quiet" testId="button-cancel-preflight">Cancel</ActionButton><ActionButton onClick={() => void startTracking()} disabled={!preflightReady} testId="button-confirm-preflight"><Video size={16} />Start dashcam & coaching</ActionButton></div>
     </section>}
@@ -1285,9 +1356,9 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
         <div className="flex items-start gap-3">
           <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${tracking ? 'bg-[hsl(var(--sidebar-primary))] text-[hsl(var(--sidebar-primary-foreground))]' : 'bg-[hsl(var(--secondary))] text-[hsl(var(--primary))]'}`}><Camera size={21} /></div>
-          <div><div className={`text-xs font-bold uppercase tracking-[.15em] ${tracking ? 'text-[hsl(var(--sidebar-primary))]' : 'text-[hsl(var(--accent))]'}`}>{tracking ? 'Dashcam recording' : 'Dashcam coach mode'}</div><h2 className="mt-1 font-display text-2xl">{tracking ? 'Eyes on the road. Coastwise is recording.' : 'Record the road. Review the drive.'}</h2><p className={`mt-2 max-w-2xl text-xs leading-5 ${tracking ? 'text-white/65' : 'text-[hsl(var(--muted-foreground))]'}`}>{tracking ? 'Keep the phone mounted facing forward. Only the supervising adult should operate the screen.' : 'Coastwise records the road ahead while tracking GPS speed, miles, and time. It also gives occasional hands-free coaching cues.'}</p></div>
+          <div><div className={`text-xs font-bold uppercase tracking-[.15em] ${tracking ? 'text-[hsl(var(--sidebar-primary))]' : 'text-[hsl(var(--accent))]'}`}>{tracking ? `Dashcam recording · ${driveMode === 'free' ? 'Free Drive' : 'Planned Route'}` : 'Dashcam coach mode'}</div><h2 className="mt-1 font-display text-2xl">{tracking ? 'Eyes on the road. Coastwise is recording.' : 'Record the road. Review the drive.'}</h2><p className={`mt-2 max-w-2xl text-xs leading-5 ${tracking ? 'text-white/65' : 'text-[hsl(var(--muted-foreground))]'}`}>{tracking ? 'Keep the phone mounted facing forward. Only the supervising passenger should operate the screen.' : 'Coastwise records the road ahead while tracking GPS speed, miles, and time. It also gives occasional hands-free coaching cues.'}</p></div>
         </div>
-          {!tracking ? <ActionButton onClick={requestDriveStart} disabled={!plannedRoute} variant="primary" testId="button-start-gps-drive"><Video size={15} />Start dashcam route</ActionButton> : <div className="flex flex-wrap items-center justify-end gap-2"><div className="flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-bold"><span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />Recording locally</div><ActionButton onClick={togglePause} variant="outline" className="border-white/20 bg-white/10 text-white" testId="button-pause-route">{paused ? <Play size={14} /> : <Pause size={14} />}{paused ? 'Resume' : 'Pause'}</ActionButton><ActionButton onClick={stopTracking} variant="secondary" testId="button-stop-gps-drive"><Square size={14} />Stop & review</ActionButton></div>}
+          {!tracking ? <ActionButton onClick={requestFreeDriveStart} variant="primary" testId="button-start-gps-drive"><Video size={15} />Start free drive</ActionButton> : <div className="flex flex-wrap items-center justify-end gap-2"><div className="flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-bold"><span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />Recording locally</div><ActionButton onClick={togglePause} variant="outline" className="border-white/20 bg-white/10 text-white" testId="button-pause-route">{paused ? <Play size={14} /> : <Pause size={14} />}{paused ? 'Resume' : 'Pause'}</ActionButton><ActionButton onClick={stopTracking} variant="secondary" testId="button-stop-gps-drive"><Square size={14} />Stop & review</ActionButton></div>}
       </div>
       {trackingError && <div className="mt-4 rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert">{trackingError}</div>}
       {storageEstimate && storageEstimate.available < lowRecordingStorageBytes && <div className="mt-4 flex gap-3 rounded-xl border border-[hsl(var(--warning)/.4)] bg-[hsl(var(--warning)/.1)] p-4 text-xs leading-5" role="status" data-testid="drive-storage-warning"><HardDrive size={17} className="mt-0.5 shrink-0 text-[hsl(var(--warning-foreground))]" /><div><strong>{formatStorageBytes(storageEstimate.available)} available for this browser.</strong> Download or delete older drive recordings before starting another long recording. Below {formatStorageBytes(criticalRecordingStorageBytes)}, Coastwise continues without video.</div></div>}
