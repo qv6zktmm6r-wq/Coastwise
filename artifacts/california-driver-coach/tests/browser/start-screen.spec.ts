@@ -81,7 +81,10 @@ test('starts a free-drive dashcam without building a route', async ({ page, cont
   await expect(page.locator('video[autoplay]')).toBeVisible();
   await expect(page.getByTestId('active-recording-panel')).toBeInViewport();
   await expect(page.getByTestId('text-gps-status')).toContainText(/Live signal|Finding signal/);
+  await expect(page.getByTestId('text-current-speed')).toBeVisible();
+  await expect(page.getByTestId('text-motion-status')).toBeVisible();
   const cameraBounds = await page.locator('video[autoplay]').boundingBox();
-  expect(cameraBounds?.height).toBeGreaterThan(400);
+  expect(cameraBounds?.height).toBeGreaterThan(180);
+  expect(cameraBounds?.height).toBeLessThan(360);
   await page.getByTestId('button-stop-gps-drive').click();
 });

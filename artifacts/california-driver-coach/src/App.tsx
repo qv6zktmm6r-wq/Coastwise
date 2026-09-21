@@ -790,13 +790,13 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     }
   };
   const enableMotionTracking = async () => {
-    const motionEvent = window.DeviceMotionEvent as typeof DeviceMotionEvent & {
-      requestPermission?: () => Promise<'granted' | 'denied'>;
-    };
-    if (!motionEvent || typeof window === 'undefined' || !('DeviceMotionEvent' in window)) {
+    if (!('DeviceMotionEvent' in window)) {
       setMotionStatus('unavailable');
       return;
     }
+    const motionEvent = window.DeviceMotionEvent as typeof DeviceMotionEvent & {
+      requestPermission?: () => Promise<'granted' | 'denied'>;
+    };
     try {
       if (motionEvent.requestPermission) {
         const permission = await motionEvent.requestPermission();
@@ -807,6 +807,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       }
       motionBaseline.current = null;
       motionBrakeSamples.current = 0;
+      if (motionListener.current) window.removeEventListener('devicemotion', motionListener.current);
       motionListener.current = handleDeviceMotion;
       window.addEventListener('devicemotion', handleDeviceMotion);
       setMotionStatus('ready');
@@ -1319,6 +1320,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   }, [elapsedSeconds, paused, tracking]);
   useEffect(() => () => {
     if (watchId.current !== null && navigator.geolocation) navigator.geolocation.clearWatch(watchId.current);
+    if (motionListener.current) window.removeEventListener('devicemotion', motionListener.current);
     cameraStream?.getTracks().forEach((track) => track.stop());
     window.speechSynthesis?.cancel();
     coachAudio.current?.pause();
@@ -1520,7 +1522,24 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       </div>
       {trackingError && <div className="mt-4 rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert">{trackingError}</div>}
       {storageEstimate && storageEstimate.available < lowRecordingStorageBytes && <div className="mt-4 flex gap-3 rounded-xl border border-[hsl(var(--warning)/.4)] bg-[hsl(var(--warning)/.1)] p-4 text-xs leading-5" role="status" data-testid="drive-storage-warning"><HardDrive size={17} className="mt-0.5 shrink-0 text-[hsl(var(--warning-foreground))]" /><div><strong>{formatStorageBytes(storageEstimate.available)} available for this browser.</strong> Download or delete older drive recordings before starting another long recording. Below {formatStorageBytes(criticalRecordingStorageBytes)}, Coastwise continues without video.</div></div>}
-       {tracking && <div className="mt-6 border-t border-white/10 pt-5"><div className="relative mx-auto min-h-[52vh] max-h-[72vh] w-full overflow-hidden rounded-2xl bg-black/40"><video ref={cameraPreview} autoPlay muted playsInline className="h-full min-h-[52vh] max-h-[72vh] w-full object-cover" /><div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/65 px-3 py-1.5 font-mono-ui text-[10px] uppercase tracking-[.12em] text-white"><span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />Road camera</div></div><div className="mt-5 grid gap-4 sm:grid-cols-5"><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Current speed</div><div className="mt-2 font-display text-3xl">{gpsStatus === 'live' ? currentSpeed.toFixed(0) : '—'} <span className="font-sans text-sm font-bold text-white/55">mph</span></div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Miles tracked</div><div className="mt-2 font-display text-3xl">{distanceMiles.toFixed(1)} <span className="font-sans text-sm font-bold text-white/55">mi</span></div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Drive time</div><div className="mt-2 font-display text-3xl">{formatElapsed(elapsedSeconds)}</div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">Average speed</div><div className="mt-2 font-display text-3xl">{averageSpeed.toFixed(0)} <span className="font-sans text-sm font-bold text-white/55">mph</span></div></div><div><div className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-white/50">GPS</div><div className="mt-2 text-sm font-extrabold" data-testid="text-gps-status">{gpsStatus === 'live' ? 'Live signal' : gpsStatus === 'acquiring' ? 'Finding signal…' : 'Unavailable'}</div></div></div><div className="mt-5 flex items-start gap-2 rounded-xl border border-white/15 bg-white/8 px-4 py-3 text-xs text-white"><Volume2 size={16} className="mt-0.5 shrink-0" /><span><span className="block font-bold">{paused ? 'Coaching paused' : audioStatus === 'unavailable' ? 'Spoken coaching is unavailable — follow the visible cue' : 'Spoken coaching is active'}</span><span className="mt-1 block text-white/70" data-testid="text-current-voice-cue">{currentCue}</span></span></div></div>}
+       {tracking && <div className="mt-6 border-t border-white/10 pt-5">
+         <div className="relative mx-auto aspect-video max-h-[38vh] w-full overflow-hidden rounded-2xl bg-black/40">
+           <video ref={cameraPreview} autoPlay muted playsInline className="h-full w-full object-cover" />
+           <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/65 px-3 py-1.5 font-mono-ui text-[10px] uppercase tracking-[.12em] text-white"><span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />Road camera</div>
+           <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/85 via-black/40 to-transparent px-4 pb-3 pt-12 text-white">
+             <div><div className="font-mono-ui text-[10px] uppercase tracking-[.16em] text-white/70">Estimated speed</div><div className="font-display text-5xl leading-none" data-testid="text-current-speed">{gpsStatus === 'live' ? currentSpeed.toFixed(0) : '—'} <span className="font-sans text-sm font-bold text-white/75">mph</span></div></div>
+             <div className="mb-1 text-right text-[10px] font-bold text-white/80">{gpsStatus === 'live' ? 'GPS estimate' : gpsStatus === 'acquiring' ? 'Finding GPS…' : 'No GPS'}</div>
+           </div>
+         </div>
+         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+           <div className="rounded-xl bg-white/8 p-3"><div className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-white/50">Miles</div><div className="mt-1 font-display text-2xl">{distanceMiles.toFixed(1)} <span className="font-sans text-xs font-bold text-white/55">mi</span></div></div>
+           <div className="rounded-xl bg-white/8 p-3"><div className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-white/50">Time</div><div className="mt-1 font-display text-2xl">{formatElapsed(elapsedSeconds)}</div></div>
+           <div className="rounded-xl bg-white/8 p-3"><div className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-white/50">Average</div><div className="mt-1 font-display text-2xl">{averageSpeed.toFixed(0)} <span className="font-sans text-xs font-bold text-white/55">mph</span></div></div>
+           <div className="rounded-xl bg-white/8 p-3"><div className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-white/50">GPS</div><div className="mt-1 text-xs font-extrabold" data-testid="text-gps-status">{gpsStatus === 'live' ? 'Live' : gpsStatus === 'acquiring' ? 'Finding…' : 'Unavailable'}</div></div>
+           <div className="col-span-2 rounded-xl bg-white/8 p-3 sm:col-span-1"><div className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-white/50">Brake sensor</div><div className="mt-1 text-xs font-extrabold" data-testid="text-motion-status">{motionStatus === 'ready' ? 'Motion + GPS' : 'GPS only'}</div></div>
+         </div>
+         <div className="mt-4 flex items-start gap-2 rounded-xl border border-white/15 bg-white/8 px-4 py-3 text-xs text-white"><Volume2 size={16} className="mt-0.5 shrink-0" /><span><span className="block font-bold">{paused ? 'Coaching paused' : audioStatus === 'unavailable' ? 'Spoken coaching is unavailable — follow the visible cue' : 'Spoken coaching is active'}</span><span className="mt-1 block text-white/70" data-testid="text-current-voice-cue">{currentCue}</span></span></div>
+       </div>}
     </section>
     {tracking && plannedRoute && <section className="mb-6 grid gap-5 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 md:p-6 lg:grid-cols-[.7fr_1.3fr]"><div className="flex flex-col justify-center"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Next instruction · automatic</div><h2 className="mt-3 font-display text-3xl">{plannedRoute.steps[Math.min(activeStep, plannedRoute.steps.length - 1)]?.instruction ?? 'Continue safely'}</h2><div className="mt-4 font-mono-ui text-sm font-medium text-[hsl(var(--primary))]">{distanceToNext > 0 ? `${distanceToNext * 3.28084 >= 500 ? Math.round(distanceToNext * 3.28084 / 50) * 50 : Math.round(distanceToNext * 3.28084)} feet` : 'Acquiring GPS position'}</div><p className="mt-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">No taps are needed. Coastwise prepares the driver, announces the maneuver, advances to the next step, and calmly recalculates after a missed turn.</p></div><RouteMap route={plannedRoute} currentPosition={currentPosition} /></section>}
      {reviewError && <div className="mb-6 rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert">{reviewError}</div>}
