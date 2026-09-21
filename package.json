@@ -13,7 +13,7 @@
     "@replit/connectors-sdk": "^0.4.3"
   },
   "devDependencies": {
-    "@playwright/test": "1.55.0",
+    "@playwright/test": "1.55.1",
     "prettier": "^3.9.6",
     "typescript": "~5.9.3"
   }

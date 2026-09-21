@@ -160,3 +160,5 @@ overrides:
   esbuild: "0.28.2"
   # orval pins js-yaml to an exact version older than the CVE fix (>=4.3.2)
   js-yaml: '4.3.2'
+  # Expo Router currently reaches an older query-string decoder through CLI tooling.
+  decode-uri-component: '0.5.0'
