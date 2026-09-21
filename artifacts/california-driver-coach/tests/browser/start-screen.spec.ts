@@ -70,6 +70,7 @@ test('starts a free-drive dashcam without building a route', async ({ page, cont
 
   await page.getByTestId('button-start-free-drive').click();
   await expect(page.getByTestId('preflight-checklist')).toContainText('Free Drive');
+  await expect(page.getByTestId('preflight-checklist')).toBeInViewport();
 
   for (const checkbox of await page.getByRole('checkbox').all()) {
     await checkbox.check();

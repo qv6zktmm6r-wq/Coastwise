@@ -675,6 +675,16 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   useEffect(() => {
     void refreshStorageEstimate();
   }, []);
+  useEffect(() => {
+    if (!showPreflight) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.querySelector('[data-testid="preflight-checklist"]')?.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        block: 'start',
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [showPreflight]);
   const speak = (message: string) => {
     setCurrentCue(message);
     if (!('speechSynthesis' in window)) return;
