@@ -160,6 +160,7 @@ test('nearest distance uses the planned line, including its last point', () => {
 test('the drive screen describes a GPS return path and does not claim a missed turn', () => {
   const app = readFileSync(new URL('../App.tsx', import.meta.url), 'utf8');
   assert.match(app, /routeDepartureCue/);
+  assert.match(app, /current === routeDepartureCue\.failure/);
   assert.doesNotMatch(app, /missed turn/i);
   assert.match(routeDepartureCue.failure, /return path is unavailable/i);
 });

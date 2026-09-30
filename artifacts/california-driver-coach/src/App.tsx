@@ -1009,6 +1009,9 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       movementPlausible: fix.movementPlausible,
     });
     routeDepartureRef.current = decision.state;
+    if (decision.action === 'on-route') {
+      setTrackingError((current) => current === routeDepartureCue.failure ? '' : current);
+    }
     if (decision.action !== 'reroute') return;
     const requestId = routeDepartureRequest.current + 1;
     routeDepartureRequest.current = requestId;
@@ -1027,6 +1030,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       preparedStepRef.current = -1;
       finalStepRef.current = -1;
       routeDepartureRef.current = finishRouteDeparture(routeDepartureRef.current, 'returned');
+      setTrackingError((current) => current === routeDepartureCue.failure ? '' : current);
     }).catch(() => {
       if (requestId !== routeDepartureRequest.current) return;
       setTrackingError(routeDepartureCue.failure);
