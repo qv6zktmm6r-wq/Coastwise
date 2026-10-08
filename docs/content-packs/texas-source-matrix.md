@@ -50,3 +50,15 @@ approved pack.
 **Independent structural/content review: complete (2026-09-21).** The pack was checked for unique IDs, three-option structure, answer indexes, section balance, source metadata, Texas terminology, and separation of universal versus jurisdiction-specific scope.
 
 **Human legal/editorial source-matrix sign-off: APPROVED.** Jorge Lozoya, Program Manager, approved this matrix for release on 2026-09-21 after verifying the completed checklist above.
+
+## Picture questions (signs and pavement markings)
+
+**Added:** 2026-10-07 · **Shared source:** `lib/road-signs` · **IDs:** `tx-signs-picture-*` (web) and the mobile Signs & markings topic
+
+| Topic | Official source/title | URL | Revision/effective status | Drafting use and verification flag |
+|---|---|---|---|---|
+| Regulatory, warning, school, and railroad signs; pavement markings | Texas Driver Handbook (DL-7), traffic signs and pavement markings chapter | https://www.dps.texas.gov/internetforms/forms/dl-7.pdf | Same revision as the handbook row above; checked 2026-10-07 | 24 state-neutral questions with original drawings of standard national (MUTCD) shapes and colors, not copied handbook images. Scope is universal; no state-specific rule is asserted. |
+
+- [x] Each picture question cites this state's handbook and has one unambiguous answer.
+- [x] Drawings follow standard sign shape and color; alt text describes the sign.
+- [ ] Human editorial reviewer compared every picture question with this handbook's signs chapter.

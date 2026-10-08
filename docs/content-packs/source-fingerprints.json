@@ -1,0 +1,167 @@
+{
+  "https://bmv.ohio.gov/dl-driving-tests.aspx": {
+    "kind": "html",
+    "sha256": "a1b34510daa4f9460ff34e707ba54d1f651f9848de7ffc2e3cadf1df86cce30c",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://bmv.ohio.gov/dl-gdl.aspx": {
+    "kind": "html",
+    "sha256": "f8fd95a97d59ce0a401a49bd8637d53a56955a58f30da92257b9fd78467f022d",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://codes.ohio.gov/ohio-revised-code/section-4507.05": {
+    "kind": "html",
+    "sha256": "8b2b1bde3c6a6bbf25e3c6107e327da981462d478dcd058dff9a5d4cb42e94bf",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://codes.ohio.gov/ohio-revised-code/section-4507.071": {
+    "kind": "html",
+    "sha256": "67df0d6155626ff63cd6238fc02717a68c13dc077fc0ab8cbcbfeae9bafc7faa",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://codes.ohio.gov/ohio-revised-code/section-4511.39": {
+    "kind": "html",
+    "sha256": "eda31cf6a41d901537f7bea0b15a47906d99c56078ea1269b282e4a981bd968b",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://dmv.ny.gov/driver-license/complete-pre-licensing-requirements": {
+    "kind": "html",
+    "sha256": "1f6b2608cd7206b071d7f06a5fcaa4379d778a00cea482d645ac4fec0b9e5bfa",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://dmv.ny.gov/driver-license/get-learner-permit": {
+    "kind": "html",
+    "sha256": "72bdee3a8af5fac7c04197d8b0d12c57a1656e5b1393dfff3565c0be52c127ae",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://dmv.ny.gov/driver-license/learner-permit-restrictions": {
+    "kind": "html",
+    "sha256": "5c59b7ab40a8fd53f0a431d61055f99068ee5dfc9b0a88a7ddfacd5006175f40",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://dmv.ny.gov/driver-license/prepare-for-and-take-your-permit-test": {
+    "kind": "html",
+    "sha256": "662b02eedbf867c074e61788a664c5b6a93d237ded136984645f80395ed9609d",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://dmv.ny.gov/new-york-state-drivers-manual-practice-tests": {
+    "kind": "html",
+    "sha256": "d4c136444c3de3222d52f032dc22cbd0851a6852d7d49a94bd07f6afd9b51cef",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://dmv.ny.gov/younger-driver/graduated-license-law-and-restrictions-drivers-under-18": {
+    "kind": "html",
+    "sha256": "c92f81100c525c0d7dea52d45311791a8b70bce412cfed6212e71910c08e96f7",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://statutes.capitol.texas.gov/Docs/TN/htm/TN.545.htm#545.157": {
+    "kind": "html",
+    "sha256": "d32cfdf662077d200f074f9de54aa3274276f7faf419719de4d23735054ba86a",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.bmv.ohio.gov/forms-general.aspx": {
+    "kind": "html",
+    "sha256": "da71f0bd052ca9a7ed042b5eb592dfd0890d1ae1b7900ef947379293cbfcaa29",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.dmv.ca.gov/portal/handbook/california-driver-handbook/": {
+    "kind": "html",
+    "sha256": "66efd4c4665a7225c9fb2c1e84e229ad641908cc9f7bd7dea2a6657496d7fda2",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.dps.texas.gov/internetforms/forms/dl-60.pdf": {
+    "kind": "binary",
+    "sha256": "6485d959da79bf58db920e0f7e1ff4ed5365c295e754a3d5a051d353df235544",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.dps.texas.gov/internetforms/forms/dl-7.pdf": {
+    "kind": "binary",
+    "sha256": "5239ff7c4ec7c15e643425fd3a0d4aaabafb358c58144c7a14218dfbe21e8a6d",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.dps.texas.gov/section/driver-license/impact-texas-drivers-itd-program": {
+    "kind": "html",
+    "sha256": "7b9864a0174aefae75aab23f651df994c36907a3686d39187d07976b4744bbda",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.dps.texas.gov/section/driver-license/texas-learners-license-teen": {
+    "kind": "html",
+    "sha256": "51a786b7a22dd8283db670240e9e30ee4f97f06a0c29c83ad218dafdfa8f3fc7",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.dps.texas.gov/section/driver-license/texas-provisional-license-teen": {
+    "kind": "html",
+    "sha256": "433689154124ecf91e0b3ebd3be3845b3d445e62dcbe8cab7d70b27a36387ca4",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.flhsmv.gov/driver-licenses-id-cards/education-courses/driver-improvement-schools/driver-education-traffic-safety-dets": {
+    "kind": "html",
+    "sha256": "d3cc5cedfb3e0fadf714204b3425bf9b5c646fa824e99b1032689738f3067bf3",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.flhsmv.gov/driver-licenses-id-cards/licensing-requirements-teens-graduated-driver-license-laws": {
+    "kind": "html",
+    "sha256": "59f35ebd7479172ce73e3a3fe1c78f4be012c90370fdfa0d0c7607e8352600c7",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.flhsmv.gov/driver-licenses-id-cards/licensing-requirements-teens-graduated-driver-license-laws-driving-curfews/class-e-knowledge-exam-driving-skills-test/": {
+    "kind": "html",
+    "sha256": "f2085836db4cd3dc0dbc5c8bc11daa576c49d22d3084342f7fc98e8c96d74ecc",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.flhsmv.gov/insurance/": {
+    "kind": "html",
+    "sha256": "6ab0d77dca414e10cb0097319d0770c1b6cce9056af477fa3ccf27097cf2ae4a",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.flhsmv.gov/pdf/handbooks/englishdriverhandbook.pdf": {
+    "kind": "binary",
+    "sha256": "5c0b8e495f955b9ee030058489b74b8876614251462211774c97ce98fb9ed269",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.flhsmv.gov/safety-center/driving-safety/move-over": {
+    "kind": "html",
+    "sha256": "3075a6a69c880c476ea7342badb9467995c255d11a9f74468f8dd7debf41b319",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.flhsmv.gov/safety-center/vehicle-safety/": {
+    "kind": "html",
+    "sha256": "d97a735852d6dd56e338f7afc1be6ae4abbe2ba0683da49c8fd27d394b495781",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.flsenate.gov/Laws/Statutes/2025/0316.172": {
+    "kind": "html",
+    "sha256": "e1ad25c3606eb3f6bafafe84e266ed8521109fef4f7f13a80af6850bf1cf2f75",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.leg.state.fl.us/statutes/index.cfm?App_mode=Display_Statute&URL=0300-0399/0316/Sections/0316.305.html": {
+    "kind": "html",
+    "sha256": "695976a4c2b8a156824c862629943e8793ffade4117a264d063c8e15fc84ed27",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.leg.state.fl.us/statutes/index.cfm?App_mode=Display_Statute&URL=0300-0399/0322/Sections/0322.05.html": {
+    "kind": "html",
+    "sha256": "9dbbad2d6c313a2207b23c6f53ae16e9275b32bd7ab180c372154d531166ab53",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.tdi.texas.gov/pubs/consumer/cb020.html": {
+    "kind": "html",
+    "sha256": "d46387fae388d16d5e8c43b043bc4622ff82a3fda637d6b508bfdde0711a4d50",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.txdmv.gov/motorists/register-your-vehicle": {
+    "kind": "html",
+    "sha256": "ba6715e0b1e14ad2e8e14a1b32ce2eb903552bc10d76ea4eed9b9feb06902204",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.txdot.gov/safety/driving-laws/school-bus-safety.html": {
+    "kind": "html",
+    "sha256": "bce9ed98ae31a0aed07e66d46029fbbe20d47fd8e273a9eef011a23f78cd3b48",
+    "reviewedAt": "2026-10-08"
+  },
+  "https://www.txdot.gov/safety/traffic-signs-signals.html": {
+    "kind": "html",
+    "sha256": "0f8a4e1e996a0807451898aa25b40e01d2ef5442c3ae61fb90898086d4b260ac",
+    "reviewedAt": "2026-10-08"
+  }
+}

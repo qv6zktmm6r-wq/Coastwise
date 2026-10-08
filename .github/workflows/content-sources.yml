@@ -1,0 +1,75 @@
+name: Content source watch
+
+# Weekly: detect when an official handbook or DMV page cited by practice
+# content has changed, or a review is older than 180 days. Twice a year: open a
+# scheduled law-change review, since many state laws take effect January 1 and
+# July 1. This workflow only opens issues; it never edits questions.
+on:
+  schedule:
+    - cron: '17 15 * * 1'
+    - cron: '0 16 1 6,12 *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: content-sources
+  cancel-in-progress: false
+
+jobs:
+  weekly-source-check:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 15 * * 1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Check official sources
+        id: check
+        continue-on-error: true
+        run: pnpm --dir artifacts/california-driver-coach run content:sources --report="$RUNNER_TEMP/content-sources.md"
+      - name: Open or update the review issue
+        if: steps.check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create content-review --color 0084FF --description "Official source changed or review due" --force
+          title="Content review: official sources changed or review due"
+          existing=$(gh issue list --label content-review --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file "$RUNNER_TEMP/content-sources.md"
+          else
+            gh issue create --title "$title" --label content-review --body-file "$RUNNER_TEMP/content-sources.md"
+          fi
+
+  scheduled-law-review:
+    if: github.event.schedule == '0 16 1 6,12 *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Open the twice-yearly law-change review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh label create content-review --color 0084FF --description "Official source changed or review due" --force
+          gh issue create --label content-review \
+            --title "Scheduled law-change review — $(date -u +%B\ %Y)" \
+            --body "Many state traffic laws take effect January 1 and July 1. For each supported state (California, Texas, Florida, New York, Ohio, Illinois):
+
+          - [ ] Check the state DMV news or legislative summary for new traffic laws.
+          - [ ] Compare the current official handbook against the source matrix in docs/content-packs.
+          - [ ] Update affected questions, scenarios, and picture questions; bump the pack version.
+          - [ ] Update the pack and source-matrix review dates.
+          - [ ] Run pnpm --dir artifacts/california-driver-coach run content:sources --update after review.
+
+          Questions must stay grounded in the official handbook. Do not add a rule without a source."

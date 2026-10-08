@@ -11,7 +11,8 @@
     "test": "tsx --test src/*.test.ts src/**/*.test.ts",
     "test:browser": "tsx --test src/appearance-browser.test.ts && playwright test --config playwright.config.ts",
     "test:production-smoke": "playwright test --config playwright.production.config.ts",
-    "test:production-smoke-fixtures": "playwright test --config playwright.production-fixtures.config.ts"
+    "test:production-smoke-fixtures": "playwright test --config playwright.production-fixtures.config.ts",
+    "content:sources": "tsx scripts/check-content-sources.ts"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",

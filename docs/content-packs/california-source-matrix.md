@@ -38,3 +38,15 @@ Accountable reviewer: Jorge Lozoya. Qualification: Program Manager. Approval
 date: 2026-09-21. Jorge Lozoya attests that he reviewed this source matrix,
 verified every numerical and age-dependent requirement against the cited
 official sources, and approved `us-ca-2026.09.1` for release.
+
+## Picture questions (signs and pavement markings)
+
+**Added:** 2026-10-07 · **Shared source:** `lib/road-signs` · **IDs:** `ca-signs-picture-*` (web) and the mobile Signs & markings topic
+
+| Topic | Official source/title | URL | Revision/effective status | Drafting use and verification flag |
+|---|---|---|---|---|
+| Regulatory, warning, school, and railroad signs; pavement markings | California Driver’s Handbook, traffic signs and pavement markings chapter | https://www.dmv.ca.gov/portal/handbook/california-driver-handbook/ | Same revision as the handbook row above; checked 2026-10-07 | 24 state-neutral questions with original drawings of standard national (MUTCD) shapes and colors, not copied handbook images. Scope is universal; no state-specific rule is asserted. |
+
+- [x] Each picture question cites this state's handbook and has one unambiguous answer.
+- [x] Drawings follow standard sign shape and color; alt text describes the sign.
+- [ ] Human editorial reviewer compared every picture question with this handbook's signs chapter.
