@@ -5,7 +5,7 @@ The Android app shares Coastwise's React Native screens and local-first state wi
 ## Before internal testing
 
 - [ ] Register the Expo mobile artifact from replit.com if it is not already registered.
-- [ ] Set `EXPO_PUBLIC_DOMAIN` to the published Coastwise API domain.
+- [ ] Confirm `EXPO_PUBLIC_DOMAIN` in `.env` is the published Coastwise API domain (not a development hostname); override per machine only in `.env.local`.
 - [ ] Run `pnpm release-check` to check dependencies, TypeScript, Expo Doctor, and both platform bundles.
 - [ ] Confirm the adaptive icon is not clipped by circle, squircle, or rounded-square launchers.
 - [ ] Install a signed Android build on physical phones from at least two manufacturers.
