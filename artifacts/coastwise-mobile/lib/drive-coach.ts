@@ -1,7 +1,10 @@
-import type { DriveSignal, DriveSignalKind } from './drive-signals';
-import type { MapEvent, MapEventKind } from './maneuvers';
+import type { AttentionEventKind } from './driver-attention';
+import type { DriveSignalKind } from './drive-signals';
+import type { MapEventKind } from './maneuvers';
+import type { VisionEventKind } from './road-vision';
 
-export type DriveEventKind = DriveSignalKind | MapEventKind;
+export type StopScanKind = 'scanned-at-stop' | 'no-scan-at-stop';
+export type DriveEventKind = DriveSignalKind | MapEventKind | VisionEventKind | AttentionEventKind | StopScanKind;
 
 export type DriveEventRecord = {
   kind: DriveEventKind;
@@ -22,7 +25,13 @@ export type CoachVoiceState = {
   lastPraiseAt: number | null;
 };
 
-type CoachableEvent = (DriveSignal | MapEvent) & { limitMph?: number };
+export type CoachableEvent = {
+  kind: DriveEventKind;
+  at: number;
+  speedMph: number;
+  magnitude: number;
+  limitMph?: number;
+};
 
 export const initialCoachVoiceState: CoachVoiceState = { lastSpokenAt: null, lastPraiseAt: null };
 export const MAX_STORED_EVENTS = 300;
@@ -35,7 +44,8 @@ const MPH_PER_METER_PER_SECOND_SQUARED = 2.236936;
 
 const cues: Record<DriveEventKind, {
   title: string;
-  spoken: (event: Pick<CoachableEvent, 'speedMph' | 'limitMph'>) => string;
+  /** Null: recorded for review only. Camera-based events stay silent until real-drive testing proves them. */
+  spoken: ((event: Pick<CoachableEvent, 'speedMph' | 'limitMph'>) => string) | null;
   praise: boolean;
   debriefKind: DebriefEvent['kind'];
 }> = {
@@ -81,7 +91,21 @@ const cues: Record<DriveEventKind, {
     praise: false,
     debriefKind: 'safety',
   },
+  'camera-stop-complete': { title: 'Complete stop at a stop sign (camera)', spoken: null, praise: false, debriefKind: 'maneuver' },
+  'camera-rolling-stop': { title: 'Rolling stop at a stop sign (camera)', spoken: null, praise: false, debriefKind: 'maneuver' },
+  'close-following': { title: 'Close following (camera estimate)', spoken: null, praise: false, debriefKind: 'safety' },
+  'head-check-before-turn': { title: 'Head check before a turn', spoken: null, praise: false, debriefKind: 'maneuver' },
+  'no-head-check-before-turn': { title: 'No head check before a turn', spoken: null, praise: false, debriefKind: 'maneuver' },
+  'eyes-off-road': { title: 'Looked away while moving', spoken: null, praise: false, debriefKind: 'safety' },
+  'scanned-at-stop': { title: 'Scanned at a stop sign', spoken: null, praise: false, debriefKind: 'maneuver' },
+  'no-scan-at-stop': { title: 'No scan at a stop sign', spoken: null, praise: false, debriefKind: 'maneuver' },
 };
+
+const CAMERA_KINDS = new Set<DriveEventKind>([
+  'camera-stop-complete', 'camera-rolling-stop', 'close-following',
+  'head-check-before-turn', 'no-head-check-before-turn', 'eyes-off-road', 'scanned-at-stop', 'no-scan-at-stop',
+]);
+const MAP_KINDS = new Set<DriveEventKind>(['stop-sign-complete', 'rolling-stop', 'over-mapped-limit']);
 
 export function coachTitle(kind: DriveEventKind) {
   return cues[kind].title;
@@ -106,12 +130,29 @@ export function describeEvent(event: Pick<DriveEventRecord, 'kind' | 'speedMph' 
       return `The map shows a stop sign here. GPS speed stayed at about ${mph} mph or more.`;
     case 'over-mapped-limit':
       return `The map shows a ${event.limitMph} mph limit. GPS estimated about ${mph} mph.`;
+    case 'camera-stop-complete':
+      return 'The road camera detected a stop sign, and GPS speed reached zero.';
+    case 'camera-rolling-stop':
+      return `The road camera detected a stop sign. GPS speed stayed at about ${mph} mph or more.`;
+    case 'close-following':
+      return `The road camera estimated about ${event.magnitude.toFixed(1)} seconds behind the vehicle ahead at ${mph} mph. This is a rough estimate.`;
+    case 'head-check-before-turn':
+      return 'The driver camera saw a head turn in the seconds before the turn.';
+    case 'no-head-check-before-turn':
+      return 'The driver camera saw no head turn in the seconds before the turn.';
+    case 'eyes-off-road':
+      return `The driver camera saw the head turned away for about ${event.magnitude.toFixed(1)} seconds at ${mph} mph.`;
+    case 'scanned-at-stop':
+      return `The driver camera saw ${Math.round(event.magnitude)} head turns before leaving the stop sign.`;
+    case 'no-scan-at-stop':
+      return `The driver camera saw ${Math.round(event.magnitude)} head turn${Math.round(event.magnitude) === 1 ? '' : 's'} before leaving the stop sign. Scan left, right, and left.`;
   }
 }
 
 /** Decides whether a measured event should be spoken now, and what to say. */
 export function chooseSpokenCue(state: CoachVoiceState, event: CoachableEvent) {
   const cue = cues[event.kind];
+  if (!cue.spoken) return { state, spoken: null };
   const secondsSince = (at: number | null) => (at === null ? Number.POSITIVE_INFINITY : (event.at - at) / 1000);
   if (secondsSince(state.lastSpokenAt) < MIN_SECONDS_BETWEEN_CUES) return { state, spoken: null };
   if (cue.praise && secondsSince(state.lastPraiseAt) < MIN_SECONDS_BETWEEN_PRAISE) return { state, spoken: null };
@@ -147,8 +188,10 @@ export function summarizeForDebrief(events: DriveEventRecord[] | undefined): Deb
     title: `${cues[kind].title}: ${count}`,
     detail: kind === 'full-stop'
       ? `GPS measured ${count} complete stop${count === 1 ? '' : 's'}.`
-      : kind === 'stop-sign-complete' || kind === 'rolling-stop' || kind === 'over-mapped-limit'
+      : MAP_KINDS.has(kind)
         ? `Measured ${count} time${count === 1 ? '' : 's'} using GPS and OpenStreetMap data.`
-        : `GPS measured ${count} ${cues[kind].title.toLowerCase()} moment${count === 1 ? '' : 's'}.`,
+        : CAMERA_KINDS.has(kind)
+          ? `Tagged ${count} time${count === 1 ? '' : 's'} by on-device camera detection, which can be wrong.`
+          : `GPS measured ${count} ${cues[kind].title.toLowerCase()} moment${count === 1 ? '' : 's'}.`,
   }));
 }

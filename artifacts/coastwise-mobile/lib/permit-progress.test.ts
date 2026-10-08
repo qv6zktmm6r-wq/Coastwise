@@ -64,9 +64,21 @@ test('skill trends use measured drives only and say so plainly', () => {
   assert.equal(result.drivesConsidered, 2);
   assert.equal(result.miles, 20);
   const stops = result.trends.find((trend) => trend.id === 'stop-signs')!;
-  assert.equal(stops.summary, '3 of 4 mapped stop signs had a complete stop.');
+  assert.equal(stops.summary, '3 of 4 graded stop signs had a complete stop.');
   const braking = result.trends.find((trend) => trend.id === 'braking')!;
   assert.equal(braking.summary, '1 hard brake in 20.0 miles.');
+});
+
+test('camera trends only count miles driven with that camera on', () => {
+  const result = skillTrends([
+    drive({ distanceMiles: 10, cameraCoaching: true, events: events('close-following', 'camera-rolling-stop') }),
+    drive({ distanceMiles: 30, events: events('hard-brake') }),
+  ]);
+  const byId = (id: string) => result.trends.find((trend) => trend.id === id)!;
+  assert.equal(byId('following').summary, '1 close-following moment in 10.0 camera miles.');
+  assert.equal(byId('attention').summary, null);
+  assert.equal(byId('head-checks').summary, null);
+  assert.equal(byId('stop-signs').summary, '0 of 1 graded stop signs had a complete stop.');
 });
 
 test('no measured evidence means no claims and no focus', () => {

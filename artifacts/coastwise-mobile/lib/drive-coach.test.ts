@@ -57,6 +57,15 @@ test('map-based events name the map as the source', () => {
   assert.equal(spoken.spoken, 'The map shows a 35 limit here. You are at about 42. Ease off.');
 });
 
+test('camera-based events are recorded for review but never spoken yet', () => {
+  for (const kind of ['camera-rolling-stop', 'close-following', 'no-head-check-before-turn', 'eyes-off-road', 'no-scan-at-stop'] as const) {
+    assert.equal(chooseSpokenCue(initialCoachVoiceState, { kind, at: 0, speedMph: 30, magnitude: 1 }).spoken, null);
+    assert.match(describeEvent({ kind, speedMph: 30, magnitude: 1 }), /camera/);
+  }
+  const summary = summarizeForDebrief(recordEvent(undefined, { kind: 'close-following', at: 0, speedMph: 40, magnitude: 1.2 }, 5));
+  assert.match(summary[0].detail, /can be wrong/);
+});
+
 test('stored events are capped', () => {
   let events = recordEvent(undefined, signal('full-stop', 0), 0);
   for (let index = 1; index < MAX_STORED_EVENTS + 20; index += 1) {

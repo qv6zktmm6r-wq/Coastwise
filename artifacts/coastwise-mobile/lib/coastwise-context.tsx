@@ -17,6 +17,10 @@ export type MobileDrive = {
   skills: string[];
   /** Measured GPS events. Stays on this device; the debrief receives counts only. */
   events?: DriveEventRecord[];
+  /** True when on-device camera coaching ran for this drive. */
+  cameraCoaching?: boolean;
+  /** True when the opt-in driver-facing attention camera ran for this drive. */
+  driverAttention?: boolean;
   debrief?: DriveDebrief;
   recordingUri?: string;
   recordingSizeBytes?: number;

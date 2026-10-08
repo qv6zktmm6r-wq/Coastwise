@@ -37,7 +37,7 @@ export function permitProgress(drives: MobileDrive[], jurisdiction: MobileJurisd
 }
 
 export type SkillTrend = {
-  id: 'stop-signs' | 'braking' | 'acceleration' | 'turns' | 'speed';
+  id: 'stop-signs' | 'braking' | 'acceleration' | 'turns' | 'speed' | 'scanning' | 'head-checks' | 'following' | 'attention';
   label: string;
   /** Plain-language result from measured events only. Null when there is no evidence yet. */
   summary: string | null;
@@ -69,9 +69,19 @@ export function skillTrends(drives: MobileDrive[]): { drivesConsidered: number; 
   const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
   const hasMiles = miles >= 1;
 
-  const complete = countKind(measured, 'stop-sign-complete');
-  const rolling = countKind(measured, 'rolling-stop');
+  const complete = countKind(measured, 'stop-sign-complete') + countKind(measured, 'camera-stop-complete');
+  const rolling = countKind(measured, 'rolling-stop') + countKind(measured, 'camera-rolling-stop');
   const graded = complete + rolling;
+  const scans = countKind(measured, 'scanned-at-stop');
+  const missedScans = countKind(measured, 'no-scan-at-stop');
+  const headChecks = countKind(measured, 'head-check-before-turn');
+  const missedHeadChecks = countKind(measured, 'no-head-check-before-turn');
+  const closeFollowing = countKind(measured, 'close-following');
+  const eyesOff = countKind(measured, 'eyes-off-road');
+  const milesWhere = (included: (drive: MobileDrive) => boolean | undefined) =>
+    measured.filter(included).reduce((sum, drive) => sum + drive.distanceMiles, 0);
+  const roadCameraMiles = milesWhere((drive) => drive.cameraCoaching);
+  const driverCameraMiles = milesWhere((drive) => drive.driverAttention);
   const hardBrakes = countKind(measured, 'hard-brake');
   const quickStarts = countKind(measured, 'rapid-acceleration');
   const fastTurns = countKind(measured, 'sharp-turn');
@@ -83,8 +93,8 @@ export function skillTrends(drives: MobileDrive[]): { drivesConsidered: number; 
     trends: [
       {
         id: 'stop-signs',
-        label: 'Stop signs (mapped)',
-        summary: graded > 0 ? `${complete} of ${graded} mapped stop signs had a complete stop.` : null,
+        label: 'Stop signs (map or camera)',
+        summary: graded > 0 ? `${complete} of ${graded} graded stop signs had a complete stop.` : null,
         concern: graded > 0 ? rolling / graded : null,
         focus: 'Stop completely behind the line, count a full second, then scan left, right, and left.',
       },
@@ -108,6 +118,34 @@ export function skillTrends(drives: MobileDrive[]): { drivesConsidered: number; 
         summary: hasMiles ? `${plural(fastTurns, 'fast turn')} in ${miles.toFixed(1)} miles.` : null,
         concern: hasMiles ? perTenMiles(fastTurns, miles) / 2 : null,
         focus: 'Finish slowing before the turn starts, then accelerate gently out of it.',
+      },
+      {
+        id: 'scanning',
+        label: 'Scanning at stop signs (camera)',
+        summary: scans + missedScans > 0 ? `Scanned at ${scans} of ${scans + missedScans} stop signs.` : null,
+        concern: scans + missedScans > 0 ? missedScans / (scans + missedScans) : null,
+        focus: 'At every stop, turn your head left, right, and left again before moving.',
+      },
+      {
+        id: 'head-checks',
+        label: 'Head checks before turns (camera)',
+        summary: headChecks + missedHeadChecks > 0 ? `Checked before ${headChecks} of ${headChecks + missedHeadChecks} turns.` : null,
+        concern: headChecks + missedHeadChecks > 0 ? missedHeadChecks / (headChecks + missedHeadChecks) : null,
+        focus: 'Before every turn, check your mirror and turn your head toward the side you are turning.',
+      },
+      {
+        id: 'following',
+        label: 'Following distance (camera estimate)',
+        summary: roadCameraMiles >= 1 ? `${plural(closeFollowing, 'close-following moment')} in ${roadCameraMiles.toFixed(1)} camera miles.` : null,
+        concern: roadCameraMiles >= 1 ? perTenMiles(closeFollowing, roadCameraMiles) / 2 : null,
+        focus: 'Pick a fixed point; leave at least three seconds after the car ahead passes it.',
+      },
+      {
+        id: 'attention',
+        label: 'Eyes on the road (camera)',
+        summary: driverCameraMiles >= 1 ? `${plural(eyesOff, 'long look')} away in ${driverCameraMiles.toFixed(1)} camera miles.` : null,
+        concern: driverCameraMiles >= 1 ? perTenMiles(eyesOff, driverCameraMiles) : null,
+        focus: 'Keep glances away from the road under two seconds.',
       },
       {
         id: 'speed',
