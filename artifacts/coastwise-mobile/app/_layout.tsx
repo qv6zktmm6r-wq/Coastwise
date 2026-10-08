@@ -5,6 +5,11 @@ import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { CoastwiseProvider } from '@/lib/coastwise-context';
+import { loadCoachCameras } from '@/lib/native-vision';
+
+// Worklets initialize with a synchronous UI-thread call on first import, which
+// deadlocks if it first happens while a screen is mounting.
+loadCoachCameras();
 
 const queryClient = new QueryClient();
 const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
