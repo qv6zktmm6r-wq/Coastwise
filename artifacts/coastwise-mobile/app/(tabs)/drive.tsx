@@ -772,16 +772,90 @@ export default function DriveScreen() {
     && gpsAccuracyMeters <= MAX_FIX_ACCURACY_METERS;
 
   if (active) {
+    const showRoadPreview = camerasOn && cameraCoaching;
+    const cameraUnavailable = cameraStatus === 'camera-unavailable' || cameraStatus === 'model-unavailable';
+    const cameraStarting = cameraStatus === 'starting' || cameraStatus === null;
+    const cameraNote = cameraUnavailable
+      ? 'Camera coaching unavailable right now. GPS coaching continues.'
+      : cameraStarting
+        ? 'Starting cameras…'
+        : [
+          cameraCoaching ? 'Road camera tags moments for review. Frames stay on this phone and are not saved.' : null,
+          driverAttention && cameraStatus === 'running' ? 'Driver camera on' : null,
+          driverAttention && cameraStatus === 'road-only' ? 'This phone cannot run both cameras; driver camera off' : null,
+        ].filter(Boolean).join(' · ');
+    const overlayPill = { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 } as const;
+
     return (
       <Screen>
         <View style={{ flex: 1, paddingBottom: 24 }}>
-          <View style={{ marginTop: 12, marginBottom: 24 }}>
+          <View style={{ marginTop: 12, marginBottom: showRoadPreview ? 16 : 24 }}>
             <Eyebrow>Active coached drive</Eyebrow>
             <Title large>Keep your attention on the road.</Title>
             <Body muted>Coastwise is using location while this drive is active. Keep the screen on in a mount; locking the phone pauses tracking. Do not touch the phone while moving.</Body>
           </View>
-          
-          <Card accent padding={32}>
+
+          {camerasOn && CoachCameras && (
+            <View style={{ marginBottom: 20, gap: 10 }}>
+              <View style={{ borderRadius: 24, overflow: 'hidden', backgroundColor: '#05080D' }}>
+                <CoachCameras
+                  road={cameraCoaching}
+                  driver={driverAttention}
+                  onDetections={handleDetections}
+                  onFace={handleFace}
+                  onStatus={handleCameraStatus}
+                  previewStyle={{ width: '100%', aspectRatio: 4 / 3 }}
+                />
+                {showRoadPreview && (
+                  <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, padding: 14, justifyContent: 'space-between' }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <View style={overlayPill}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: cameraStatus === 'running' || cameraStatus === 'road-only' ? '#FF453A' : '#8E8E93' }} />
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 }}>ROAD CAMERA</Text>
+                      </View>
+                      <View style={overlayPill}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: gpsSignalGood ? '#30D158' : '#FFD60A' }} />
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 }}>GPS</Text>
+                      </View>
+                    </View>
+                    {(cameraUnavailable || cameraStarting) && (
+                      <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700', textAlign: 'center' }}>
+                        {cameraUnavailable ? 'Camera unavailable' : 'Starting camera…'}
+                      </Text>
+                    )}
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <View style={[overlayPill, { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14 }]}>
+                        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] }}>
+                          {Math.max(1, Math.floor(elapsed / 60))}
+                          <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)' }}> min</Text>
+                        </Text>
+                      </View>
+                      <View style={[overlayPill, { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14 }]}>
+                        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] }}>
+                          {(drive?.distanceMiles ?? 0).toFixed(1)}
+                          <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)' }}> mi</Text>
+                        </Text>
+                      </View>
+                      {speedMph !== null && (
+                        <View style={[overlayPill, { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14 }]}>
+                          <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] }}>
+                            {Math.round(speedMph)}
+                            <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)' }}> mph</Text>
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                )}
+              </View>
+              <Text accessibilityLiveRegion="polite" style={{ color: palette.muted, fontSize: 13, lineHeight: 18, textAlign: 'center', paddingHorizontal: 8 }}>
+                {cameraNote}
+              </Text>
+            </View>
+          )}
+
+          <Card accent padding={showRoadPreview ? 24 : 32}>
+            {!showRoadPreview && (
             <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 32 }}>
               <View style={{ alignItems: 'center' }}>
                 <Eyebrow>Drive time</Eyebrow>
@@ -798,8 +872,9 @@ export default function DriveScreen() {
                 </Text>
               </View>
             </View>
-            
-            <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12, marginBottom: 32 }}>
+            )}
+
+            <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12, marginBottom: showRoadPreview ? 16 : 32 }}>
               <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: gpsSignalGood ? palette.success : palette.warning }} />
               <Text style={{ color: gpsSignalGood ? palette.success : palette.warning, fontSize: 16, fontWeight: '700' }}>
                 {!locationReady || gpsAccuracyMeters === null
@@ -833,30 +908,6 @@ export default function DriveScreen() {
                 {lastCue ?? 'Listening to GPS. Quiet means nothing needed coaching.'}
               </Text>
             </View>
-
-            {camerasOn && CoachCameras && (
-              <View style={{ marginBottom: 16, gap: 8 }}>
-                <CoachCameras
-                  road={cameraCoaching}
-                  driver={driverAttention}
-                  onDetections={handleDetections}
-                  onFace={handleFace}
-                  onStatus={handleCameraStatus}
-                  previewStyle={{ height: 96, borderRadius: 12, overflow: 'hidden' }}
-                />
-                <Text accessibilityLiveRegion="polite" style={{ color: palette.muted, fontSize: 13, textAlign: 'center' }}>
-                  {cameraStatus === 'camera-unavailable' || cameraStatus === 'model-unavailable'
-                    ? 'Camera coaching unavailable right now. GPS coaching continues.'
-                    : cameraStatus === 'starting' || cameraStatus === null
-                      ? 'Starting cameras…'
-                      : [
-                        cameraCoaching ? 'Road camera on (tags moments for review)' : null,
-                        driverAttention && cameraStatus === 'running' ? 'Driver camera on' : null,
-                        driverAttention && cameraStatus === 'road-only' ? 'This phone cannot run both cameras; driver camera off' : null,
-                      ].filter(Boolean).join(' · ')}
-                </Text>
-              </View>
-            )}
 
             <View style={{ marginBottom: 16 }}>
               <ActionButton onPress={toggleVoice} secondary>
