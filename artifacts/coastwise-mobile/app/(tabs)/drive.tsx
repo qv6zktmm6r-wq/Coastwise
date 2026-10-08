@@ -45,6 +45,7 @@ import { emptyMapFeatures, fetchMapTile, MAP_ATTRIBUTION, mergeMapFeatures, tile
 import { evaluateVision, initialVisionState, type Detection, type VisionState } from '@/lib/road-vision';
 import { evaluateAttention, initialAttentionState, stopScanVerdict, type AttentionState } from '@/lib/driver-attention';
 import { loadCoachCameras } from '@/lib/native-vision';
+import { chooseCoachVoice, type ChosenVoice } from '@/lib/coach-voice';
 import type { CoachCameraStatus } from '@/components/CoachCameras';
 
 const DRIVE_SKILLS = ['turns', 'intersections'];
@@ -136,6 +137,8 @@ export default function DriveScreen() {
   const [cameraCoaching, setCameraCoaching] = useState(false);
   const [driverAttention, setDriverAttention] = useState(false);
   const [cameraStatus, setCameraStatus] = useState<CoachCameraStatus | null>(null);
+  const [coachVoice, setCoachVoice] = useState<ChosenVoice | null>(null);
+  const coachVoiceRef = useRef<ChosenVoice | null>(null);
   const [active, setActive] = useState(false);
   const [recoveryPending, setRecoveryPending] = useState(false);
   const [recoveryActionPending, setRecoveryActionPending] = useState(false);
@@ -234,7 +237,23 @@ export default function DriveScreen() {
     setLastCue(text);
     if (!voiceOnRef.current) return;
     void Speech.stop();
-    Speech.speak(text, { language: 'en-US', rate: 0.95 });
+    Speech.speak(text, { language: 'en-US', voice: coachVoiceRef.current?.identifier, rate: 0.98 });
+  }, []);
+
+  useEffect(() => {
+    const refreshVoice = () => {
+      void Speech.getAvailableVoicesAsync().then((voices) => {
+        const chosen = chooseCoachVoice(voices);
+        coachVoiceRef.current = chosen;
+        setCoachVoice(chosen);
+      }).catch(() => undefined);
+    };
+    refreshVoice();
+    // Re-check after the user downloads a better voice in Settings.
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshVoice();
+    });
+    return () => subscription.remove();
   }, []);
 
   useEffect(() => {
@@ -925,6 +944,29 @@ export default function DriveScreen() {
             <Body muted>Set this up while parked. If enabled, recording starts with the drive and stops when the drive pauses or ends.</Body>
             <ActionButton onPress={() => void prepareRecording()} secondary={!recordingPrepared}>
               {recordingPrepared ? 'Local recording ready — turn off' : 'Include local video'}
+            </ActionButton>
+          </View>
+
+          <View style={{ marginTop: 20, paddingTop: 20, borderTopWidth: 1, borderTopColor: palette.border }}>
+            <Eyebrow>Coach voice</Eyebrow>
+            <Body muted>
+              {coachVoice
+                ? `Using ${coachVoice.name} (${coachVoice.tier === 'standard' ? 'basic quality' : coachVoice.tier}).`
+                : 'Using the default iPhone voice.'}
+              {coachVoice?.tier === 'premium'
+                ? ''
+                : ' For a more natural coach, download a Premium English voice such as Ava or Zoe in iPhone Settings → Accessibility → Spoken Content → Voices → English. Coastwise switches to it automatically.'}
+            </Body>
+            <ActionButton
+              onPress={() => {
+                if (!voiceOnRef.current) toggleVoice();
+                void setAudioModeAsync({ playsInSilentMode: true, interruptionMode: 'duckOthers', shouldPlayInBackground: false })
+                  .catch(() => undefined)
+                  .finally(() => speakCue('Nice and smooth. Keep about three seconds behind the car ahead.'));
+              }}
+              secondary
+            >
+              Preview coach voice
             </ActionButton>
           </View>
 
