@@ -5,7 +5,7 @@ import { setAudioModeAsync } from 'expo-audio';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as Location from 'expo-location';
 import * as Speech from 'expo-speech';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, Linking, Platform, Pressable, Text, View, AccessibilityInfo } from 'react-native';
 import { ActionButton, Body, Card, Eyebrow, Screen, Title, usePalette } from '@/components/ui';
 import { useCoastwise, type ActiveMobileDrive, type MobileDrive } from '@/lib/coastwise-context';
@@ -28,7 +28,7 @@ import {
   shouldRequestMicrophonePermission,
 } from '@/lib/drive-lifecycle';
 import { addDistanceFix, MAX_FIX_ACCURACY_METERS, METERS_PER_MILE, type DistanceFix } from '@/lib/drive-distance';
-import { evaluateSignals, initialSignalState, type DriveSignal, type SignalState } from '@/lib/drive-signals';
+import { evaluateSignals, initialSignalState, type SignalState } from '@/lib/drive-signals';
 import {
   chooseSpokenCue,
   coachTitle,
@@ -36,15 +36,27 @@ import {
   initialCoachVoiceState,
   recordEvent,
   summarizeForDebrief,
+  type CoachableEvent,
   type CoachVoiceState,
 } from '@/lib/drive-coach';
-import { evaluateManeuvers, initialManeuverState, type ManeuverState, type MapEvent } from '@/lib/maneuvers';
+import { evaluateManeuvers, initialManeuverState, type ManeuverState } from '@/lib/maneuvers';
 import { isAfterDark } from '@/lib/sun';
 import { emptyMapFeatures, fetchMapTile, MAP_ATTRIBUTION, mergeMapFeatures, tileKey, type MapFeatures } from '@/lib/map-data';
+import { evaluateVision, initialVisionState, type Detection, type VisionState } from '@/lib/road-vision';
+import { evaluateAttention, initialAttentionState, stopScanVerdict, type AttentionState } from '@/lib/driver-attention';
+import { loadCoachCameras } from '@/lib/native-vision';
+import type { CoachCameraStatus } from '@/components/CoachCameras';
 
 const DRIVE_SKILLS = ['turns', 'intersections'];
 const KEEP_AWAKE_TAG = 'coastwise-active-drive';
 const MAP_COACHING_KEY = 'coastwise-map-coaching';
+const CAMERA_COACHING_KEY = 'coastwise-camera-coaching';
+const DRIVER_ATTENTION_KEY = 'coastwise-driver-attention';
+const MPH_PER_METER_PER_SECOND = 2.236936;
+/** A face reading older than this means the driver camera no longer sees a face. */
+const FACE_STALE_MS = 600;
+const ATTENTION_SAMPLE_MS = 500;
+const STOP_KINDS = new Set(['stop-sign-complete', 'rolling-stop', 'camera-stop-complete', 'camera-rolling-stop']);
 function explainPermission(title: string, permission: { granted: boolean; canAskAgain?: boolean } | null | undefined) {
   if (permission?.granted) return;
   const canAskAgain = permission?.canAskAgain !== false;
@@ -101,6 +113,13 @@ export default function DriveScreen() {
   const mapTiles = useRef(new Map<string, MapFeatures>());
   const mapTilesRequested = useRef(new Set<string>());
   const mapFeatures = useRef<MapFeatures>(emptyMapFeatures);
+  const CoachCameras = useMemo(() => loadCoachCameras(), []);
+  const visionState = useRef<VisionState>(initialVisionState);
+  const attentionState = useRef<AttentionState>(initialAttentionState);
+  const driverAttentionLiveRef = useRef(false);
+  const latestSpeed = useRef<number | null>(null);
+  const latestHeading = useRef<number | null>(null);
+  const latestFace = useRef<{ yawDegrees: number | null; at: number } | null>(null);
   const driveRef = useRef<MobileDrive | null>(null);
   const elapsedRef = useRef(0);
   const lifecycleRef = useRef(new DriveLifecycleCoordinator());
@@ -114,6 +133,9 @@ export default function DriveScreen() {
   const [mapCoaching, setMapCoaching] = useState(false);
   const [mappedLimitMph, setMappedLimitMph] = useState<number | null>(null);
   const [mapStatus, setMapStatus] = useState<'off' | 'loading' | 'ready' | 'unavailable'>('off');
+  const [cameraCoaching, setCameraCoaching] = useState(false);
+  const [driverAttention, setDriverAttention] = useState(false);
+  const [cameraStatus, setCameraStatus] = useState<CoachCameraStatus | null>(null);
   const [active, setActive] = useState(false);
   const [recoveryPending, setRecoveryPending] = useState(false);
   const [recoveryActionPending, setRecoveryActionPending] = useState(false);
@@ -195,11 +217,17 @@ export default function DriveScreen() {
     distanceAnchor.current = null;
     signalState.current = initialSignalState;
     maneuverState.current = initialManeuverState;
+    visionState.current = initialVisionState;
+    attentionState.current = initialAttentionState;
+    latestSpeed.current = null;
+    latestHeading.current = null;
+    latestFace.current = null;
     void Speech.stop();
     setLocationReady(false);
     setGpsAccuracyMeters(null);
     setSpeedMph(null);
     setMappedLimitMph(null);
+    setCameraStatus(null);
   }, []);
 
   const speakCue = useCallback((text: string) => {
@@ -210,11 +238,49 @@ export default function DriveScreen() {
   }, []);
 
   useEffect(() => {
-    void AsyncStorage.getItem(MAP_COACHING_KEY).then((value) => {
-      mapCoachingRef.current = value === 'on';
-      setMapCoaching(value === 'on');
+    void AsyncStorage.multiGet([MAP_COACHING_KEY, CAMERA_COACHING_KEY, DRIVER_ATTENTION_KEY]).then((values) => {
+      const saved = Object.fromEntries(values);
+      mapCoachingRef.current = saved[MAP_COACHING_KEY] === 'on';
+      setMapCoaching(mapCoachingRef.current);
+      setCameraCoaching(saved[CAMERA_COACHING_KEY] === 'on');
+      setDriverAttention(saved[DRIVER_ATTENTION_KEY] === 'on');
     }).catch(() => undefined);
   }, []);
+
+  const toggleCameraCoaching = () => {
+    const next = !cameraCoaching;
+    if (next && recordingPrepared) {
+      Alert.alert('Turn off local video first', 'Camera coaching and local video both need the back camera. Choose one for this drive.');
+      return;
+    }
+    setCameraCoaching(next);
+    void AsyncStorage.setItem(CAMERA_COACHING_KEY, next ? 'on' : 'off').catch(() => undefined);
+  };
+
+  const toggleDriverAttention = () => {
+    const save = (next: boolean) => {
+      setDriverAttention(next);
+      void AsyncStorage.setItem(DRIVER_ATTENTION_KEY, next ? 'on' : 'off').catch(() => undefined);
+    };
+    if (driverAttention) {
+      save(false);
+      return;
+    }
+    if (recordingPrepared) {
+      Alert.alert('Turn off local video first', 'The driver camera cannot run while local video is recording.');
+      return;
+    }
+    Alert.alert(
+      'Watch where the driver looks?',
+      'The front camera checks head direction for head checks before turns, scanning at stop signs, and long looks away. '
+        + 'Only head angles are used, on this phone. No image or video from this camera is saved or sent. '
+        + 'The student and the supervising adult should both agree. You can turn this off at any time.',
+      [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'We both agree', onPress: () => save(true) },
+      ],
+    );
+  };
 
   const toggleMapCoaching = () => {
     const next = !mapCoachingRef.current;
@@ -238,6 +304,75 @@ export default function DriveScreen() {
       setMapStatus((status) => (status === 'ready' ? status : 'unavailable'));
     });
   };
+
+  /** Records, speaks, and saves measured events from GPS, map data, or the cameras. */
+  const applyEvents = useCallback((detected: CoachableEvent[], addedMeters = 0, sessionId?: string) => {
+    if (addedMeters <= 0 && detected.length === 0) return;
+    const current = driveRef.current;
+    if (!current || (sessionId !== undefined && current.id !== sessionId)) return;
+    const withScans: CoachableEvent[] = [];
+    for (const event of detected) {
+      withScans.push(event);
+      if (!driverAttentionLiveRef.current || !STOP_KINDS.has(event.kind)) continue;
+      const verdict = stopScanVerdict(attentionState.current, event.at);
+      if (verdict) {
+        withScans.push({
+          kind: verdict.scanned ? 'scanned-at-stop' : 'no-scan-at-stop',
+          at: event.at,
+          speedMph: event.speedMph,
+          magnitude: verdict.headTurns,
+        });
+      }
+    }
+    let events = current.events;
+    for (const event of withScans) {
+      events = recordEvent(events, event, elapsedRef.current);
+      const cue = chooseSpokenCue(coachVoiceState.current, event);
+      coachVoiceState.current = cue.state;
+      if (cue.spoken) speakCue(cue.spoken);
+    }
+    const updated: ActiveMobileDrive = {
+      ...(current as ActiveMobileDrive),
+      distanceMiles: current.distanceMiles + addedMeters / METERS_PER_MILE,
+      events,
+      startedAt: (current as ActiveMobileDrive).startedAt ?? activeDrive?.startedAt ?? new Date().toISOString(),
+      elapsedSeconds: elapsedRef.current,
+    };
+    driveRef.current = updated;
+    setDrive(updated);
+    updateActiveDrive(updated);
+  }, [activeDrive?.startedAt, speakCue, updateActiveDrive]);
+
+  const handleDetections = useCallback((detections: Detection[]) => {
+    const result = evaluateVision(visionState.current, {
+      timestamp: Date.now(),
+      detections,
+      speedMetersPerSecond: latestSpeed.current,
+    });
+    visionState.current = result.state;
+    applyEvents(result.events);
+  }, [applyEvents]);
+
+  const handleFace = useCallback((yawDegrees: number | null) => {
+    latestFace.current = { yawDegrees, at: Date.now() };
+  }, []);
+
+  const handleCameraStatus = useCallback((status: CoachCameraStatus) => {
+    setCameraStatus(status);
+    const current = driveRef.current;
+    if (!current || (status !== 'running' && status !== 'road-only')) {
+      if (status === 'camera-unavailable' || status === 'model-unavailable') driverAttentionLiveRef.current = false;
+      return;
+    }
+    driverAttentionLiveRef.current = driverAttention && status === 'running';
+    const updated = {
+      ...current,
+      cameraCoaching: current.cameraCoaching || cameraCoaching,
+      driverAttention: current.driverAttention || driverAttentionLiveRef.current,
+    };
+    driveRef.current = updated;
+    setDrive(updated);
+  }, [cameraCoaching, driverAttention]);
 
   const toggleVoice = () => {
     const next = !voiceOnRef.current;
@@ -298,6 +433,30 @@ export default function DriveScreen() {
 
   useEffect(() => () => stopNativeSession(), [stopNativeSession]);
 
+  const camerasOn = active && Boolean(CoachCameras) && (cameraCoaching || driverAttention) && !recordingPrepared;
+
+  useEffect(() => {
+    if (!camerasOn || !driverAttention) return;
+    const timer = setInterval(() => {
+      if (!driverAttentionLiveRef.current) return;
+      const now = Date.now();
+      const face = latestFace.current;
+      const visible = face !== null && now - face.at <= FACE_STALE_MS;
+      const result = evaluateAttention(attentionState.current, {
+        timestamp: now,
+        speedMetersPerSecond: latestSpeed.current,
+        headingDegrees: latestHeading.current,
+        face: { visible, yawDegrees: visible ? face.yawDegrees : null },
+      });
+      attentionState.current = result.state;
+      applyEvents(result.events);
+    }, ATTENTION_SAMPLE_MS);
+    return () => {
+      clearInterval(timer);
+      driverAttentionLiveRef.current = false;
+    };
+  }, [camerasOn, driverAttention, applyEvents]);
+
   const beginLocationTracking = async (session: ActiveMobileDrive) => {
     const location = await Location.requestForegroundPermissionsAsync();
     if (location.status !== Location.PermissionStatus.GRANTED) {
@@ -334,7 +493,9 @@ export default function DriveScreen() {
           });
           signalState.current = measured.state;
           setSpeedMph(measured.speedMph);
-          const detected: Array<DriveSignal | MapEvent> = [...measured.signals];
+          latestSpeed.current = measured.speedMph === null ? null : measured.speedMph / MPH_PER_METER_PER_SECOND;
+          latestHeading.current = coords.heading !== null && coords.heading >= 0 && (coords.speed ?? 0) > 1 ? coords.heading : null;
+          const detected: CoachableEvent[] = [...measured.signals];
           if (mapCoachingRef.current) {
             ensureMapTile(coords.latitude, coords.longitude);
             const graded = evaluateManeuvers(maneuverState.current, mapFeatures.current, {
@@ -349,26 +510,7 @@ export default function DriveScreen() {
             setMappedLimitMph(graded.state.currentLimitMph);
             detected.push(...graded.events);
           }
-          if (step.meters <= 0 && detected.length === 0) return;
-          const current = driveRef.current;
-          if (!current || current.id !== session.id) return;
-          let events = current.events;
-          for (const signal of detected) {
-            events = recordEvent(events, signal, elapsedRef.current);
-            const cue = chooseSpokenCue(coachVoiceState.current, signal);
-            coachVoiceState.current = cue.state;
-            if (cue.spoken) speakCue(cue.spoken);
-          }
-          const updated: ActiveMobileDrive = {
-            ...current,
-            distanceMiles: current.distanceMiles + step.meters / METERS_PER_MILE,
-            events,
-            startedAt: session.startedAt,
-            elapsedSeconds: elapsedRef.current,
-          };
-          driveRef.current = updated;
-          setDrive(updated);
-          updateActiveDrive(updated);
+          applyEvents(detected, step.meters, session.id);
         },
       );
       setLocationReady(true);
@@ -474,6 +616,10 @@ export default function DriveScreen() {
     if (recordingPrepared) {
       setRecordingPrepared(false);
       AccessibilityInfo.announceForAccessibility('Local recording disabled for the next drive.');
+      return;
+    }
+    if (CoachCameras && (cameraCoaching || driverAttention)) {
+      Alert.alert('Turn off camera coaching first', 'Local video and camera coaching both need the camera. Choose one for this drive.');
       return;
     }
     const camera = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
@@ -669,6 +815,30 @@ export default function DriveScreen() {
               </Text>
             </View>
 
+            {camerasOn && CoachCameras && (
+              <View style={{ marginBottom: 16, gap: 8 }}>
+                <CoachCameras
+                  road={cameraCoaching}
+                  driver={driverAttention}
+                  onDetections={handleDetections}
+                  onFace={handleFace}
+                  onStatus={handleCameraStatus}
+                  previewStyle={{ height: 96, borderRadius: 12, overflow: 'hidden' }}
+                />
+                <Text accessibilityLiveRegion="polite" style={{ color: palette.muted, fontSize: 13, textAlign: 'center' }}>
+                  {cameraStatus === 'camera-unavailable' || cameraStatus === 'model-unavailable'
+                    ? 'Camera coaching unavailable right now. GPS coaching continues.'
+                    : cameraStatus === 'starting' || cameraStatus === null
+                      ? 'Starting cameras…'
+                      : [
+                        cameraCoaching ? 'Road camera on (tags moments for review)' : null,
+                        driverAttention && cameraStatus === 'running' ? 'Driver camera on' : null,
+                        driverAttention && cameraStatus === 'road-only' ? 'This phone cannot run both cameras; driver camera off' : null,
+                      ].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+            )}
+
             <View style={{ marginBottom: 16 }}>
               <ActionButton onPress={toggleVoice} secondary>
                 {voiceOn ? 'Mute coach voice' : 'Turn coach voice on'}
@@ -766,6 +936,27 @@ export default function DriveScreen() {
             <ActionButton onPress={toggleMapCoaching} secondary={!mapCoaching}>
               {mapCoaching ? 'Map coaching on — turn off' : 'Turn on map coaching'}
             </ActionButton>
+          </View>
+
+          <View style={{ marginTop: 20, paddingTop: 20, borderTopWidth: 1, borderTopColor: palette.border }}>
+            <Eyebrow>Camera coaching (beta)</Eyebrow>
+            {CoachCameras ? (
+              <>
+                <Body muted>
+                  Mount the phone facing the road. The road camera looks for stop signs and the car ahead, and tags moments for your post-drive review. It does not speak during the drive yet. Frames are analyzed on this phone and never saved or sent. Detection can be wrong.
+                </Body>
+                <ActionButton onPress={toggleCameraCoaching} secondary={!cameraCoaching}>
+                  {cameraCoaching ? 'Road camera on — turn off' : 'Turn on road camera'}
+                </ActionButton>
+                <View style={{ marginTop: 8 }}>
+                  <ActionButton onPress={toggleDriverAttention} secondary={!driverAttention}>
+                    {driverAttention ? 'Driver camera on — turn off' : 'Also watch where the driver looks'}
+                  </ActionButton>
+                </View>
+              </>
+            ) : (
+              <Body muted>Camera coaching needs the installed Coastwise app build. It is not available in Expo Go.</Body>
+            )}
           </View>
 
           <View style={{ marginTop: 20, paddingTop: 20, borderTopWidth: 1, borderTopColor: palette.border }}>
