@@ -3,10 +3,22 @@ import { distanceMeters, METERS_PER_MILE } from './drive-distance.ts';
 /** [longitude, latitude], as returned by OSRM. */
 export type RouteCoordinate = [number, number];
 
+export type ManeuverKind =
+  | 'left'
+  | 'right'
+  | 'keep-left'
+  | 'keep-right'
+  | 'merge-left'
+  | 'merge-right'
+  | 'roundabout'
+  | 'uturn'
+  | 'straight'
+  | 'arrive';
+
 export type RouteStep = {
   instruction: string;
   location: RouteCoordinate;
-  arrive: boolean;
+  kind: ManeuverKind;
 };
 
 export type PlannedRoute = {
@@ -21,7 +33,10 @@ export const ROUTE_SERVICE_HOST = 'router.project-osrm.org';
 /** Three decimals is roughly 100 m; the routing service never sees the exact spot. */
 const ORIGIN_DECIMALS = 3;
 const REQUEST_TIMEOUT_MS = 12_000;
-const ANNOUNCE_AHEAD_METERS = 160;
+/** First call: what is coming, check mirrors, ease off. */
+const PREPARE_AHEAD_METERS = 160;
+/** Second call: signal now. Most US handbooks ask for a signal at least 100 feet ahead. */
+const SIGNAL_AHEAD_METERS = 55;
 const STEP_REACHED_METERS = 30;
 const FEET_PER_METER = 3.28084;
 
@@ -45,17 +60,34 @@ function roundCoordinate(value: number) {
   return Math.round(value * factor) / factor;
 }
 
-function instructionFor(step: OsrmStep) {
-  const road = step.name ? ` onto ${step.name}` : '';
+export function maneuverKind(step: OsrmStep): ManeuverKind {
+  const type = step.maneuver.type ?? 'turn';
   const modifier = step.maneuver.modifier ?? 'straight';
-  if (step.maneuver.type === 'arrive') return 'You are back at the start. Park when it is safe, then stop the drive.';
-  if (step.maneuver.type === 'roundabout' || step.maneuver.type === 'rotary') return `Enter the roundabout${road}`;
-  if (modifier === 'uturn') return `Make a U-turn where it is legal${road}`;
-  if (modifier.includes('slight') && modifier.includes('left')) return `Keep left${road}`;
-  if (modifier.includes('slight') && modifier.includes('right')) return `Keep right${road}`;
-  if (modifier.includes('left')) return `Turn left${road}`;
-  if (modifier.includes('right')) return `Turn right${road}`;
-  return `Continue straight${road}`;
+  const side = modifier.includes('left') ? 'left' : modifier.includes('right') ? 'right' : null;
+  if (type === 'arrive') return 'arrive';
+  if (type === 'roundabout' || type === 'rotary' || type === 'roundabout turn') return 'roundabout';
+  if (modifier === 'uturn') return 'uturn';
+  if (type === 'merge' || type === 'on ramp') return side === 'left' ? 'merge-left' : side === 'right' ? 'merge-right' : 'straight';
+  if (modifier.includes('slight') || type === 'fork' || type === 'off ramp') {
+    return side === 'left' ? 'keep-left' : side === 'right' ? 'keep-right' : 'straight';
+  }
+  return side ?? 'straight';
+}
+
+function instructionFor(step: OsrmStep, kind: ManeuverKind) {
+  const road = step.name ? ` onto ${step.name}` : '';
+  switch (kind) {
+    case 'arrive': return 'You are back at the start. Park when it is safe, then stop the drive.';
+    case 'roundabout': return `Enter the roundabout${road}`;
+    case 'uturn': return `Make a U-turn where it is legal${road}`;
+    case 'merge-left': return `Merge left${road}`;
+    case 'merge-right': return `Merge right${road}`;
+    case 'keep-left': return `Keep left${road}`;
+    case 'keep-right': return `Keep right${road}`;
+    case 'left': return `Turn left${road}`;
+    case 'right': return `Turn right${road}`;
+    default: return `Continue straight${road}`;
+  }
 }
 
 /**
@@ -111,11 +143,10 @@ export async function requestPracticeLoop(
         steps: route.legs.flatMap((leg) => leg.steps)
           .filter((step) => step.maneuver.type !== 'depart' && step.maneuver.type !== 'arrive' && step.distance > 12)
           .concat(route.legs.at(-1)?.steps.filter((step) => step.maneuver.type === 'arrive').slice(-1) ?? [])
-          .map((step) => ({
-            instruction: instructionFor(step),
-            location: step.maneuver.location,
-            arrive: step.maneuver.type === 'arrive',
-          })),
+          .map((step) => {
+            const kind = maneuverKind(step);
+            return { instruction: instructionFor(step, kind), location: step.maneuver.location, kind };
+          }),
       };
     } catch (error) {
       lastError = error;
@@ -126,8 +157,8 @@ export async function requestPracticeLoop(
   throw lastError instanceof Error ? lastError : new Error('Route service unavailable');
 }
 
-export type GuidanceState = { stepIndex: number; announcedIndex: number };
-export const initialGuidanceState: GuidanceState = { stepIndex: 0, announcedIndex: -1 };
+export type GuidanceState = { stepIndex: number; preparedIndex: number; signaledIndex: number };
+export const initialGuidanceState: GuidanceState = { stepIndex: 0, preparedIndex: -1, signaledIndex: -1 };
 
 function spokenDistance(meters: number) {
   const feet = meters * FEET_PER_METER;
@@ -135,9 +166,45 @@ function spokenDistance(meters: number) {
   return `In about ${(meters / METERS_PER_MILE).toFixed(1)} miles`;
 }
 
+function lowerFirst(text: string) {
+  return text.charAt(0).toLowerCase() + text.slice(1);
+}
+
+/** Early call, while there is still room to slow down and position the car. */
+function prepareCue(step: RouteStep, meters: number) {
+  const ahead = `${spokenDistance(meters)}, ${lowerFirst(step.instruction)}.`;
+  switch (step.kind) {
+    case 'left': return `${ahead} Check your mirrors, ease off the gas, and move toward the left lane or the center turn lane when it is clear.`;
+    case 'right': return `${ahead} Check your mirrors, ease off the gas, and move toward the right edge of the road when it is clear.`;
+    case 'merge-left':
+    case 'merge-right': return `${ahead} Match the speed of traffic and look for a gap.`;
+    case 'keep-left':
+    case 'keep-right': return `${ahead} Check your mirrors and settle into the correct lane early.`;
+    case 'roundabout': return `${ahead} Slow down and pick your lane before you reach it.`;
+    case 'uturn': return `${ahead} Only turn where a U-turn is legal and you can see far in both directions.`;
+    default: return ahead;
+  }
+}
+
+/** Close call, at signaling distance. */
+function signalCue(step: RouteStep) {
+  switch (step.kind) {
+    case 'left': return 'Signal left now. Check your mirror, then look over your left shoulder for bikes and people in the crosswalk. Yield to oncoming traffic before you turn.';
+    case 'right': return 'Signal right now. Check your right mirror, then turn your head to check the right blind spot for bikes. Watch the crosswalk as you turn.';
+    case 'merge-left': return 'Signal left now. Check your left mirror, then turn your head to check the left blind spot. Merge smoothly into the gap without slowing down.';
+    case 'merge-right': return 'Signal right now. Check your right mirror, then turn your head to check the right blind spot. Merge smoothly into the gap without slowing down.';
+    case 'keep-left': return 'If you need to change lanes, signal left, check your mirror and your left blind spot, then move over.';
+    case 'keep-right': return 'If you need to change lanes, signal right, check your mirror and your right blind spot, then move over.';
+    case 'roundabout': return 'Yield to traffic already in the roundabout. Signal right before your exit.';
+    case 'uturn': return 'Signal left now. Check your mirror and your left blind spot, and wait until both directions are clear.';
+    default: return null;
+  }
+}
+
 /**
- * Advances turn-by-turn guidance for one GPS fix. Returns a cue to speak when
- * a turn is coming up, or when the route is finished.
+ * Advances turn-by-turn guidance for one GPS fix. Each maneuver gets an early
+ * call to prepare, then a call at signaling distance with mirror and blind-spot
+ * checks for that side.
  */
 export function advanceGuidance(
   route: PlannedRoute,
@@ -145,38 +212,45 @@ export function advanceGuidance(
   latitude: number,
   longitude: number,
 ): { state: GuidanceState; cue: string | null; nextInstruction: string | null } {
-  let { stepIndex, announcedIndex } = state;
+  let { stepIndex, preparedIndex, signaledIndex } = state;
   const distanceTo = (index: number) => {
     const [lon, lat] = route.steps[index].location;
     return distanceMeters(latitude, longitude, lat, lon);
   };
   // Jump past any turn reached, including later ones if the driver skipped a turn.
   for (let index = route.steps.length - 1; index >= stepIndex; index -= 1) {
-    if (!route.steps[index].arrive && distanceTo(index) <= STEP_REACHED_METERS) {
+    if (route.steps[index].kind !== 'arrive' && distanceTo(index) <= STEP_REACHED_METERS) {
       stepIndex = index + 1;
       break;
     }
   }
   const step = route.steps[stepIndex];
-  if (!step) return { state: { stepIndex, announcedIndex }, cue: null, nextInstruction: null };
+  if (!step) return { state: { stepIndex, preparedIndex, signaledIndex }, cue: null, nextInstruction: null };
   const meters = distanceTo(stepIndex);
   let cue: string | null = null;
-  if (step.arrive) {
+  if (step.kind === 'arrive') {
     // The loop starts and ends at the same place, so only finish after some progress.
-    if (stepIndex > 0 && meters <= STEP_REACHED_METERS * 2 && announcedIndex < stepIndex) {
+    if (stepIndex > 0 && meters <= STEP_REACHED_METERS * 2 && preparedIndex < stepIndex) {
       cue = step.instruction;
-      announcedIndex = stepIndex;
+      preparedIndex = stepIndex;
+      signaledIndex = stepIndex;
     }
-  } else if (meters <= ANNOUNCE_AHEAD_METERS && announcedIndex < stepIndex) {
-    cue = `${spokenDistance(meters)}, ${step.instruction.charAt(0).toLowerCase()}${step.instruction.slice(1)}.`;
-    announcedIndex = stepIndex;
+  } else if (meters <= SIGNAL_AHEAD_METERS && signaledIndex < stepIndex) {
+    const signal = signalCue(step);
+    // If the early call was missed, still say what the maneuver is.
+    cue = preparedIndex < stepIndex ? [`${step.instruction}.`, signal].filter(Boolean).join(' ') : signal;
+    preparedIndex = stepIndex;
+    signaledIndex = stepIndex;
+  } else if (meters <= PREPARE_AHEAD_METERS && preparedIndex < stepIndex) {
+    cue = prepareCue(step, meters);
+    preparedIndex = stepIndex;
   }
-  return { state: { stepIndex, announcedIndex }, cue, nextInstruction: step.instruction };
+  return { state: { stepIndex, preparedIndex, signaledIndex }, cue, nextInstruction: step.instruction };
 }
 
 export function describeRoute(route: PlannedRoute) {
   const miles = route.distanceMeters / METERS_PER_MILE;
   const minutes = Math.max(1, Math.round(route.durationSeconds / 60));
-  const turns = route.steps.filter((step) => !step.arrive && !step.instruction.startsWith('Continue')).length;
+  const turns = route.steps.filter((step) => step.kind !== 'arrive' && step.kind !== 'straight').length;
   return `${miles.toFixed(1)} mi · about ${minutes} min · ${turns} turns`;
 }

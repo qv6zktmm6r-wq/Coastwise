@@ -53,19 +53,24 @@ const route: PlannedRoute = {
   durationSeconds: 120,
   origin: [-121.9, 37.3],
   steps: [
-    { instruction: 'Turn left onto Oak Ave', location: [-121.9, 37.3 + 300 * LATITUDE_PER_METER], arrive: false },
-    { instruction: 'You are back at the start.', location: [-121.9, 37.3], arrive: true },
+    { instruction: 'Turn left onto Oak Ave', location: [-121.9, 37.3 + 300 * LATITUDE_PER_METER], kind: 'left' },
+    { instruction: 'You are back at the start.', location: [-121.9, 37.3], kind: 'arrive' },
   ],
 };
 
-test('announces an upcoming turn once, then advances after reaching it', () => {
+test('prepares early, then calls the signal and head check close to the turn', () => {
   let result = advanceGuidance(route, initialGuidanceState, 37.3, -121.9);
   assert.equal(result.cue, null);
   assert.equal(result.nextInstruction, 'Turn left onto Oak Ave');
 
   result = advanceGuidance(route, result.state, 37.3 + 160 * LATITUDE_PER_METER, -121.9);
-  assert.match(result.cue ?? '', /^In about \d+ feet, turn left onto Oak Ave\.$/);
+  assert.match(result.cue ?? '', /^In about \d+ feet, turn left onto Oak Ave\. Check your mirrors/);
   result = advanceGuidance(route, result.state, 37.3 + 170 * LATITUDE_PER_METER, -121.9);
+  assert.equal(result.cue, null);
+
+  result = advanceGuidance(route, result.state, 37.3 + 250 * LATITUDE_PER_METER, -121.9);
+  assert.match(result.cue ?? '', /^Signal left now\. .*left shoulder/);
+  result = advanceGuidance(route, result.state, 37.3 + 260 * LATITUDE_PER_METER, -121.9);
   assert.equal(result.cue, null);
 
   result = advanceGuidance(route, result.state, 37.3 + 295 * LATITUDE_PER_METER, -121.9);
@@ -73,6 +78,15 @@ test('announces an upcoming turn once, then advances after reaching it', () => {
 
   result = advanceGuidance(route, result.state, 37.3 + 20 * LATITUDE_PER_METER, -121.9);
   assert.equal(result.cue, 'You are back at the start.');
+});
+
+test('a merge right calls out the right mirror and blind spot', () => {
+  const merge: PlannedRoute = {
+    ...route,
+    steps: [{ instruction: 'Merge right onto I-280', location: route.steps[0].location, kind: 'merge-right' }],
+  };
+  const near = advanceGuidance(merge, initialGuidanceState, 37.3 + 260 * LATITUDE_PER_METER, -121.9);
+  assert.match(near.cue ?? '', /^Merge right onto I-280\. Signal right now\. .*right blind spot/);
 });
 
 test('does not finish the loop at the very start', () => {
