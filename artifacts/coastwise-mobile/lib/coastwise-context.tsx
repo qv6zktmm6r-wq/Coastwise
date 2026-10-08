@@ -3,7 +3,7 @@ import type { TurnScore } from './turn-scores';
 import type { DriveDebrief, NextDrivePlan } from '@workspace/api-client-react';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { DriveEventRecord } from './drive-coach';
-import { beginDriveState, CURRENT_CALIFORNIA_CONTENT_PACK_VERSION, DEFAULT_JURISDICTION, finishDriveState, getMobileContentPackVersion, hydrateMobileState, isApprovedMobileJurisdiction, saveDriveState, updateDriveState } from './mobile-state';
+import { beginDriveState, CURRENT_CALIFORNIA_CONTENT_PACK_VERSION, DEFAULT_JURISDICTION, deleteDriveState, finishDriveState, getMobileContentPackVersion, hydrateMobileState, isApprovedMobileJurisdiction, saveDriveState, updateDriveState } from './mobile-state';
 
 const STORAGE_KEY = 'coastwise-mobile-state';
 
@@ -22,6 +22,8 @@ export type MobileDrive = {
   cameraCoaching?: boolean;
   /** True when the opt-in driver-facing attention camera ran for this drive. */
   driverAttention?: boolean;
+  /** 'manual' when a supervising adult logged a drive made without the app; nothing was measured. */
+  source?: 'app' | 'manual';
   /** Per-turn review for drives that followed a planned route. Stays on this device. */
   turnScores?: TurnScore[];
   debrief?: DriveDebrief;
@@ -67,6 +69,7 @@ type CoastwiseContextValue = MobileState & {
   forgetRecording: (uri: string) => void;
   forgetAllRecordings: () => void;
   saveDrive: (drive: MobileDrive) => void;
+  deleteDrive: (driveId: string) => void;
   savePlan: (plan: NextDrivePlan) => void;
   acknowledgePrivacy: () => void;
   recordPracticeAnswer: (questionId: string, topic: string, correct: boolean) => void;
@@ -135,6 +138,7 @@ export function CoastwiseProvider({ children }: { children: ReactNode }) {
       })),
     })),
     saveDrive: (drive) => setState((current) => saveDriveState(current, drive)),
+    deleteDrive: (driveId) => setState((current) => deleteDriveState(current, driveId)),
     savePlan: (plan) => setState((current) => ({ ...current, plan })),
     acknowledgePrivacy: () => setState((current) => ({ ...current, acknowledgedPrivacyVersion: '2026-09-18-ios-ai' })),
     recordPracticeAnswer: (questionId, topic, correct) => setState((current) => ({

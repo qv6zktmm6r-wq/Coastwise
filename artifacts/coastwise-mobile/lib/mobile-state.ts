@@ -60,21 +60,36 @@ export function updateDriveState(current: MobileState, drive: ActiveMobileDrive)
   return { ...current, activeDrive: drive };
 }
 
+/** Drives that keep their full event list; older drives keep only their log totals. */
+export const DETAILED_DRIVES = 50;
+
+/**
+ * Every drive stays in the permit log. Only the newest drives keep detailed
+ * events, which skill trends read; older ones drop them to keep storage small.
+ */
+export function compactDrives(drives: MobileDrive[]): MobileDrive[] {
+  const sorted = [...drives].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  return sorted.map((drive, index) => {
+    if (index < DETAILED_DRIVES || drive.events === undefined) return drive;
+    const { events: _events, ...summary } = drive;
+    return summary;
+  });
+}
+
+function upsertDrive(drives: MobileDrive[], drive: MobileDrive) {
+  return compactDrives(drives.some((item) => item.id === drive.id)
+    ? drives.map((item) => item.id === drive.id ? drive : item)
+    : [drive, ...drives]);
+}
+
 export function finishDriveState(current: MobileState, drive: MobileDrive): MobileState {
-  return {
-    ...current,
-    activeDrive: undefined,
-    drives: current.drives.some((item) => item.id === drive.id)
-      ? current.drives.map((item) => item.id === drive.id ? drive : item)
-      : [drive, ...current.drives].slice(0, 50),
-  };
+  return { ...current, activeDrive: undefined, drives: upsertDrive(current.drives, drive) };
 }
 
 export function saveDriveState(current: MobileState, drive: MobileDrive): MobileState {
-  return {
-    ...current,
-    drives: current.drives.some((item) => item.id === drive.id)
-      ? current.drives.map((item) => item.id === drive.id ? drive : item)
-      : [drive, ...current.drives].slice(0, 50),
-  };
+  return { ...current, drives: upsertDrive(current.drives, drive) };
+}
+
+export function deleteDriveState(current: MobileState, driveId: string): MobileState {
+  return { ...current, drives: current.drives.filter((drive) => drive.id !== driveId) };
 }

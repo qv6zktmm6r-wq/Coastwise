@@ -37,7 +37,7 @@ export function permitProgress(drives: MobileDrive[], jurisdiction: MobileJurisd
 }
 
 export type SkillTrend = {
-  id: 'stop-signs' | 'braking' | 'acceleration' | 'turns' | 'speed' | 'scanning' | 'head-checks' | 'following' | 'attention';
+  id: 'route-turns' | 'stop-signs' | 'braking' | 'acceleration' | 'turns' | 'speed' | 'scanning' | 'head-checks' | 'following' | 'attention';
   label: string;
   /** Plain-language result from measured events only. Null when there is no evidence yet. */
   summary: string | null;
@@ -86,11 +86,33 @@ export function skillTrends(drives: MobileDrive[]): { drivesConsidered: number; 
   const quickStarts = countKind(measured, 'rapid-acceleration');
   const fastTurns = countKind(measured, 'sharp-turn');
   const overLimit = countKind(measured, 'over-mapped-limit');
+  const routeTurns = measured.flatMap((drive) => drive.turnScores ?? []).filter((turn) => turn.completed);
+  const cleanTurns = routeTurns.filter((turn) => turn.slowed !== 'miss' && turn.smooth !== 'miss' && turn.headCheck !== 'miss');
+  const turnMisses = {
+    slowed: routeTurns.filter((turn) => turn.slowed === 'miss').length,
+    smooth: routeTurns.filter((turn) => turn.smooth === 'miss').length,
+    headCheck: routeTurns.filter((turn) => turn.headCheck === 'miss').length,
+  };
+  const worstTurnMiss = (Object.entries(turnMisses) as Array<[keyof typeof turnMisses, number]>).sort((a, b) => b[1] - a[1])[0];
+  const turnFocus: Record<keyof typeof turnMisses, string> = {
+    slowed: 'Finish slowing to turning speed before the turn starts. Ask for a Left turns or Right turns practice route.',
+    smooth: 'Start braking earlier and lighter, and steer through turns without sudden moves.',
+    headCheck: 'At the signal call, check the mirror and turn your head toward the side you are turning.',
+  };
 
   return {
     drivesConsidered: measured.length,
     miles,
     trends: [
+      {
+        id: 'route-turns',
+        label: 'Practice-route turns',
+        summary: routeTurns.length > 0
+          ? `${cleanTurns.length} of ${plural(routeTurns.length, 'route turn')} clean${worstTurnMiss[1] > 0 ? `; most often missed: ${{ slowed: 'slowing down', smooth: 'smooth braking', headCheck: 'head checks' }[worstTurnMiss[0]]}` : ''}.`
+          : null,
+        concern: routeTurns.length > 0 ? 1 - cleanTurns.length / routeTurns.length : null,
+        focus: worstTurnMiss[1] > 0 ? turnFocus[worstTurnMiss[0]] : 'Keep taking turns slowly and checking mirrors and blind spots.',
+      },
       {
         id: 'stop-signs',
         label: 'Stop signs (map or camera)',

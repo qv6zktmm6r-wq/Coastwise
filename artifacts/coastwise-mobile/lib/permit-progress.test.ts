@@ -96,3 +96,22 @@ test('the next focus is the skill with the most measured concern', () => {
   const clean = skillTrends([drive({ distanceMiles: 10, events: events('stop-sign-complete') })]);
   assert.equal(nextFocus(clean.trends), null);
 });
+
+test('route turn scores roll up into a trend that names the most common miss', () => {
+  const turn = (headCheck: 'pass' | 'miss') => ({
+    instruction: 'Turn left onto Oak Ave', kind: 'left' as const, completed: true,
+    slowed: 'pass' as const, smooth: 'pass' as const, headCheck, slowestMph: 12,
+  });
+  const result = skillTrends([drive({ events: [], turnScores: [turn('pass'), turn('miss'), turn('miss')] })]);
+  const turns = result.trends.find((trend) => trend.id === 'route-turns')!;
+  assert.equal(turns.summary, '1 of 3 route turns clean; most often missed: head checks.');
+  assert.match(turns.focus, /turn your head/);
+  assert.equal(skillTrends([drive({ events: [] })]).trends.find((trend) => trend.id === 'route-turns')!.summary, null);
+});
+
+test('manually logged drives count toward hours but never as measured skills', () => {
+  const manual = drive({ source: 'manual', durationMinutes: 90, nightMinutes: 30, night: true, distanceMiles: 0, skills: [] });
+  assert.equal(permitProgress([manual], 'US-CA').totalMinutes, 90);
+  assert.equal(permitProgress([manual], 'US-CA').nightMinutes, 30);
+  assert.equal(skillTrends([manual]).drivesConsidered, 0);
+});

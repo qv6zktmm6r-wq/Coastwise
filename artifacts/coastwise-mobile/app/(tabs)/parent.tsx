@@ -8,6 +8,13 @@ import { colors } from '@/theme';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { driveNightMinutes, nextFocus, permitProgress, skillTrends } from '@/lib/permit-progress';
+import { deleteLocalRecording } from '@/lib/recordings';
+
+const MAX_MANUAL_MINUTES = 12 * 60;
+
+function localDateString(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
 
 const formatHours = (minutes: number) => (minutes / 60).toFixed(1);
 
@@ -21,7 +28,70 @@ function ProgressBar({ value, color, track }: { value: number; color: string; tr
 
 export default function ParentScreen() {
   const palette = usePalette();
-  const { drives, plan, role, parentGoal, setParentGoal, jurisdiction } = useCoastwise();
+  const { drives, plan, role, parentGoal, setParentGoal, jurisdiction, saveDrive, deleteDrive, forgetRecording } = useCoastwise();
+  const [logOpen, setLogOpen] = useState(false);
+  const [logDate, setLogDate] = useState(() => localDateString(new Date()));
+  const [logMinutes, setLogMinutes] = useState('');
+  const [logNightMinutes, setLogNightMinutes] = useState('0');
+  const [logMiles, setLogMiles] = useState('');
+
+  const saveManualDrive = () => {
+    const minutes = Number.parseInt(logMinutes, 10);
+    const nightMinutes = Number.parseInt(logNightMinutes || '0', 10);
+    const miles = logMiles.trim() ? Number.parseFloat(logMiles) : 0;
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(logDate.trim());
+    const day = match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12) : null;
+    if (!day || Number.isNaN(day.getTime()) || localDateString(day) !== logDate.trim() || day.getTime() > Date.now() + 12 * 3_600_000) {
+      Alert.alert('Check the date', 'Enter the drive date as YYYY-MM-DD. It cannot be in the future.');
+      return;
+    }
+    if (!Number.isFinite(minutes) || minutes <= 0 || minutes > MAX_MANUAL_MINUTES) {
+      Alert.alert('Check the minutes', 'Enter how many minutes you drove, up to 12 hours.');
+      return;
+    }
+    if (!Number.isFinite(nightMinutes) || nightMinutes < 0 || nightMinutes > minutes) {
+      Alert.alert('Check night minutes', 'Night minutes must be between 0 and the total minutes.');
+      return;
+    }
+    if (!Number.isFinite(miles) || miles < 0 || miles > 1000) {
+      Alert.alert('Check the miles', 'Leave miles blank or enter a number up to 1,000.');
+      return;
+    }
+    saveDrive({
+      id: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      date: day.toISOString(),
+      durationMinutes: minutes,
+      nightMinutes,
+      night: nightMinutes > 0,
+      distanceMiles: miles,
+      skills: [],
+      source: 'manual',
+    });
+    setLogOpen(false);
+    setLogMinutes('');
+    setLogNightMinutes('0');
+    setLogMiles('');
+    setLogDate(localDateString(new Date()));
+  };
+
+  const confirmDeleteDrive = (drive: MobileDrive) => {
+    Alert.alert(
+      'Delete this drive?',
+      `${drive.durationMinutes} min on ${new Date(drive.date).toLocaleDateString()} will be removed from the practice log${drive.recordingUri ? ', along with its saved video' : ''}. This cannot be undone.`,
+      [
+        { text: 'Keep it', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            const uri = drive.recordingUri;
+            deleteDrive(drive.id);
+            if (uri) void deleteLocalRecording(uri).then(() => forgetRecording(uri)).catch(() => undefined);
+          },
+        },
+      ],
+    );
+  };
   const permit = useMemo(() => permitProgress(drives, jurisdiction), [drives, jurisdiction]);
   const skills = useMemo(() => skillTrends(drives), [drives]);
   const focus = nextFocus(skills.trends);
@@ -84,11 +154,11 @@ export default function ParentScreen() {
       csv += `Total Minutes,${permit.totalMinutes}\n`;
       csv += `Night Minutes,${permit.nightMinutes}\n`;
       csv += `Required,${permit.totalHours} hours including ${permit.nightHours} ${permit.nightLabel}\n\n`;
-      csv += 'Date,Duration (min),Night (min),Distance (mi),Skills\n';
+      csv += 'Date,Duration (min),Night (min),Distance (mi),Skills,Source\n';
       
       const sorted = [...drives].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       sorted.forEach(d => {
-        csv += `${new Date(d.date).toLocaleDateString()},${d.durationMinutes},${driveNightMinutes(d)},${d.distanceMiles.toFixed(1)},"${d.skills.join('; ')}"\n`;
+        csv += `${new Date(d.date).toLocaleDateString()},${d.durationMinutes},${driveNightMinutes(d)},${d.distanceMiles.toFixed(1)},"${d.skills.join('; ')}",${d.source === 'manual' ? 'Logged by hand' : 'Coastwise app'}\n`;
       });
       
       if (FileSystem.documentDirectory) {
@@ -181,6 +251,46 @@ export default function ParentScreen() {
         <Text style={{ color: palette.muted, fontSize: 13, lineHeight: 18, marginTop: 16 }}>
           {permit.totalMiles.toFixed(1)} miles logged. Night time is measured from local sunset and sunrise on this device. This is a personal log; follow your state’s official certification process.
         </Text>
+
+        <View style={{ marginTop: 20, paddingTop: 20, borderTopWidth: 1, borderTopColor: palette.border }}>
+          {logOpen ? (
+            <View style={{ gap: 12 }}>
+              <Text style={{ color: palette.text, fontSize: 16, fontWeight: '800' }}>Log a drive done without the app</Text>
+              {([
+                ['Date (YYYY-MM-DD)', logDate, setLogDate, 'numbers-and-punctuation', localDateString(new Date())],
+                ['Total minutes', logMinutes, setLogMinutes, 'number-pad', '45'],
+                ['Minutes after dark', logNightMinutes, setLogNightMinutes, 'number-pad', '0'],
+                ['Miles (optional)', logMiles, setLogMiles, 'decimal-pad', ''],
+              ] as const).map(([label, value, setValue, keyboardType, placeholder]) => (
+                <View key={label}>
+                  <Text style={{ color: palette.muted, fontSize: 13, marginBottom: 6, fontWeight: '600' }}>{label}</Text>
+                  <TextInput
+                    value={value}
+                    onChangeText={setValue}
+                    keyboardType={keyboardType}
+                    accessibilityLabel={label}
+                    placeholder={placeholder}
+                    placeholderTextColor={palette.muted}
+                    style={{ backgroundColor: palette.soft, color: palette.text, padding: 14, borderRadius: 12, fontSize: 16 }}
+                  />
+                </View>
+              ))}
+              <Text style={{ color: palette.muted, fontSize: 13, lineHeight: 18 }}>
+                Hand-logged drives count toward hours only. Coastwise did not measure them, so they never change skill results.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <ActionButton onPress={() => setLogOpen(false)} secondary>Cancel</ActionButton>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <ActionButton onPress={saveManualDrive}>Save drive</ActionButton>
+                </View>
+              </View>
+            </View>
+          ) : (
+            <ActionButton onPress={() => setLogOpen(true)} secondary>Log a drive done without the app</ActionButton>
+          )}
+        </View>
       </Card>
 
       <View style={{ height: 16 }} />
@@ -322,10 +432,21 @@ export default function ParentScreen() {
             {filteredDrives.map(d => (
               <Card key={d.id} padding={16}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={{ color: palette.text, fontSize: 18, fontWeight: '700' }}>{d.durationMinutes} min</Text>
-                    <Text style={{ color: palette.muted, fontSize: 14, marginTop: 4 }}>{new Date(d.date).toLocaleDateString()}</Text>
+                    <Text style={{ color: palette.muted, fontSize: 14, marginTop: 4 }}>
+                      {new Date(d.date).toLocaleDateString()}{d.source === 'manual' ? ' · Logged by hand' : ''}
+                    </Text>
                   </View>
+                  <Pressable
+                    onPress={() => confirmDeleteDrive(d)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete ${d.durationMinutes} minute drive from ${new Date(d.date).toLocaleDateString()}`}
+                    hitSlop={8}
+                    style={({ pressed }) => ({ padding: 6, marginRight: 8, opacity: pressed ? 0.6 : 1 })}
+                  >
+                    <Ionicons name="trash-outline" size={20} color={palette.muted} />
+                  </Pressable>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: palette.soft, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
                     <Ionicons name={d.night ? "moon" : "sunny"} size={14} color={palette.muted} />
                     <Text style={{ color: palette.muted, fontSize: 13, fontWeight: '600' }}>{d.night ? 'Night' : 'Day'}</Text>
