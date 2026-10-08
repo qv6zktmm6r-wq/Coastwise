@@ -62,6 +62,7 @@ import { getContentPack, getContentScenarios } from '@/data/content-packs';
 import { RouteMap } from '@/components/route-map';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { deleteDriveRecording as deleteSavedDriveRecording, loadDriveRecording, requestReturnRoute, saveDriveRecording, type PlannedRoute, type RouteCoordinate } from '@/lib/route-coach';
+import { evaluateRouteDeparture, finishRouteDeparture, initialRouteDepartureState, routeDepartureCue, type RouteDepartureState } from '@/lib/route-departure';
 import {
   appendCoachEvent,
   deleteCoachEvent,
@@ -629,8 +630,8 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const activeStepRef = useRef(0);
   const preparedStepRef = useRef(-1);
   const finalStepRef = useRef(-1);
-  const offRouteSince = useRef<number | null>(null);
-  const rerouting = useRef(false);
+  const routeDepartureRef = useRef<RouteDepartureState>(initialRouteDepartureState);
+  const routeDepartureRequest = useRef(0);
   const recordingClockStartedAt = useRef<number | null>(null);
   const finalElapsedSecondsRef = useRef(0);
   const eventSequence = useRef(0);
@@ -673,8 +674,8 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
   const completed = state.missions.filter((mission) => mission.completed).length;
   const averageSpeed = elapsedSeconds > 0 ? distanceMiles / (elapsedSeconds / 3600) : 0;
   const reviewDistance = activeReviewSession?.distanceMiles ?? distanceMiles;
-  const nextDriveFocus = coachEvents.some((event) => event.title === 'Route updated')
-    ? 'Look farther ahead and prepare earlier so the route stays easier to follow.'
+  const nextDriveFocus = coachEvents.some((event) => event.title === routeDepartureCue.title)
+    ? 'Look farther ahead and prepare earlier so the planned line stays easier to follow.'
     : coachEvents.some((event) => event.kind === 'maneuver')
       ? 'Repeat the same route focus and prepare for each maneuver a little earlier.'
       : 'Choose one simple skill and repeat it on the next supervised drive.';
@@ -936,6 +937,8 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
           activeStepRef.current = 0;
           preparedStepRef.current = -1;
           finalStepRef.current = -1;
+          routeDepartureRef.current = initialRouteDepartureState;
+          routeDepartureRequest.current += 1;
           setCurrentCue(`Route ready. ${route.skills.map((skill) => skillLabels[skill] ?? skill).join(', ')} practice is queued.`);
         },
         onError: () => setRouteError('A coached route could not be created right now. Check your connection and try again.'),
@@ -951,7 +954,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     else if (modifier.includes('right')) playCoach(preparing ? coachVoice.prepareRight : coachVoice.turnRight);
     else if (!preparing) playCoach(coachVoice.straight);
   };
-  const updateRouteProgress = (latitude: number, longitude: number, metersPerSecond: number) => {
+  const updateRouteProgress = (latitude: number, longitude: number, metersPerSecond: number, fix: { accuracyMeters: number; movementPlausible: boolean }) => {
     const route = routeRef.current;
     const position: RouteCoordinate = [longitude, latitude];
     currentPositionRef.current = position;
@@ -1018,39 +1021,42 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
         setActiveStep(stepIndex + 1);
       }
     }
-    const stride = Math.max(1, Math.floor(route.coordinates.length / 120));
-    let nearest = Number.POSITIVE_INFINITY;
-    for (let index = 0; index < route.coordinates.length; index += stride) {
-      const coordinate = route.coordinates[index];
-      nearest = Math.min(nearest, distanceBetween(latitude, longitude, coordinate[1], coordinate[0]));
+    const decision = evaluateRouteDeparture(routeDepartureRef.current, {
+      latitude,
+      longitude,
+      now: Date.now(),
+      coordinates: route.coordinates,
+      accuracyMeters: fix.accuracyMeters,
+      movementPlausible: fix.movementPlausible,
+    });
+    routeDepartureRef.current = decision.state;
+    if (decision.action === 'on-route') {
+      setTrackingError((current) => current === routeDepartureCue.failure ? '' : current);
     }
-    if (nearest > 90) {
-      offRouteSince.current ??= Date.now();
-      if (Date.now() - offRouteSince.current > 10000 && !rerouting.current) {
-        rerouting.current = true;
-        playCoach(coachVoice.updated);
-        recordCoachEvent({
-          kind: 'prompt',
-          title: 'Route updated',
-          detail: 'A safer return route is being calculated.',
-        });
-        void requestReturnRoute(latitude, longitude, route.origin).then((nextRoute) => {
-          routeRef.current = nextRoute;
-          setPlannedRoute(nextRoute);
-          activeStepRef.current = 0;
-          setActiveStep(0);
-          preparedStepRef.current = -1;
-          finalStepRef.current = -1;
-          offRouteSince.current = null;
-        }).catch(() => {
-          setTrackingError('You are off the planned route. Continue safely; automatic rerouting is temporarily unavailable.');
-        }).finally(() => {
-          rerouting.current = false;
-        });
-      }
-    } else {
-      offRouteSince.current = null;
-    }
+    if (decision.action !== 'reroute') return;
+    const requestId = routeDepartureRequest.current + 1;
+    routeDepartureRequest.current = requestId;
+    playCoach(coachVoice.updated);
+    recordCoachEvent({
+      kind: 'prompt',
+      title: decision.cue.title,
+      detail: decision.cue.detail,
+    });
+    void requestReturnRoute(latitude, longitude, route.origin).then((nextRoute) => {
+      if (requestId !== routeDepartureRequest.current) return;
+      routeRef.current = nextRoute;
+      setPlannedRoute(nextRoute);
+      activeStepRef.current = 0;
+      setActiveStep(0);
+      preparedStepRef.current = -1;
+      finalStepRef.current = -1;
+      routeDepartureRef.current = finishRouteDeparture(routeDepartureRef.current, 'returned');
+      setTrackingError((current) => current === routeDepartureCue.failure ? '' : current);
+    }).catch(() => {
+      if (requestId !== routeDepartureRequest.current) return;
+      setTrackingError(routeDepartureCue.failure);
+      routeDepartureRef.current = finishRouteDeparture(routeDepartureRef.current, 'failed');
+    });
   };
   const handlePositionUpdate = (position: GeolocationPosition) => {
     if (pausedRef.current) return;
@@ -1108,7 +1114,10 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     currentSpeedRef.current = speedMph;
     setCurrentSpeed(speedMph);
     setGpsStatus('live');
-    updateRouteProgress(position.coords.latitude, position.coords.longitude, plausibleSpeed);
+    updateRouteProgress(position.coords.latitude, position.coords.longitude, plausibleSpeed, {
+      accuracyMeters: accuracy,
+      movementPlausible: movementIsPlausible,
+    });
     lastPosition.current = position;
     lastPositionAt.current = reportedAt;
   };
@@ -1166,6 +1175,8 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     setTracking(false);
     setPaused(false);
     pausedRef.current = false;
+    routeDepartureRef.current = initialRouteDepartureState;
+    routeDepartureRequest.current += 1;
   };
   const startGuidanceWithoutCamera = (route: PlannedRoute, message: string) => {
     mediaRecorder.current = null;
@@ -1196,6 +1207,8 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     setActiveStep(0);
     preparedStepRef.current = -1;
     finalStepRef.current = -1;
+    routeDepartureRef.current = initialRouteDepartureState;
+    routeDepartureRequest.current += 1;
     setTracking(true);
     setGpsStatus(navigator.geolocation ? 'acquiring' : 'error');
     void enableMotionTracking();
@@ -1317,6 +1330,8 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
       setActiveStep(0);
       preparedStepRef.current = -1;
       finalStepRef.current = -1;
+      routeDepartureRef.current = initialRouteDepartureState;
+      routeDepartureRequest.current += 1;
       setTracking(true);
       setGpsStatus(navigator.geolocation ? 'acquiring' : 'error');
       playCoach(coachVoice.started);
@@ -1617,7 +1632,7 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
          <div className="mt-4 flex items-start gap-3 rounded-xl border border-white/15 bg-white/8 px-4 py-3 text-xs text-white"><Volume2 size={16} className="mt-0.5 shrink-0" /><span className="min-w-0 flex-1"><span className="block font-bold">{paused ? 'Coaching paused' : audioStatus === 'unavailable' ? 'Spoken coaching needs a direct tap on this iPhone' : 'Spoken coaching is active'}</span><span className="mt-1 block text-white/70" data-testid="text-current-voice-cue">{currentCue}</span></span>{audioStatus === 'unavailable' && <button type="button" onClick={testSpokenCoaching} className="min-h-11 shrink-0 rounded-lg border border-white/25 bg-white/10 px-3 text-xs font-bold" data-testid="button-retry-spoken-coaching">Passenger: enable voice</button>}</div>
        </div>}
     </section>
-    {tracking && plannedRoute && <section className="mb-6 grid gap-5 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 md:p-6 lg:grid-cols-[.7fr_1.3fr]"><div className="flex flex-col justify-center"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Next instruction · automatic</div><h2 className="mt-3 font-display text-3xl">{plannedRoute.steps[Math.min(activeStep, plannedRoute.steps.length - 1)]?.instruction ?? 'Continue safely'}</h2><div className="mt-4 font-mono-ui text-sm font-medium text-[hsl(var(--primary))]">{distanceToNext > 0 ? `${distanceToNext * 3.28084 >= 500 ? Math.round(distanceToNext * 3.28084 / 50) * 50 : Math.round(distanceToNext * 3.28084)} feet` : 'Acquiring GPS position'}</div><p className="mt-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">No taps are needed. Coastwise prepares the driver, announces the maneuver, advances to the next step, and calmly recalculates after a missed turn.</p></div><RouteMap route={plannedRoute} currentPosition={currentPosition} /></section>}
+    {tracking && plannedRoute && <section className="mb-6 grid gap-5 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 md:p-6 lg:grid-cols-[.7fr_1.3fr]"><div className="flex flex-col justify-center"><div className="text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">Next instruction · automatic</div><h2 className="mt-3 font-display text-3xl">{plannedRoute.steps[Math.min(activeStep, plannedRoute.steps.length - 1)]?.instruction ?? 'Continue safely'}</h2><div className="mt-4 font-mono-ui text-sm font-medium text-[hsl(var(--primary))]">{distanceToNext > 0 ? `${distanceToNext * 3.28084 >= 500 ? Math.round(distanceToNext * 3.28084 / 50) * 50 : Math.round(distanceToNext * 3.28084)} feet` : 'Acquiring GPS position'}</div><p className="mt-4 text-xs leading-5 text-[hsl(var(--muted-foreground))]">No taps are needed. Coastwise prepares the driver, announces the maneuver, advances to the next step, and calculates a return path when GPS leaves the planned line.</p></div><RouteMap route={plannedRoute} currentPosition={currentPosition} /></section>}
      {reviewError && <div className="mb-6 rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert">{reviewError}</div>}
       {recordedVideoUrl && <section className="mb-6 rounded-2xl border border-[hsl(var(--accent)/.35)] bg-[hsl(var(--card))] p-5 md:p-6 animate-fade">
        <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
