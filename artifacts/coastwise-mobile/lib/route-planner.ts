@@ -60,6 +60,8 @@ const PREPARE_AHEAD_METERS = 160;
 /** Second call: signal now. Most US handbooks ask for a signal at least 100 feet ahead. */
 const SIGNAL_AHEAD_METERS = 55;
 const STEP_REACHED_METERS = 30;
+/** How many turns ahead a skipped turn can be detected. The earliest match wins, so a corner the loop passes twice is not skipped. */
+const SKIP_LOOKAHEAD_STEPS = 3;
 const FEET_PER_METER = 3.28084;
 
 type OsrmStep = {
@@ -258,16 +260,17 @@ export async function requestPracticeRoute(
 
 export const ROUTE_CANDIDATES_PER_REQUEST = CANDIDATE_ROUTES;
 
-function nearestCoordinateIndex(coordinates: RouteCoordinate[], target: RouteCoordinate) {
-  let best = 0;
+function nearestCoordinateIndex(coordinates: RouteCoordinate[], target: RouteCoordinate, fromIndex = 0) {
+  let best = fromIndex;
   let bestMeters = Infinity;
-  coordinates.forEach(([lon, lat], index) => {
+  for (let index = fromIndex; index < coordinates.length; index += 1) {
+    const [lon, lat] = coordinates[index];
     const meters = distanceMeters(lat, lon, target[1], target[0]);
     if (meters < bestMeters) {
       bestMeters = meters;
       best = index;
     }
-  });
+  }
   return best;
 }
 
@@ -281,10 +284,13 @@ export async function requestRejoinRoute(
 ): Promise<PlannedRoute> {
   const remaining = route.steps.slice(Math.min(stepIndex, route.steps.length - 1));
   const target = remaining[0]?.location ?? route.origin;
+  // The loop starts and ends at the same point, so splice after the last turn passed, not at the start.
+  const passed = route.steps[stepIndex - 1];
+  const fromIndex = passed ? nearestCoordinateIndex(route.coordinates, passed.location) : 0;
   const here: RouteCoordinate = [roundCoordinate(longitude, REJOIN_DECIMALS), roundCoordinate(latitude, REJOIN_DECIMALS)];
   const back = toPlannedRoute(await fetchOsrmRoute(routeUrl([here, target]), fetchImpl), route.origin);
   return {
-    coordinates: [...back.coordinates, ...route.coordinates.slice(nearestCoordinateIndex(route.coordinates, target))],
+    coordinates: [...back.coordinates, ...route.coordinates.slice(nearestCoordinateIndex(route.coordinates, target, fromIndex))],
     distanceMeters: back.distanceMeters,
     durationSeconds: back.durationSeconds,
     origin: route.origin,
@@ -327,8 +333,16 @@ export function trackAdherence(state: AdherenceState, metersFromRoute: number, t
   return { state: offRoute ? initialAdherenceState : { joined: true, offSince }, offRoute };
 }
 
-export type GuidanceState = { stepIndex: number; preparedIndex: number; signaledIndex: number };
-export const initialGuidanceState: GuidanceState = { stepIndex: 0, preparedIndex: -1, signaledIndex: -1 };
+export type GuidanceState = {
+  stepIndex: number;
+  preparedIndex: number;
+  signaledIndex: number;
+  /** True once the driver has made progress, so reaching the start counts as finishing the loop. */
+  progressed: boolean;
+};
+export const initialGuidanceState: GuidanceState = { stepIndex: 0, preparedIndex: -1, signaledIndex: -1, progressed: false };
+/** Guidance for a route that rejoins a loop already in progress. */
+export const rejoinGuidanceState: GuidanceState = { ...initialGuidanceState, progressed: true };
 
 function spokenDistance(meters: number) {
   const feet = meters * FEET_PER_METER;
@@ -383,26 +397,28 @@ export function advanceGuidance(
   longitude: number,
   /** 'examiner' gives directions only, like a road-test examiner: no reminders. */
   mode: 'coach' | 'examiner' = 'coach',
-): { state: GuidanceState; cue: string | null; nextInstruction: string | null } {
-  let { stepIndex, preparedIndex, signaledIndex } = state;
+): { state: GuidanceState; cue: string | null; nextInstruction: string | null; nextStep: RouteStep | null; metersToNext: number | null } {
+  let { stepIndex, preparedIndex, signaledIndex, progressed } = state;
   const distanceTo = (index: number) => {
     const [lon, lat] = route.steps[index].location;
     return distanceMeters(latitude, longitude, lat, lon);
   };
   // Jump past any turn reached, including later ones if the driver skipped a turn.
-  for (let index = route.steps.length - 1; index >= stepIndex; index -= 1) {
+  const lastCandidate = Math.min(route.steps.length - 1, stepIndex + SKIP_LOOKAHEAD_STEPS - 1);
+  for (let index = stepIndex; index <= lastCandidate; index += 1) {
     if (route.steps[index].kind !== 'arrive' && distanceTo(index) <= STEP_REACHED_METERS) {
       stepIndex = index + 1;
+      progressed = true;
       break;
     }
   }
   const step = route.steps[stepIndex];
-  if (!step) return { state: { stepIndex, preparedIndex, signaledIndex }, cue: null, nextInstruction: null };
+  if (!step) return { state: { stepIndex, preparedIndex, signaledIndex, progressed }, cue: null, nextInstruction: null, nextStep: null, metersToNext: null };
   const meters = distanceTo(stepIndex);
   let cue: string | null = null;
   if (step.kind === 'arrive') {
     // The loop starts and ends at the same place, so only finish after some progress.
-    if (stepIndex > 0 && meters <= STEP_REACHED_METERS * 2 && preparedIndex < stepIndex) {
+    if (progressed && meters <= STEP_REACHED_METERS * 2 && preparedIndex < stepIndex) {
       cue = step.instruction;
       preparedIndex = stepIndex;
       signaledIndex = stepIndex;
@@ -423,7 +439,7 @@ export function advanceGuidance(
     cue = prepareCue(step, meters);
     preparedIndex = stepIndex;
   }
-  return { state: { stepIndex, preparedIndex, signaledIndex }, cue, nextInstruction: step.instruction };
+  return { state: { stepIndex, preparedIndex, signaledIndex, progressed }, cue, nextInstruction: step.instruction, nextStep: step, metersToNext: meters };
 }
 
 const FOCUS_UNITS: Record<PracticeFocus, [string, string]> = {

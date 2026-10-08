@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { TurnScore } from './turn-scores';
 import type { DriveDebrief, NextDrivePlan } from '@workspace/api-client-react';
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { AppState } from 'react-native';
 import type { DriveEventRecord } from './drive-coach';
-import { beginDriveState, CURRENT_CALIFORNIA_CONTENT_PACK_VERSION, DEFAULT_JURISDICTION, deleteDriveState, finishDriveState, getMobileContentPackVersion, hydrateMobileState, isApprovedMobileJurisdiction, saveDriveState, updateDriveState } from './mobile-state';
+import { beginDriveState, CURRENT_CALIFORNIA_CONTENT_PACK_VERSION, DEFAULT_JURISDICTION, addDriveState, deleteDriveState, finishDriveState, getMobileContentPackVersion, hydrateMobileState, isApprovedMobileJurisdiction, saveDriveState, updateDriveState } from './mobile-state';
 
 const STORAGE_KEY = 'coastwise-mobile-state';
 
@@ -57,8 +58,7 @@ export type MobileState = {
   practiceProgress?: Record<string, { correct: boolean; topic: string }>;
 };
 
-type CoastwiseContextValue = MobileState & {
-  hydrated: boolean;
+type CoastwiseActions = {
   setJurisdiction: (jurisdiction: MobileJurisdiction) => void;
   setRole: (role: 'teen' | 'parent') => void;
   completeOnboarding: () => void;
@@ -70,12 +70,19 @@ type CoastwiseContextValue = MobileState & {
   discardActiveDrive: () => void;
   forgetRecording: (uri: string) => void;
   forgetAllRecordings: () => void;
+  /** Updates a saved drive; ignored if it was deleted. */
   saveDrive: (drive: MobileDrive) => void;
+  /** Adds a new drive to the log, such as one logged by hand. */
+  addDrive: (drive: MobileDrive) => void;
   deleteDrive: (driveId: string) => void;
   savePlan: (plan: NextDrivePlan) => void;
   acknowledgePrivacy: () => void;
   recordPracticeAnswer: (questionId: string, topic: string, correct: boolean) => void;
 };
+
+type CoastwiseContextValue = MobileState & CoastwiseActions & { hydrated: boolean };
+
+const PERSIST_INTERVAL_MS = 1_500;
 
 const CoastwiseContext = createContext<CoastwiseContextValue | null>(null);
 
@@ -97,13 +104,32 @@ export function CoastwiseProvider({ children }: { children: ReactNode }) {
       .finally(() => setHydrated(true));
   }, []);
 
-  useEffect(() => {
-    if (hydrated) void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [hydrated, state]);
+  const latestState = useRef(state);
+  latestState.current = state;
+  const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persistNow = useCallback(() => {
+    if (persistTimer.current) clearTimeout(persistTimer.current);
+    persistTimer.current = null;
+    void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(latestState.current)).catch(() => undefined);
+  }, []);
 
-  const value = useMemo<CoastwiseContextValue>(() => ({
-    ...state,
-    hydrated,
+  // A drive changes state about once a second; write at most every PERSIST_INTERVAL_MS, and flush before the app is backgrounded.
+  useEffect(() => {
+    if (!hydrated || persistTimer.current) return;
+    persistTimer.current = setTimeout(persistNow, PERSIST_INTERVAL_MS);
+  }, [hydrated, state, persistNow]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next !== 'active' && persistTimer.current) persistNow();
+    });
+    return () => {
+      subscription.remove();
+      if (persistTimer.current) persistNow();
+    };
+  }, [persistNow]);
+
+  const actions = useMemo<CoastwiseActions>(() => ({
     setJurisdiction: (jurisdiction) => setState((current) => isApprovedMobileJurisdiction(jurisdiction) ? ({
       ...current,
       jurisdiction,
@@ -140,6 +166,7 @@ export function CoastwiseProvider({ children }: { children: ReactNode }) {
       })),
     })),
     saveDrive: (drive) => setState((current) => saveDriveState(current, drive)),
+    addDrive: (drive) => setState((current) => addDriveState(current, drive)),
     deleteDrive: (driveId) => setState((current) => deleteDriveState(current, driveId)),
     savePlan: (plan) => setState((current) => ({ ...current, plan })),
     acknowledgePrivacy: () => setState((current) => ({ ...current, acknowledgedPrivacyVersion: '2026-09-18-ios-ai' })),
@@ -150,7 +177,9 @@ export function CoastwiseProvider({ children }: { children: ReactNode }) {
         [`${current.jurisdiction}:${current.contentPackVersion}:${questionId}`]: { correct, topic },
       },
     })),
-  }), [hydrated, state]);
+  }), []);
+
+  const value = useMemo<CoastwiseContextValue>(() => ({ ...state, hydrated, ...actions }), [state, hydrated, actions]);
 
   return <CoastwiseContext.Provider value={value}>{children}</CoastwiseContext.Provider>;
 }

@@ -5,12 +5,12 @@ export const colors = {
     background: '#F2F6F8',
     card: '#FFFFFF',
     text: '#16262B',
-    muted: '#637882',
+    muted: '#536872',
     border: '#D8E2E8',
     soft: '#E5EEF3',
-    success: '#2B8F6A',
-    warning: '#C27C17',
-    destructive: '#D64E4E'
+    success: '#1A6F4F',
+    warning: '#8F5200',
+    destructive: '#B03838'
   },
   dark: {
     background: '#0D1518',

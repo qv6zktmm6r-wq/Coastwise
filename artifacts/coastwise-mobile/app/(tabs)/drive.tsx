@@ -57,6 +57,7 @@ import {
   focusCount,
   initialAdherenceState,
   initialGuidanceState,
+  rejoinGuidanceState,
   PRACTICE_FOCUS_LABELS,
   requestPracticeRoute,
   requestRejoinRoute,
@@ -65,6 +66,7 @@ import {
   trackAdherence,
   type AdherenceState,
   type GuidanceState,
+  type RouteStep,
   type PlannedRoute,
   type PracticeFocus,
 } from '@/lib/route-planner';
@@ -80,7 +82,50 @@ const FACE_STALE_MS = 600;
 const ATTENTION_SAMPLE_MS = 500;
 const REROUTE_COOLDOWN_MS = 30_000;
 const TURN_HISTORY_MS = 90_000;
+/** Rough speaking time, used so a coaching tip queues behind a direction instead of cutting it off. */
+const SPEECH_MS_PER_CHARACTER = 75;
+const FEET_PER_METER = 3.28084;
+const CAMERA_PREVIEW_STYLE = { width: '100%', aspectRatio: 4 / 3 } as const;
+
+function maneuverIcon(kind: RouteStep['kind'] | undefined): keyof typeof Ionicons.glyphMap {
+  switch (kind) {
+    case 'left':
+    case 'keep-left':
+    case 'merge-left':
+      return 'arrow-back';
+    case 'right':
+    case 'keep-right':
+    case 'merge-right':
+      return 'arrow-forward';
+    case 'uturn':
+      return 'return-up-back';
+    case 'roundabout':
+      return 'sync';
+    case 'arrive':
+      return 'flag';
+    default:
+      return 'arrow-up';
+  }
+}
+
+function formatRouteDistance(meters: number) {
+  const feet = meters * FEET_PER_METER;
+  if (feet < 1_000) return { text: `${Math.max(50, Math.round(feet / 50) * 50)} ft`, spoken: `${Math.max(50, Math.round(feet / 50) * 50)} feet` };
+  const miles = (feet / 5_280).toFixed(1);
+  return { text: `${miles} mi`, spoken: `${miles} miles` };
+}
 const TURN_CHECK_LABELS: Record<TurnCheck, string> = { pass: '✓', miss: '✗', 'not-measured': '–', 'not-applicable': '' };
+const TURN_CHECK_WORDS: Record<TurnCheck, string> = { pass: 'yes', miss: 'no', 'not-measured': 'not measured', 'not-applicable': 'does not apply' };
+
+function describeTurnForVoiceOver(turn: TurnScore) {
+  if (!turn.completed) return `${turn.instruction}. Missed: the route was left before this turn.`;
+  const checks = [
+    turn.slowed !== 'not-applicable' ? `Slowed down: ${TURN_CHECK_WORDS[turn.slowed]}${turn.slowestMph !== null ? `, slowest ${turn.slowestMph} miles per hour` : ''}.` : '',
+    turn.smooth !== 'not-applicable' ? `Smooth: ${TURN_CHECK_WORDS[turn.smooth]}.` : '',
+    turn.headCheck !== 'not-applicable' ? `Head check: ${TURN_CHECK_WORDS[turn.headCheck]}.` : '',
+  ];
+  return [`${turn.instruction}.`, ...checks].filter(Boolean).join(' ');
+}
 const STOP_KINDS = new Set(['stop-sign-complete', 'rolling-stop', 'camera-stop-complete', 'camera-rolling-stop']);
 function explainPermission(title: string, permission: { granted: boolean; canAskAgain?: boolean } | null | undefined) {
   if (permission?.granted) return;
@@ -179,12 +224,14 @@ export default function DriveScreen() {
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [activeRoute, setActiveRoute] = useState<PlannedRoute | null>(null);
-  const [nextInstruction, setNextInstruction] = useState<string | null>(null);
+  const [nextStep, setNextStep] = useState<RouteStep | null>(null);
+  const [metersToNext, setMetersToNext] = useState<number | null>(null);
   const routeVariant = useRef(Math.floor(Math.random() * 8));
   const activeRouteRef = useRef<PlannedRoute | null>(null);
   const guidanceState = useRef<GuidanceState>(initialGuidanceState);
   const adherenceState = useRef<AdherenceState>(initialAdherenceState);
   const rerouting = useRef(false);
+  const directionUntil = useRef(0);
   const lastRerouteAt = useRef(0);
   const speedSamples = useRef<Array<{ at: number; mph: number }>>([]);
   const roughEvents = useRef<Array<{ at: number; kind: string }>>([]);
@@ -234,14 +281,18 @@ export default function DriveScreen() {
 
   useEffect(() => {
     if (!active) return;
+    // Count from the clock, not from ticks, so a delayed or skipped tick never loses logged time.
+    const base = { at: Date.now(), elapsed: elapsedRef.current };
     const timer = setInterval(() => {
-      const nextElapsed = elapsedRef.current + 1;
+      const nextElapsed = base.elapsed + Math.floor((Date.now() - base.at) / 1000);
+      const added = nextElapsed - elapsedRef.current;
+      if (added <= 0) return;
       elapsedRef.current = nextElapsed;
       setElapsed(nextElapsed);
       const place = sunPlace.current;
-      if (place && isAfterDark(Date.now(), place.latitude, place.longitude)) nightSecondsRef.current += 1;
+      if (place && isAfterDark(Date.now(), place.latitude, place.longitude)) nightSecondsRef.current += added;
       const current = driveRef.current;
-      if (current && nextElapsed % 5 === 0) {
+      if (current && Math.floor(nextElapsed / 5) !== Math.floor((nextElapsed - added) / 5)) {
         const updated: ActiveMobileDrive = {
           ...current,
           startedAt: activeDrive?.startedAt ?? new Date().toISOString(),
@@ -253,7 +304,7 @@ export default function DriveScreen() {
         setDrive(updated);
         updateActiveDrive(updated);
       }
-    }, 1000);
+    }, 250);
     return () => clearInterval(timer);
   }, [active, activeDrive?.startedAt, updateActiveDrive]);
 
@@ -277,11 +328,23 @@ export default function DriveScreen() {
     setCameraStatus(null);
   }, []);
 
-  const speakCue = useCallback((text: string) => {
+  /** Directions always play and interrupt coaching; muting only silences coaching tips. */
+  const speakCue = useCallback((text: string, kind: 'coaching' | 'direction' = 'coaching') => {
     setLastCue(text);
-    if (!voiceOnRef.current) return;
-    void Speech.stop();
-    Speech.speak(text, { language: 'en-US', voice: coachVoiceRef.current?.identifier, rate: 0.98 });
+    const options = { language: 'en-US', voice: coachVoiceRef.current?.identifier, rate: 0.98 };
+    if (kind === 'direction') {
+      directionUntil.current = Date.now() + text.length * SPEECH_MS_PER_CHARACTER;
+      void Speech.stop();
+      Speech.speak(text, options);
+      return;
+    }
+    if (!voiceOnRef.current) {
+      AccessibilityInfo.announceForAccessibility(text);
+      return;
+    }
+    // Queue behind a direction that is still being spoken instead of cutting it off.
+    if (Date.now() >= directionUntil.current) void Speech.stop();
+    Speech.speak(text, options);
   }, []);
 
   useEffect(() => {
@@ -444,7 +507,7 @@ export default function DriveScreen() {
     const next = !voiceOnRef.current;
     voiceOnRef.current = next;
     setVoiceOn(next);
-    if (!next) void Speech.stop();
+    if (!next && Date.now() >= directionUntil.current) void Speech.stop();
   };
 
   useEffect(() => {
@@ -501,6 +564,9 @@ export default function DriveScreen() {
 
   const camerasOn = active && Boolean(CoachCameras) && (cameraCoaching || driverAttention) && !recordingPrepared;
 
+  const applyEventsRef = useRef(applyEvents);
+  applyEventsRef.current = applyEvents;
+
   useEffect(() => {
     if (!camerasOn || !driverAttention) return;
     const timer = setInterval(() => {
@@ -515,13 +581,13 @@ export default function DriveScreen() {
         face: { visible, yawDegrees: visible ? face.yawDegrees : null },
       });
       attentionState.current = result.state;
-      applyEvents(result.events);
+      applyEventsRef.current(result.events);
     }, ATTENTION_SAMPLE_MS);
     return () => {
       clearInterval(timer);
       driverAttentionLiveRef.current = false;
     };
-  }, [camerasOn, driverAttention, applyEvents]);
+  }, [camerasOn, driverAttention]);
 
   const beginLocationTracking = async (session: ActiveMobileDrive) => {
     const location = await Location.requestForegroundPermissionsAsync();
@@ -588,27 +654,26 @@ export default function DriveScreen() {
             const guidance = advanceGuidance(route, before, coords.latitude, coords.longitude, mockTestRef.current ? 'examiner' : 'coach');
             guidanceState.current = guidance.state;
             noteTurnProgress(route, before, guidance.state, timestamp);
-            setNextInstruction(guidance.nextInstruction);
-            if (guidance.cue) speakCue(guidance.cue);
+            setNextStep(guidance.nextStep);
+            setMetersToNext(guidance.metersToNext);
+            if (guidance.cue) speakCue(guidance.cue, 'direction');
             const adherence = trackAdherence(adherenceState.current, distanceFromRoute(route, coords.latitude, coords.longitude), timestamp);
             adherenceState.current = adherence.state;
             if (adherence.offRoute && !rerouting.current && Date.now() - lastRerouteAt.current > REROUTE_COOLDOWN_MS) {
               rerouting.current = true;
               lastRerouteAt.current = Date.now();
-              speakCue('You have left the route. Keep driving safely while I find the way back.');
-              void requestRejoinRoute(coords.latitude, coords.longitude, route, guidanceState.current.stepIndex)
+              speakCue('You have left the route. Keep driving safely while I find the way back.', 'direction');
+              const requestedStep = guidanceState.current.stepIndex;
+              void requestRejoinRoute(coords.latitude, coords.longitude, route, requestedStep)
                 .then((rejoin) => {
-                  if (activeRouteRef.current !== route) return;
-                  const skipped = route.steps[guidanceState.current.stepIndex];
-                  if (skipped && skipped.kind !== 'arrive' && skipped.kind !== 'straight') {
-                    pendingTurns.current.push({ instruction: skipped.instruction, kind: skipped.kind, completed: false, preparedAt: null, signaledAt: null, reachedAt: Date.now() });
-                  }
-                  setDriveRoute(rejoin);
+                  // Drop the answer if the drive ended, or the driver found the route and guidance moved on meanwhile.
+                  if (activeRouteRef.current !== route || guidanceState.current.stepIndex !== requestedStep) return;
+                  setDriveRoute(rejoin, rejoinGuidanceState);
                   const first = rejoin.steps[0]?.instruction;
-                  speakCue(first ? `Route updated. ${first}.` : 'Route updated. Follow the highlighted route.');
+                  speakCue(first ? `Route updated. ${first.replace(/\.?$/, '.')}` : 'Route updated. Follow the highlighted route.', 'direction');
                 })
                 .catch(() => {
-                  if (activeRouteRef.current === route) speakCue('I could not reach the routing service. Head back toward the highlighted route when it is safe.');
+                  if (activeRouteRef.current === route) speakCue('I could not reach the routing service. Head back toward the highlighted route when it is safe.', 'direction');
                 })
                 .finally(() => {
                   rerouting.current = false;
@@ -688,13 +753,14 @@ export default function DriveScreen() {
     }
   };
 
-  const setDriveRoute = (route: PlannedRoute | null) => {
+  const setDriveRoute = (route: PlannedRoute | null, guidance: GuidanceState = initialGuidanceState) => {
     activeRouteRef.current = route;
-    guidanceState.current = initialGuidanceState;
+    guidanceState.current = guidance;
     adherenceState.current = initialAdherenceState;
     turnCallTimes.current = new Map();
     setActiveRoute(route);
-    setNextInstruction(route?.steps[0]?.instruction ?? null);
+    setNextStep(route?.steps[0] ?? null);
+    setMetersToNext(null);
   };
 
   const generateRoute = async () => {
@@ -762,13 +828,22 @@ export default function DriveScreen() {
         ? `Mock driving test started. I will give directions only, like an examiner, and score the drive at the end. First, ${route.steps[0] ? route.steps[0].instruction.charAt(0).toLowerCase() + route.steps[0].instruction.slice(1) : 'follow the road'}.`
         : route
         ? `Route loaded. I will call out each turn. First, ${route.steps[0] ? route.steps[0].instruction.charAt(0).toLowerCase() + route.steps[0].instruction.slice(1) : 'follow the road'}.`
-        : 'Coached drive started. I will speak up when GPS measures something worth coaching.');
+        : 'Coached drive started. I will speak up when GPS measures something worth coaching.', route ? 'direction' : 'coaching');
       return true;
     }
     return false;
   };
 
   const resumeDrive = async () => {
+    const recovered = driveRef.current as ActiveMobileDrive | null;
+    if (recovered?.mockTest) {
+      // The practice route is not saved with the drive, so it cannot continue as a graded mock test.
+      const { mockTest: _mockTest, ...regular } = recovered;
+      driveRef.current = regular;
+      setDrive(regular);
+      setLastCue('The mock test route was lost when the app closed, so this continues as a regular coached drive.');
+    }
+    mockTestRef.current = false;
     await lifecycleRef.current.resume(
       () => driveRef.current as ActiveMobileDrive | null,
       beginLocationTracking,
@@ -994,14 +1069,35 @@ export default function DriveScreen() {
     return (
       <Screen>
         <View style={{ flex: 1, paddingBottom: 24 }}>
-          <View style={{ marginTop: 12, marginBottom: showRoadPreview ? 16 : 24 }}>
+          <View style={{ marginTop: 12, marginBottom: 12 }}>
             <Eyebrow>{drive?.mockTest ? 'Mock driving test' : 'Active coached drive'}</Eyebrow>
-            <Title large>Keep your attention on the road.</Title>
-            <Body muted>Coastwise is using location while this drive is active. Keep the screen on in a mount; locking the phone pauses tracking. Do not touch the phone while moving.</Body>
+            {!activeRoute && !showRoadPreview && <Title large>Keep your attention on the road.</Title>}
           </View>
 
+          {activeRoute && (() => {
+            const distance = metersToNext === null ? null : formatRouteDistance(metersToNext);
+            const instruction = nextStep?.instruction ?? 'Follow the highlighted route';
+            return (
+              <View
+                accessible
+                accessibilityLabel={`Next: ${distance && nextStep?.kind !== 'arrive' ? `in ${distance.spoken}, ` : ''}${instruction}`}
+                accessibilityLiveRegion="polite"
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.primary, borderRadius: 20, padding: 16, marginBottom: 12 }}
+              >
+                <Ionicons name={maneuverIcon(nextStep?.kind)} size={34} color="#fff" />
+                <View style={{ flex: 1 }}>
+                  <Text maxFontSizeMultiplier={1.5} style={{ color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 }}>NEXT</Text>
+                  <Text maxFontSizeMultiplier={1.5} style={{ color: '#fff', fontSize: 18, fontWeight: '800', lineHeight: 24 }}>{instruction}</Text>
+                </View>
+                {distance && nextStep?.kind !== 'arrive' && (
+                  <Text maxFontSizeMultiplier={1.5} style={{ color: '#fff', fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{distance.text}</Text>
+                )}
+              </View>
+            );
+          })()}
+
           {camerasOn && CoachCameras && (
-            <View style={{ marginBottom: 20, gap: 10 }}>
+            <View style={{ marginBottom: 12, gap: 10 }}>
               <View style={{ borderRadius: 24, overflow: 'hidden', backgroundColor: '#05080D' }}>
                 <CoachCameras
                   road={cameraCoaching}
@@ -1009,41 +1105,41 @@ export default function DriveScreen() {
                   onDetections={handleDetections}
                   onFace={handleFace}
                   onStatus={handleCameraStatus}
-                  previewStyle={{ width: '100%', aspectRatio: 4 / 3 }}
+                  previewStyle={CAMERA_PREVIEW_STYLE}
                 />
                 {showRoadPreview && (
                   <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, padding: 14, justifyContent: 'space-between' }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                       <View style={overlayPill}>
                         <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: cameraStatus === 'running' || cameraStatus === 'road-only' ? '#FF453A' : '#8E8E93' }} />
-                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 }}>ROAD CAMERA</Text>
+                        <Text maxFontSizeMultiplier={1.5} style={{ color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 }}>ROAD CAMERA</Text>
                       </View>
                       <View style={overlayPill}>
                         <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: gpsSignalGood ? '#30D158' : '#FFD60A' }} />
-                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 }}>GPS</Text>
+                        <Text maxFontSizeMultiplier={1.5} style={{ color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 }}>GPS</Text>
                       </View>
                     </View>
                     {(cameraUnavailable || cameraStarting) && (
-                      <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700', textAlign: 'center' }}>
+                      <Text maxFontSizeMultiplier={1.5} style={{ color: '#fff', fontSize: 15, fontWeight: '700', textAlign: 'center' }}>
                         {cameraUnavailable ? 'Camera unavailable' : 'Starting camera…'}
                       </Text>
                     )}
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                       <View style={[overlayPill, { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14 }]}>
-                        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] }}>
+                        <Text maxFontSizeMultiplier={1.5} style={{ color: '#fff', fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] }}>
                           {Math.max(1, Math.floor(elapsed / 60))}
                           <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)' }}> min</Text>
                         </Text>
                       </View>
                       <View style={[overlayPill, { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14 }]}>
-                        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] }}>
+                        <Text maxFontSizeMultiplier={1.5} style={{ color: '#fff', fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] }}>
                           {(drive?.distanceMiles ?? 0).toFixed(1)}
                           <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)' }}> mi</Text>
                         </Text>
                       </View>
                       {speedMph !== null && (
                         <View style={[overlayPill, { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14 }]}>
-                          <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] }}>
+                          <Text maxFontSizeMultiplier={1.5} style={{ color: '#fff', fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] }}>
                             {Math.round(speedMph)}
                             <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)' }}> mph</Text>
                           </Text>
@@ -1060,24 +1156,8 @@ export default function DriveScreen() {
           )}
 
           {activeRoute && (
-            <View style={{ marginBottom: 20, gap: 12 }}>
-              <View
-                accessibilityLiveRegion="polite"
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.primary, borderRadius: 20, padding: 16 }}
-              >
-                <Ionicons
-                  name={nextInstruction?.includes('left') ? 'arrow-back' : nextInstruction?.includes('right') ? 'arrow-forward' : nextInstruction?.startsWith('You are back') ? 'flag' : 'arrow-up'}
-                  size={30}
-                  color="#fff"
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 }}>NEXT</Text>
-                  <Text style={{ color: '#fff', fontSize: 18, fontWeight: '800', lineHeight: 24 }}>
-                    {nextInstruction ?? 'Follow the highlighted route'}
-                  </Text>
-                </View>
-              </View>
-              <RouteMap route={activeRoute} height={220} follow />
+            <View style={{ marginBottom: 16 }}>
+              <RouteMap route={activeRoute} height={160} follow />
             </View>
           )}
 
@@ -1138,11 +1218,17 @@ export default function DriveScreen() {
 
             <View style={{ marginBottom: 16 }}>
               <ActionButton onPress={toggleVoice} secondary>
-                {voiceOn ? 'Mute coach voice' : 'Turn coach voice on'}
+                {voiceOn ? 'Mute coaching tips' : 'Turn coaching tips on'}
               </ActionButton>
+              {activeRoute && (
+                <Text style={{ color: palette.muted, fontSize: 13, textAlign: 'center', marginTop: 8 }}>Turn directions are always spoken.</Text>
+              )}
             </View>
             
             <ActionButton onPress={() => void stopDrive()} destructive>Stop drive while parked</ActionButton>
+            <Text style={{ color: palette.muted, fontSize: 13, lineHeight: 18, textAlign: 'center', marginTop: 12 }}>
+              Coastwise uses location only while this drive is active. Keep the screen on in a mount; locking the phone pauses tracking. Do not touch the phone while moving.
+            </Text>
           </Card>
           
           {recordingPrepared && (
@@ -1216,7 +1302,7 @@ export default function DriveScreen() {
             </View>
           </View>
 
-          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+          <View accessibilityRole="radiogroup" accessibilityLabel="Route length" style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
             {[10, 20, 30].map((minutes) => (
               <Pressable
                 key={minutes}
@@ -1243,7 +1329,7 @@ export default function DriveScreen() {
           </View>
 
           <Text style={{ color: palette.muted, fontSize: 13, fontWeight: '700', marginBottom: 8 }}>Practice</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          <View accessibilityRole="radiogroup" accessibilityLabel="Practice focus" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
             {(Object.keys(PRACTICE_FOCUS_LABELS) as PracticeFocus[]).map((focus) => (
               <Pressable
                 key={focus}
@@ -1255,7 +1341,7 @@ export default function DriveScreen() {
                 accessibilityRole="radio"
                 accessibilityState={{ selected: routeFocus === focus, disabled: routeLoading }}
                 style={{
-                  minHeight: 40,
+                  minHeight: 44,
                   paddingHorizontal: 14,
                   borderRadius: 20,
                   justifyContent: 'center',
@@ -1270,12 +1356,14 @@ export default function DriveScreen() {
           <Pressable
             onPress={() => setMockTest((value) => !value)}
             disabled={routeLoading}
-            accessibilityRole="switch"
+            accessibilityRole="checkbox"
             accessibilityState={{ checked: mockTest, disabled: routeLoading }}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 }}
           >
             <Ionicons name={mockTest ? 'checkbox' : 'square-outline'} size={24} color={mockTest ? colors.primary : palette.muted} />
-            <Text style={{ color: palette.text, fontSize: 15, fontWeight: '600', flex: 1 }}>Mock driving test (directions only, scored at the end)</Text>
+            <Text style={{ color: palette.text, fontSize: 15, fontWeight: '600', flex: 1 }}>
+              Drive this route as a mock driving test (directions only, scored at the end)
+            </Text>
           </Pressable>
 
           <Pressable
@@ -1284,7 +1372,7 @@ export default function DriveScreen() {
               setPlannedRoute(null);
             }}
             disabled={routeLoading}
-            accessibilityRole="switch"
+            accessibilityRole="checkbox"
             accessibilityState={{ checked: avoidFreeways, disabled: routeLoading }}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, marginBottom: 12 }}
           >
@@ -1521,9 +1609,7 @@ export default function DriveScreen() {
                     <View
                       key={`${index}-${turn.instruction}`}
                       accessible
-                      accessibilityLabel={turn.completed
-                        ? `${turn.instruction}. Slowed: ${turn.slowed}. Smooth: ${turn.smooth}. Head check: ${turn.headCheck}.`
-                        : `${turn.instruction}. Missed.`}
+                      accessibilityLabel={describeTurnForVoiceOver(turn)}
                       style={{ backgroundColor: palette.card, borderRadius: 12, padding: 12, gap: 6 }}
                     >
                       <Text style={{ color: palette.text, fontSize: 15, fontWeight: '700' }}>{turn.instruction}</Text>

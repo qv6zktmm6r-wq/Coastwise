@@ -4,6 +4,7 @@ import {
   CreatePracticeRouteBody,
   CreatePracticeRouteResponse,
 } from "@workspace/api-zod";
+import { createRequestLimiter } from "../lib/request-windows";
 
 type OsrmStep = {
   distance: number;
@@ -30,23 +31,13 @@ type OsrmResponse = {
 };
 
 const router: IRouter = Router();
-const routeRequestWindows = new Map<string, { startedAt: number; count: number }>();
 const ROUTE_REQUEST_WINDOW_MS = 60_000;
 const ROUTE_REQUEST_LIMIT = 20;
 
+const requestLimiter = createRequestLimiter(ROUTE_REQUEST_LIMIT, ROUTE_REQUEST_WINDOW_MS);
+
 export function allowRouteRequest(clientId: string, now = Date.now()): boolean {
-  const current = routeRequestWindows.get(clientId);
-  if (!current || now - current.startedAt >= ROUTE_REQUEST_WINDOW_MS) {
-    routeRequestWindows.set(clientId, { startedAt: now, count: 1 });
-    return true;
-  }
-  current.count += 1;
-  if (routeRequestWindows.size > 10_000) {
-    for (const [key, window] of routeRequestWindows) {
-      if (now - window.startedAt >= ROUTE_REQUEST_WINDOW_MS) routeRequestWindows.delete(key);
-    }
-  }
-  return current.count <= ROUTE_REQUEST_LIMIT;
+  return requestLimiter.allow(clientId, now);
 }
 
 function describeStep(step: OsrmStep): string {

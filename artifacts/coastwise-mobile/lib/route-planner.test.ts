@@ -7,6 +7,7 @@ import {
   initialAdherenceState,
   initialGuidanceState,
   loopWaypoints,
+  rejoinGuidanceState,
   requestPracticeLoop,
   requestPracticeRoute,
   requestRejoinRoute,
@@ -170,4 +171,46 @@ test('examiner mode gives the direction once, with no coaching reminders', () =>
   assert.match(result.cue ?? '', /^In about \d+ feet, turn left onto Oak Ave\.$/);
   result = advanceGuidance(route, result.state, 37.3 + 250 * LATITUDE_PER_METER, -121.9, 'examiner');
   assert.equal(result.cue, null);
+});
+
+test('a route that passes the same corner twice does not jump ahead', () => {
+  const corner: [number, number] = [-121.9, 37.3 + 300 * LATITUDE_PER_METER];
+  const crossing: PlannedRoute = {
+    ...route,
+    steps: [
+      { instruction: 'Turn left onto Oak Ave', location: corner, kind: 'left' },
+      { instruction: 'Make a U-turn where it is legal', location: [-121.9, 37.31], kind: 'uturn' },
+      { instruction: 'Turn right onto Main St', location: corner, kind: 'right' },
+      { instruction: 'Turn left onto Elm St', location: [-121.91, 37.31], kind: 'left' },
+      { instruction: 'Turn right onto Pine St', location: [-121.92, 37.31], kind: 'right' },
+      { instruction: 'You are back at the start.', location: [-121.9, 37.3], kind: 'arrive' },
+    ],
+  };
+  const result = advanceGuidance(crossing, initialGuidanceState, corner[1], corner[0]);
+  assert.equal(result.state.stepIndex, 1);
+});
+
+test('the start of a long loop does not count as passing its last turns', () => {
+  const nearStart: PlannedRoute = {
+    ...route,
+    steps: [
+      { instruction: 'Turn left onto Oak Ave', location: [-121.9, 37.31], kind: 'left' },
+      { instruction: 'Turn right onto Main St', location: [-121.91, 37.31], kind: 'right' },
+      { instruction: 'Turn left onto Elm St', location: [-121.91, 37.30], kind: 'left' },
+      { instruction: 'Turn right onto Pine St', location: [-121.9, 37.3 + 10 * LATITUDE_PER_METER], kind: 'right' },
+      { instruction: 'You are back at the start.', location: [-121.9, 37.3], kind: 'arrive' },
+    ],
+  };
+  const result = advanceGuidance(nearStart, initialGuidanceState, 37.3, -121.9);
+  assert.equal(result.state.stepIndex, 0);
+  assert.equal(result.cue, null);
+});
+
+test('a rejoined route announces the finish even with no turns left', async () => {
+  const rejoin = await requestRejoinRoute(37.301, -121.9, { ...route, coordinates: [[-121.9, 37.3], [-121.9, 37.3 + 300 * LATITUDE_PER_METER], [-121.9, 37.31], [-121.9, 37.3]] }, 1,
+    async () => osrmResponse([{ type: 'depart' }, { type: 'arrive' }]));
+  assert.equal(rejoin.steps.length, 1);
+  assert.ok(rejoin.coordinates.length <= 4, 'does not append the whole loop again');
+  const result = advanceGuidance(rejoin, rejoinGuidanceState, 37.3, -121.9);
+  assert.equal(result.cue, 'You are back at the start.');
 });

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { View } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { colors } from '@/theme';
@@ -11,7 +11,7 @@ type RouteMapProps = {
   follow?: boolean;
 };
 
-export function RouteMap({ route, height, follow = false }: RouteMapProps) {
+export const RouteMap = memo(function RouteMap({ route, height, follow = false }: RouteMapProps) {
   const path = useMemo(
     () => route.coordinates.map(([longitude, latitude]) => ({ latitude, longitude })),
     [route],
@@ -43,11 +43,14 @@ export function RouteMap({ route, height, follow = false }: RouteMapProps) {
         showsPointsOfInterests={false}
         pitchEnabled={false}
         toolbarEnabled={false}
-        accessibilityLabel="Map of the practice route"
+        scrollEnabled={!follow}
+        zoomEnabled={!follow}
+        rotateEnabled={!follow}
+        accessibilityLabel={follow ? 'Map of the practice route, following your position' : 'Map of the practice route'}
       >
         <Polyline coordinates={path} strokeColor={colors.primary} strokeWidth={5} lineCap="round" lineJoin="round" />
         <Marker coordinate={start} title="Start and finish" pinColor={colors.primary} />
       </MapView>
     </View>
   );
-}
+});

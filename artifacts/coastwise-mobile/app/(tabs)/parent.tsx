@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import { useState, useMemo } from 'react';
-import { Text, View, Pressable, TextInput, Alert, Share } from 'react-native';
+import { Text, View, Pressable, TextInput, Alert, Share, Keyboard, AccessibilityInfo } from 'react-native';
 import { ActionButton, Body, Card, Eyebrow, IconRow, Screen, Title, usePalette } from '@/components/ui';
 import { useCoastwise, type MobileDrive } from '@/lib/coastwise-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,14 @@ import { driveNightMinutes, nextFocus, permitProgress, skillTrends } from '@/lib
 import { deleteLocalRecording } from '@/lib/recordings';
 
 const MAX_MANUAL_MINUTES = 12 * 60;
+const MAX_MANUAL_AGE_DAYS = 3 * 365;
+
+/** Quotes a CSV field, and neutralizes leading characters that spreadsheets run as formulas. */
+function csvField(value: string | number) {
+  let text = String(value);
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
 
 function localDateString(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -28,21 +36,24 @@ function ProgressBar({ value, color, track }: { value: number; color: string; tr
 
 export default function ParentScreen() {
   const palette = usePalette();
-  const { drives, plan, role, parentGoal, setParentGoal, jurisdiction, saveDrive, deleteDrive, forgetRecording } = useCoastwise();
+  const { drives, plan, role, parentGoal, setParentGoal, jurisdiction, addDrive, deleteDrive, forgetRecording } = useCoastwise();
   const [logOpen, setLogOpen] = useState(false);
   const [logDate, setLogDate] = useState(() => localDateString(new Date()));
   const [logMinutes, setLogMinutes] = useState('');
   const [logNightMinutes, setLogNightMinutes] = useState('0');
   const [logMiles, setLogMiles] = useState('');
+  const [logSavedNote, setLogSavedNote] = useState<string | null>(null);
 
   const saveManualDrive = () => {
-    const minutes = Number.parseInt(logMinutes, 10);
-    const nightMinutes = Number.parseInt(logNightMinutes || '0', 10);
-    const miles = logMiles.trim() ? Number.parseFloat(logMiles) : 0;
+    Keyboard.dismiss();
+    const minutes = /^\d+$/.test(logMinutes.trim()) ? Number.parseInt(logMinutes, 10) : Number.NaN;
+    const nightMinutes = /^\d*$/.test(logNightMinutes.trim()) ? Number.parseInt(logNightMinutes.trim() || '0', 10) : Number.NaN;
+    const miles = !logMiles.trim() ? 0 : /^\d+(\.\d+)?$/.test(logMiles.trim()) ? Number.parseFloat(logMiles) : Number.NaN;
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(logDate.trim());
     const day = match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12) : null;
-    if (!day || Number.isNaN(day.getTime()) || localDateString(day) !== logDate.trim() || day.getTime() > Date.now() + 12 * 3_600_000) {
-      Alert.alert('Check the date', 'Enter the drive date as YYYY-MM-DD. It cannot be in the future.');
+    const tooOld = day !== null && Date.now() - day.getTime() > MAX_MANUAL_AGE_DAYS * 86_400_000;
+    if (!day || Number.isNaN(day.getTime()) || localDateString(day) !== logDate.trim() || day.getTime() > Date.now() + 12 * 3_600_000 || tooOld) {
+      Alert.alert('Check the date', 'Enter the drive date as YYYY-MM-DD. It cannot be in the future or more than three years ago.');
       return;
     }
     if (!Number.isFinite(minutes) || minutes <= 0 || minutes > MAX_MANUAL_MINUTES) {
@@ -57,7 +68,7 @@ export default function ParentScreen() {
       Alert.alert('Check the miles', 'Leave miles blank or enter a number up to 1,000.');
       return;
     }
-    saveDrive({
+    addDrive({
       id: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       date: day.toISOString(),
       durationMinutes: minutes,
@@ -72,6 +83,9 @@ export default function ParentScreen() {
     setLogNightMinutes('0');
     setLogMiles('');
     setLogDate(localDateString(new Date()));
+    const note = `Saved ${minutes} minutes on ${day.toLocaleDateString()} to the practice log.`;
+    setLogSavedNote(note);
+    AccessibilityInfo.announceForAccessibility(note);
   };
 
   const confirmDeleteDrive = (drive: MobileDrive) => {
@@ -153,26 +167,37 @@ export default function ParentScreen() {
       let csv = 'Coastwise Personal Record (Not an official DMV submission)\n\n';
       csv += `Total Minutes,${permit.totalMinutes}\n`;
       csv += `Night Minutes,${permit.nightMinutes}\n`;
-      csv += `Required,${permit.totalHours} hours including ${permit.nightHours} ${permit.nightLabel}\n\n`;
+      csv += `Required,${csvField(`${permit.totalHours} hours including ${permit.nightHours} ${permit.nightLabel}`)}\n\n`;
       csv += 'Date,Duration (min),Night (min),Distance (mi),Skills,Source\n';
       
       const sorted = [...drives].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       sorted.forEach(d => {
-        csv += `${new Date(d.date).toLocaleDateString()},${d.durationMinutes},${driveNightMinutes(d)},${d.distanceMiles.toFixed(1)},"${d.skills.join('; ')}",${d.source === 'manual' ? 'Logged by hand' : 'Coastwise app'}\n`;
+        csv += [
+          new Date(d.date).toLocaleDateString(),
+          d.durationMinutes,
+          driveNightMinutes(d),
+          d.distanceMiles.toFixed(1),
+          d.skills.join('; '),
+          d.source === 'manual' ? 'Logged by hand' : 'Coastwise app',
+        ].map(csvField).join(',') + '\n';
       });
       
-      if (FileSystem.documentDirectory) {
-        const path = `${FileSystem.documentDirectory}coastwise_export_${Date.now()}.csv`;
+      // The cache folder is not backed up to iCloud, and the copy is removed once the share sheet closes.
+      if (FileSystem.cacheDirectory) {
+        const path = `${FileSystem.cacheDirectory}coastwise_export_${Date.now()}.csv`;
         await FileSystem.writeAsStringAsync(path, csv);
-        
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(path, {
-            dialogTitle: 'Coastwise Personal Record',
-            mimeType: 'text/csv',
-            UTI: 'public.comma-separated-values-text',
-          });
-        } else {
-          await Share.share({ message: csv, title: 'Coastwise Personal Record' });
+        try {
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(path, {
+              dialogTitle: 'Coastwise Personal Record',
+              mimeType: 'text/csv',
+              UTI: 'public.comma-separated-values-text',
+            });
+          } else {
+            await Share.share({ message: csv, title: 'Coastwise Personal Record' });
+          }
+        } finally {
+          await FileSystem.deleteAsync(path, { idempotent: true }).catch(() => undefined);
         }
       } else {
         await Share.share({
@@ -271,6 +296,8 @@ export default function ParentScreen() {
                     accessibilityLabel={label}
                     placeholder={placeholder}
                     placeholderTextColor={palette.muted}
+                    returnKeyType="done"
+                    onSubmitEditing={Keyboard.dismiss}
                     style={{ backgroundColor: palette.soft, color: palette.text, padding: 14, borderRadius: 12, fontSize: 16 }}
                   />
                 </View>
@@ -280,7 +307,7 @@ export default function ParentScreen() {
               </Text>
               <View style={{ flexDirection: 'row', gap: 12 }}>
                 <View style={{ flex: 1 }}>
-                  <ActionButton onPress={() => setLogOpen(false)} secondary>Cancel</ActionButton>
+                  <ActionButton onPress={() => { Keyboard.dismiss(); setLogOpen(false); }} secondary>Cancel</ActionButton>
                 </View>
                 <View style={{ flex: 1 }}>
                   <ActionButton onPress={saveManualDrive}>Save drive</ActionButton>
@@ -288,7 +315,12 @@ export default function ParentScreen() {
               </View>
             </View>
           ) : (
-            <ActionButton onPress={() => setLogOpen(true)} secondary>Log a drive done without the app</ActionButton>
+            <View style={{ gap: 10 }}>
+              {logSavedNote && (
+                <Text accessibilityLiveRegion="polite" style={{ color: palette.success, fontSize: 14, fontWeight: '700', textAlign: 'center' }}>{logSavedNote}</Text>
+              )}
+              <ActionButton onPress={() => { setLogSavedNote(null); setLogOpen(true); }} secondary>Log a drive done without the app</ActionButton>
+            </View>
           )}
         </View>
       </Card>

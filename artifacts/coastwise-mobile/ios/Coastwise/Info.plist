@@ -58,17 +58,13 @@
 		<string>_expo._tcp</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Allow Coastwise to record an optional local drive review.</string>
+	<string>Coastwise uses the camera only when you turn on local drive recording or camera coaching. Camera coaching analyzes frames on this phone and never saves or sends them.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Expo Dev Launcher uses the local network to discover and connect to development servers running on your computer.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Allow $(PRODUCT_NAME) to access your location</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Allow $(PRODUCT_NAME) to access your location</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Coastwise uses your location to build a practice route near you and to coach an active supervised drive.</string>
+	<string>Coastwise uses your location during an active coached drive and to build a practice route near you. Route requests send only a rounded position to a routing service. Location is never sent with AI debriefs or synced progress.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Allow Coastwise to include optional audio in a local drive review.</string>
+	<string>Coastwise uses the microphone only when you choose to include audio in a local drive recording.</string>
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
 		<dict>

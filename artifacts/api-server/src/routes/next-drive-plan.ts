@@ -3,6 +3,7 @@ import {
   CreateNextDrivePlanBody,
   CreateNextDrivePlanResponse,
 } from "@workspace/api-zod";
+import { createRequestLimiter } from "../lib/request-windows";
 
 type PlanInput = ReturnType<typeof CreateNextDrivePlanBody.parse>;
 type OpenAIChatResponse = {
@@ -11,7 +12,6 @@ type OpenAIChatResponse = {
 };
 
 const router: IRouter = Router();
-const requestWindows = new Map<string, { startedAt: number; count: number }>();
 const REQUEST_WINDOW_MS = 60_000;
 const REQUEST_LIMIT = 10;
 const SAFETY_GUIDANCE = "Practice only with an attentive, qualified supervising adult. Review the plan while parked, choose conditions that match the driver’s current ability, and stop or simplify the drive whenever conditions feel unsafe.";
@@ -36,14 +36,10 @@ export function containsOnlyNextDrivePlanFields(value: unknown): boolean {
     && input.recentDrives.every((item) => hasOnlyKeys(item, driveKeys));
 }
 
+const requestLimiter = createRequestLimiter(REQUEST_LIMIT, REQUEST_WINDOW_MS);
+
 export function allowNextDrivePlanRequest(clientId: string, now = Date.now()): boolean {
-  const current = requestWindows.get(clientId);
-  if (!current || now - current.startedAt >= REQUEST_WINDOW_MS) {
-    requestWindows.set(clientId, { startedAt: now, count: 1 });
-    return true;
-  }
-  current.count += 1;
-  return current.count <= REQUEST_LIMIT;
+  return requestLimiter.allow(clientId, now);
 }
 
 export function buildNextDrivePlanPrompt(input: PlanInput): string {

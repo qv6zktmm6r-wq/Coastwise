@@ -68,10 +68,11 @@ export const DETAILED_DRIVES = 50;
  * events, which skill trends read; older ones drop them to keep storage small.
  */
 export function compactDrives(drives: MobileDrive[]): MobileDrive[] {
-  const sorted = [...drives].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const time = (drive: MobileDrive) => new Date(drive.date).getTime() || 0;
+  const sorted = [...drives].sort((a, b) => time(b) - time(a));
   return sorted.map((drive, index) => {
-    if (index < DETAILED_DRIVES || drive.events === undefined) return drive;
-    const { events: _events, ...summary } = drive;
+    if (index < DETAILED_DRIVES || (drive.events === undefined && drive.turnScores === undefined)) return drive;
+    const { events: _events, turnScores: _turnScores, ...summary } = drive;
     return summary;
   });
 }
@@ -86,7 +87,13 @@ export function finishDriveState(current: MobileState, drive: MobileDrive): Mobi
   return { ...current, activeDrive: undefined, drives: upsertDrive(current.drives, drive) };
 }
 
+/** Updates a drive already in the log. A drive deleted meanwhile stays deleted. */
 export function saveDriveState(current: MobileState, drive: MobileDrive): MobileState {
+  if (!current.drives.some((item) => item.id === drive.id)) return current;
+  return { ...current, drives: upsertDrive(current.drives, drive) };
+}
+
+export function addDriveState(current: MobileState, drive: MobileDrive): MobileState {
   return { ...current, drives: upsertDrive(current.drives, drive) };
 }
 

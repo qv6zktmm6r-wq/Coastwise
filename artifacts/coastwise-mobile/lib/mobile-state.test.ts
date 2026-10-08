@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  addDriveState,
   CURRENT_CALIFORNIA_CONTENT_PACK_VERSION,
   DEFAULT_JURISDICTION,
   DETAILED_DRIVES,
   deleteDriveState,
   finishDriveState,
   hydrateMobileState,
+  saveDriveState,
   MOBILE_JURISDICTION_LABELS,
 } from './mobile-state';
 
@@ -50,4 +52,30 @@ test('the permit log keeps every drive; only older drives drop detailed events',
     assert.ok(state.drives[0].events);
     assert.equal(state.drives.at(-1)?.events, undefined);
     assert.equal(deleteDriveState(state, 'drive-0').drives.length, DETAILED_DRIVES + 29);
+});
+
+test('older drives also drop per-turn details', () => {
+    let state = hydrateMobileState({ drives: [] });
+    for (let day = 0; day < DETAILED_DRIVES + 1; day += 1) {
+      state = addDriveState(state, {
+        id: `drive-${day}`,
+        date: new Date(Date.UTC(2026, 0, 1 + day)).toISOString(),
+        durationMinutes: 30,
+        distanceMiles: 5,
+        night: false,
+        skills: [],
+        turnScores: [{ instruction: 'Turn left onto Oak Ave', kind: 'left', completed: true, slowed: 'pass', smooth: 'pass', headCheck: 'not-measured', slowestMph: 12 }],
+      });
+    }
+    assert.ok(state.drives[0].turnScores);
+    assert.equal(state.drives.at(-1)?.turnScores, undefined);
+});
+
+test('a drive deleted while its recording finishes is not brought back', () => {
+    const drive = { id: 'drive-1', date: '2026-02-01T12:00:00.000Z', durationMinutes: 20, distanceMiles: 3, night: false, skills: [] };
+    let state = addDriveState(hydrateMobileState({ drives: [] }), drive);
+    state = deleteDriveState(state, 'drive-1');
+    state = saveDriveState(state, { ...drive, recordingUri: 'file:///recording.mov' });
+    assert.equal(state.drives.length, 0);
+    assert.equal(saveDriveState(addDriveState(state, drive), { ...drive, durationMinutes: 25 }).drives[0].durationMinutes, 25);
 });

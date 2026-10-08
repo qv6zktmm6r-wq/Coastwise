@@ -18,15 +18,27 @@
       "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "Coastwise uses the camera only when you turn on local drive recording or camera coaching. Camera coaching analyzes frames on this phone and never saves or sends them.",
-        "NSLocationWhenInUseUsageDescription": "Coastwise uses your location to build a practice route near you and during an active coached drive to provide route guidance. Location is not sent with AI debriefs or family sync.",
+        "NSLocationWhenInUseUsageDescription": "Coastwise uses your location during an active coached drive and to build a practice route near you. Route requests send only a rounded position to a routing service. Location is never sent with AI debriefs or synced progress.",
         "NSMicrophoneUsageDescription": "Coastwise uses the microphone only when you choose to include audio in a local drive recording.",
         "UIBackgroundModes": [],
-        "ITSAppUsesNonExemptEncryption": false,
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "privacyManifests": {
         "NSPrivacyAccessedAPITypes": [
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
             "NSPrivacyAccessedAPITypeReasons": [
               "CA92.1"
+            ]
+          }
+        ],
+        "NSPrivacyCollectedDataTypes": [
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypePreciseLocation",
+            "NSPrivacyCollectedDataTypeLinked": false,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
             ]
           }
         ]
@@ -57,13 +69,17 @@
         "expo-camera",
         {
           "cameraPermission": "Coastwise uses the camera only when you turn on local drive recording or camera coaching. Camera coaching analyzes frames on this phone and never saves or sends them.",
-          "microphonePermission": "Allow Coastwise to include optional audio in a local drive review."
+          "microphonePermission": "Coastwise uses the microphone only when you choose to include audio in a local drive recording."
         }
       ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Allow Coastwise to coach an active supervised drive."
+          "locationWhenInUsePermission": "Coastwise uses your location during an active coached drive and to build a practice route near you. Route requests send only a rounded position to a routing service. Location is never sent with AI debriefs or synced progress.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false
         }
       ],
       "expo-font",

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import { type StyleProp, type ViewStyle } from 'react-native';
 import { useTensorflowModel } from 'react-native-fast-tflite';
 import { NitroModules } from 'react-native-nitro-modules';
@@ -51,7 +51,8 @@ function isFace(object: ScannedObject): object is ScannedFace {
  * On-device road (back) and driver (front) cameras. Frames are analyzed in
  * memory and dropped; nothing from these cameras is saved or sent.
  */
-export function CoachCameras({ road, driver, onDetections, onFace, onStatus, previewStyle }: CoachCamerasProps) {
+/** Memoized: the drive screen re-renders on every GPS fix, and the camera must not. */
+export const CoachCameras = memo(function CoachCameras({ road, driver, onDetections, onFace, onStatus, previewStyle }: CoachCamerasProps) {
   const callbacks = useRef({ onDetections, onFace, onStatus });
   callbacks.current = { onDetections, onFace, onStatus };
 
@@ -189,4 +190,4 @@ export function CoachCameras({ road, driver, onDetections, onFace, onStatus, pre
       importantForAccessibility="no-hide-descendants"
     />
   );
-}
+});

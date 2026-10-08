@@ -49,7 +49,7 @@ export default function PrivacyScreen() {
             </View>
             <Eyebrow style={{ marginBottom: 0, color: palette.success }}>Export & Sharing</Eyebrow>
           </View>
-          <Body>Family summaries contain only weekly totals, practiced skills, goal status, and dates. They never include recordings, exact routes, coordinates, AI debrief text, or metadata. DMV exports are plain CSV files for your personal records only.</Body>
+          <Body>Family summaries contain only weekly totals, practiced skills, goal status, and dates. They never include recordings, exact routes, coordinates, AI debrief text, or metadata. DMV exports are plain CSV files for your personal records only; the file is created just for the share sheet and removed from this phone afterward.</Body>
         </Card>
 
         <Card padding={24}>
@@ -59,7 +59,7 @@ export default function PrivacyScreen() {
             </View>
             <Eyebrow style={{ marginBottom: 0, color: palette.warning }}>While driving</Eyebrow>
           </View>
-          <Body>Location is used only during an active foreground coaching session. Do not interact with Coastwise while the vehicle is moving. A supervising adult remains responsible for safe and legal practice.</Body>
+          <Body>Location is used only while you build a practice route and during an active foreground drive. Do not interact with Coastwise while the vehicle is moving. A supervising adult remains responsible for safe and legal practice.</Body>
         </Card>
 
         <Card padding={24}>
@@ -71,7 +71,16 @@ export default function PrivacyScreen() {
           </View>
           <Body>If you turn on map coaching, Coastwise downloads OpenStreetMap stop signs and speed limits for the roughly 2 km square you are driving in. The request names only that square, never your exact position or route, and is sent to the public OpenStreetMap Overpass service. Map data can be missing or out of date, so cues always say they come from the map.</Body>
         </Card>
-        <Card>
+        <Card padding={24}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: palette.soft, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="navigate" size={20} color={palette.text} />
+            </View>
+            <Eyebrow style={{ marginBottom: 0 }}>Optional practice routes</Eyebrow>
+          </View>
+          <Body>If you build a practice route, Coastwise sends a starting point rounded to about 100 meters, plus a few nearby turn-around points, to the public OSRM routing service. If you leave the route during a drive, it sends your position rounded to about 10 meters to find the way back. Nothing else about you or the drive is included, and the route itself is kept only on this device.</Body>
+        </Card>
+        <Card padding={24}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
             <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: palette.soft, alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="eye" size={20} color={palette.text} />
