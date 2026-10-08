@@ -47,6 +47,16 @@ test('descriptions name GPS as the source and never claim to see the road', () =
   }
 });
 
+test('map-based events name the map as the source', () => {
+  for (const kind of ['stop-sign-complete', 'rolling-stop', 'over-mapped-limit'] as const) {
+    const text = describeEvent({ kind, speedMph: 42, magnitude: 7, limitMph: 35 });
+    assert.match(text, /^The map shows/);
+    assert.doesNotMatch(text, /camera|saw|\bsee\b/i);
+  }
+  const spoken = chooseSpokenCue(initialCoachVoiceState, { kind: 'over-mapped-limit', at: 0, speedMph: 42.4, magnitude: 7.4, limitMph: 35 });
+  assert.equal(spoken.spoken, 'The map shows a 35 limit here. You are at about 42. Ease off.');
+});
+
 test('stored events are capped', () => {
   let events = recordEvent(undefined, signal('full-stop', 0), 0);
   for (let index = 1; index < MAX_STORED_EVENTS + 20; index += 1) {

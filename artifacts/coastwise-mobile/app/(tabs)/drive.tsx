@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCreateDriveDebrief } from '@workspace/api-client-react';
 import { CameraView, useCameraPermissions, useMicrophonePermissions, type CameraView as CameraViewType } from 'expo-camera';
 import { setAudioModeAsync } from 'expo-audio';
@@ -27,7 +28,7 @@ import {
   shouldRequestMicrophonePermission,
 } from '@/lib/drive-lifecycle';
 import { addDistanceFix, MAX_FIX_ACCURACY_METERS, METERS_PER_MILE, type DistanceFix } from '@/lib/drive-distance';
-import { evaluateSignals, initialSignalState, type SignalState } from '@/lib/drive-signals';
+import { evaluateSignals, initialSignalState, type DriveSignal, type SignalState } from '@/lib/drive-signals';
 import {
   chooseSpokenCue,
   coachTitle,
@@ -37,9 +38,12 @@ import {
   summarizeForDebrief,
   type CoachVoiceState,
 } from '@/lib/drive-coach';
+import { evaluateManeuvers, initialManeuverState, type ManeuverState, type MapEvent } from '@/lib/maneuvers';
+import { emptyMapFeatures, fetchMapTile, MAP_ATTRIBUTION, mergeMapFeatures, tileKey, type MapFeatures } from '@/lib/map-data';
 
 const DRIVE_SKILLS = ['turns', 'intersections'];
 const KEEP_AWAKE_TAG = 'coastwise-active-drive';
+const MAP_COACHING_KEY = 'coastwise-map-coaching';
 function explainPermission(title: string, permission: { granted: boolean; canAskAgain?: boolean } | null | undefined) {
   if (permission?.granted) return;
   const canAskAgain = permission?.canAskAgain !== false;
@@ -88,6 +92,11 @@ export default function DriveScreen() {
   const signalState = useRef<SignalState>(initialSignalState);
   const coachVoiceState = useRef<CoachVoiceState>(initialCoachVoiceState);
   const voiceOnRef = useRef(true);
+  const maneuverState = useRef<ManeuverState>(initialManeuverState);
+  const mapCoachingRef = useRef(false);
+  const mapTiles = useRef(new Map<string, MapFeatures>());
+  const mapTilesRequested = useRef(new Set<string>());
+  const mapFeatures = useRef<MapFeatures>(emptyMapFeatures);
   const driveRef = useRef<MobileDrive | null>(null);
   const elapsedRef = useRef(0);
   const lifecycleRef = useRef(new DriveLifecycleCoordinator());
@@ -98,6 +107,9 @@ export default function DriveScreen() {
   const [speedMph, setSpeedMph] = useState<number | null>(null);
   const [lastCue, setLastCue] = useState<string | null>(null);
   const [voiceOn, setVoiceOn] = useState(true);
+  const [mapCoaching, setMapCoaching] = useState(false);
+  const [mappedLimitMph, setMappedLimitMph] = useState<number | null>(null);
+  const [mapStatus, setMapStatus] = useState<'off' | 'loading' | 'ready' | 'unavailable'>('off');
   const [active, setActive] = useState(false);
   const [recoveryPending, setRecoveryPending] = useState(false);
   const [recoveryActionPending, setRecoveryActionPending] = useState(false);
@@ -174,10 +186,12 @@ export default function DriveScreen() {
     locationSubscription.current = null;
     distanceAnchor.current = null;
     signalState.current = initialSignalState;
+    maneuverState.current = initialManeuverState;
     void Speech.stop();
     setLocationReady(false);
     setGpsAccuracyMeters(null);
     setSpeedMph(null);
+    setMappedLimitMph(null);
   }, []);
 
   const speakCue = useCallback((text: string) => {
@@ -186,6 +200,36 @@ export default function DriveScreen() {
     void Speech.stop();
     Speech.speak(text, { language: 'en-US', rate: 0.95 });
   }, []);
+
+  useEffect(() => {
+    void AsyncStorage.getItem(MAP_COACHING_KEY).then((value) => {
+      mapCoachingRef.current = value === 'on';
+      setMapCoaching(value === 'on');
+    }).catch(() => undefined);
+  }, []);
+
+  const toggleMapCoaching = () => {
+    const next = !mapCoachingRef.current;
+    mapCoachingRef.current = next;
+    setMapCoaching(next);
+    void AsyncStorage.setItem(MAP_COACHING_KEY, next ? 'on' : 'off').catch(() => undefined);
+  };
+
+  const ensureMapTile = (latitude: number, longitude: number) => {
+    const key = tileKey(latitude, longitude);
+    if (mapTilesRequested.current.has(key)) return;
+    mapTilesRequested.current.add(key);
+    setMapStatus((status) => (status === 'ready' ? status : 'loading'));
+    void fetchMapTile(key).then((tile) => {
+      mapTiles.current.set(key, tile);
+      mapFeatures.current = mergeMapFeatures([...mapTiles.current.values()]);
+      setMapStatus('ready');
+    }).catch(() => {
+      // Allow a retry the next time the car is in this square.
+      mapTilesRequested.current.delete(key);
+      setMapStatus((status) => (status === 'ready' ? status : 'unavailable'));
+    });
+  };
 
   const toggleVoice = () => {
     const next = !voiceOnRef.current;
@@ -279,11 +323,26 @@ export default function DriveScreen() {
           });
           signalState.current = measured.state;
           setSpeedMph(measured.speedMph);
-          if (step.meters <= 0 && measured.signals.length === 0) return;
+          const detected: Array<DriveSignal | MapEvent> = [...measured.signals];
+          if (mapCoachingRef.current) {
+            ensureMapTile(coords.latitude, coords.longitude);
+            const graded = evaluateManeuvers(maneuverState.current, mapFeatures.current, {
+              latitude: coords.latitude,
+              longitude: coords.longitude,
+              speedMetersPerSecond: coords.speed,
+              headingDegrees: coords.heading,
+              accuracyMeters: coords.accuracy,
+              timestamp,
+            });
+            maneuverState.current = graded.state;
+            setMappedLimitMph(graded.state.currentLimitMph);
+            detected.push(...graded.events);
+          }
+          if (step.meters <= 0 && detected.length === 0) return;
           const current = driveRef.current;
           if (!current || current.id !== session.id) return;
           let events = current.events;
-          for (const signal of measured.signals) {
+          for (const signal of detected) {
             events = recordEvent(events, signal, elapsedRef.current);
             const cue = chooseSpokenCue(coachVoiceState.current, signal);
             coachVoiceState.current = cue.state;
@@ -577,7 +636,17 @@ export default function DriveScreen() {
 
             <Text style={{ color: palette.muted, fontSize: 15, fontWeight: '600', textAlign: 'center', marginBottom: 16 }}>
               {speedMph === null ? 'GPS speed estimate unavailable' : `About ${Math.round(speedMph)} mph (GPS estimate)`}
+              {mapCoaching && mappedLimitMph !== null ? ` · map limit ${mappedLimitMph}` : ''}
             </Text>
+            {mapCoaching && (
+              <Text style={{ color: palette.muted, fontSize: 12, textAlign: 'center', marginBottom: 16 }}>
+                {mapStatus === 'unavailable'
+                  ? 'Map data unavailable right now. GPS coaching continues.'
+                  : mapStatus === 'loading'
+                    ? 'Loading map data for this area…'
+                    : MAP_ATTRIBUTION}
+              </Text>
+            )}
 
             <View
               accessibilityLiveRegion="polite"
@@ -675,6 +744,16 @@ export default function DriveScreen() {
             <Body muted>Set this up while parked. If enabled, recording starts with the drive and stops when the drive pauses or ends.</Body>
             <ActionButton onPress={() => void prepareRecording()} secondary={!recordingPrepared}>
               {recordingPrepared ? 'Local recording ready — turn off' : 'Include local video'}
+            </ActionButton>
+          </View>
+
+          <View style={{ marginTop: 20, paddingTop: 20, borderTopWidth: 1, borderTopColor: palette.border }}>
+            <Eyebrow>Optional map coaching</Eyebrow>
+            <Body muted>
+              Coaches stops at mapped stop signs and speed against mapped limits. Coastwise downloads OpenStreetMap data for the roughly 2 km square you are in. Your exact position and route are not sent. Map data can be missing or out of date.
+            </Body>
+            <ActionButton onPress={toggleMapCoaching} secondary={!mapCoaching}>
+              {mapCoaching ? 'Map coaching on — turn off' : 'Turn on map coaching'}
             </ActionButton>
           </View>
 
