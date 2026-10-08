@@ -1,3 +1,4 @@
+import { PICTURE_QUESTIONS, type RoadFigureId } from '@workspace/road-signs';
 import type { MobileJurisdiction } from './coastwise-context';
 
 export type MobilePracticeQuestion = {
@@ -9,13 +10,49 @@ export type MobilePracticeQuestion = {
   explanation: string;
   sourceTitle: string;
   sourceUrl: string;
+  figure?: RoadFigureId;
 };
+
+const handbooks: Record<MobileJurisdiction, { title: string; url: string }> = {
+  'US-CA': { title: 'California Driver’s Handbook', url: 'https://www.dmv.ca.gov/portal/handbook/california-driver-handbook/' },
+  'US-TX': { title: 'Texas Driver Handbook', url: 'https://www.dps.texas.gov/internetforms/forms/dl-7.pdf' },
+  'US-FL': { title: 'Florida Class E Driver License Handbook', url: 'https://www.flhsmv.gov/pdf/handbooks/englishdriverhandbook.pdf' },
+  'US-NY': { title: 'New York State Driver’s Manual', url: 'https://dmv.ny.gov/new-york-state-drivers-manual-practice-tests' },
+  'US-OH': { title: 'Ohio Driver Manual (BMV forms index)', url: 'https://www.bmv.ohio.gov/forms-general.aspx' },
+  'US-IL': { title: 'Illinois Rules of the Road', url: 'https://www.ilsos.gov/publications/pdf_publications/dsd_a112.pdf' },
+};
+
+function pictureQuestions(jurisdiction: MobileJurisdiction): MobilePracticeQuestion[] {
+  const handbook = handbooks[jurisdiction];
+  const prefix = jurisdiction.slice(3).toLowerCase();
+  return PICTURE_QUESTIONS.map((picture) => ({
+    id: `${prefix}-signs-picture-${picture.key}`,
+    topic: 'Signs & markings',
+    prompt: picture.prompt,
+    options: picture.options,
+    answer: picture.answer,
+    explanation: picture.explanation,
+    sourceTitle: handbook.title,
+    sourceUrl: handbook.url,
+    figure: picture.figure,
+  }));
+}
+
+/** Puts a picture question after every written one so signs show up early. */
+function interleave(written: MobilePracticeQuestion[], pictures: MobilePracticeQuestion[]) {
+  const mixed: MobilePracticeQuestion[] = [];
+  for (let index = 0; index < Math.max(written.length, pictures.length); index += 1) {
+    if (written[index]) mixed.push(written[index]);
+    if (pictures[index]) mixed.push(pictures[index]);
+  }
+  return mixed;
+}
 
 const caSource = 'https://www.dmv.ca.gov/portal/handbook/california-driver-handbook/';
 const txSource = 'https://www.dps.texas.gov/section/driver-license/texas-provisional-license-teen';
 const flSource = 'https://www.flhsmv.gov/driver-licenses-id-cards/licensing-requirements-teens-graduated-driver-license-laws';
 
-const packs: Record<MobileJurisdiction, MobilePracticeQuestion[]> = {
+const writtenPacks: Record<MobileJurisdiction, MobilePracticeQuestion[]> = {
   'US-CA': [
     { id: 'ca-mobile-right-of-way', topic: 'Right-of-way', prompt: 'At an all-way stop, you arrive at the same time as a driver on your right. Who generally goes first?', options: ['You', 'The driver on your right', 'The fastest driver'], answer: 1, explanation: 'When arrival is simultaneous, yield to the driver on your right.', sourceTitle: 'California Driver’s Handbook', sourceUrl: caSource },
     { id: 'ca-mobile-practice', topic: 'Licensing & permits', prompt: 'What supervised practice record is generally required for a California provisional license?', options: ['50 hours including 10 at night', '10 daylight hours', '30 hours with no night practice'], answer: 0, explanation: 'California requires 50 supervised hours, including 10 at night.', sourceTitle: 'California Driver’s Handbook', sourceUrl: caSource },
@@ -45,6 +82,11 @@ const packs: Record<MobileJurisdiction, MobilePracticeQuestion[]> = {
     { id: 'il-mobile-permit', topic: 'Licensing & permits', prompt: 'How long does an Illinois under-18 permit phase generally last?', options: ['At least nine months', 'One month', 'Exactly three years'], answer: 0, explanation: 'The Illinois permit phase generally lasts at least nine months before initial licensing.', sourceTitle: 'Illinois Graduated Driver Licensing Program', sourceUrl: 'https://www.ilsos.gov/services/drivers-license/gdl.html' },
   ],
 };
+
+const packs = Object.fromEntries(
+  (Object.keys(writtenPacks) as MobileJurisdiction[]).map((jurisdiction) =>
+    [jurisdiction, interleave(writtenPacks[jurisdiction], pictureQuestions(jurisdiction))]),
+) as Record<MobileJurisdiction, MobilePracticeQuestion[]>;
 
 export function getMobilePracticePack(jurisdiction: MobileJurisdiction) {
   return packs[jurisdiction];

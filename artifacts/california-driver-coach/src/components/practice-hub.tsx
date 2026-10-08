@@ -12,6 +12,7 @@ import {
   Sparkles,
   Target,
 } from 'lucide-react';
+import { ROAD_FIGURES, roadFigureDataUri } from '@workspace/road-signs';
 import { type HandbookContentPack, type HandbookQuestion } from '@/data/question-bank';
 
 export type PracticeAnswer = {
@@ -176,6 +177,7 @@ export function PracticeHub({ jurisdiction, pack, answers, onAnswer }: Props) {
             <div className="w-32"><ProgressBar value={((questionIndex + 1) / queue.length) * 100} /></div>
           </div>
           <div className="mb-2 text-xs font-bold uppercase tracking-[.15em] text-[hsl(var(--accent))]">{section?.title}</div>
+          {currentQuestion.figure && <img src={roadFigureDataUri(currentQuestion.figure)} alt={ROAD_FIGURES[currentQuestion.figure].alt} width={176} height={176} className="mb-5 h-36 w-36 md:h-44 md:w-44" data-testid={`figure-${currentQuestion.id}`} />}
           <h1 className="max-w-3xl font-display text-3xl leading-tight md:text-4xl">{currentQuestion.prompt}</h1>
           <div className="mt-7 space-y-3">
             {currentQuestion.options.map((option, optionIndex) => {

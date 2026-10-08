@@ -1,10 +1,11 @@
-import { californiaContentPack } from './question-bank';
+import { PICTURE_QUESTIONS } from '@workspace/road-signs';
+import { californiaContentPack, type HandbookContentPack, type HandbookQuestion } from './question-bank';
 import { texasContentPack, texasScenarios } from './texas-pack';
 import { floridaContentPack, floridaScenarios } from './florida-pack';
 import { newYorkContentPack, newYorkScenarios } from './new-york-pack';
 import { ohioContentPack, ohioScenarios } from './ohio-pack';
 import { illinoisContentPack, illinoisScenarios } from './illinois-pack';
-import type { JurisdictionCode } from '../lib/jurisdiction';
+import { getJurisdiction, type JurisdictionCode } from '../lib/jurisdiction';
 import type { Scenario } from '../lib/state';
 
 export type ContentScenario = Scenario & { id: string; sourceUrl: string; jurisdiction: JurisdictionCode; contentPackVersion: string; reviewedAt: string; sourceRevision?: string };
@@ -44,13 +45,44 @@ const californiaScenarios: ContentScenario[] = [
   },
 ];
 
+const PICTURE_QUESTIONS_REVIEWED_AT = '2026-10-07';
+
+function withPictureQuestions(pack: HandbookContentPack): HandbookContentPack {
+  const jurisdiction = getJurisdiction(pack.jurisdiction);
+  const prefix = pack.jurisdiction.slice(3).toLowerCase();
+  const pictures = PICTURE_QUESTIONS.map((picture): HandbookQuestion => ({
+    id: `${prefix}-signs-picture-${picture.key}`,
+    section: 'signs',
+    objective: picture.objective,
+    prompt: picture.prompt,
+    options: picture.options,
+    answer: picture.answer,
+    explanation: picture.explanation,
+    source: `${jurisdiction.handbookName} · Traffic signs and pavement markings`,
+    sourceUrl: jurisdiction.handbookUrl,
+    sourceRevision: pack.sourceRevision,
+    effectiveDate: pack.effectiveDate,
+    reviewedAt: PICTURE_QUESTIONS_REVIEWED_AT,
+    contentPackVersion: pack.version,
+    jurisdiction: pack.jurisdiction,
+    scope: 'universal',
+    difficulty: picture.difficulty,
+    figure: picture.figure,
+  }));
+  return {
+    ...pack,
+    universalSafetyQuestions: [...pack.universalSafetyQuestions, ...pictures],
+    questions: [...pack.questions, ...pictures],
+  };
+}
+
 export const contentPacks = {
-  'US-CA': californiaContentPack,
-  'US-TX': texasContentPack,
-  'US-FL': floridaContentPack,
-  'US-NY': newYorkContentPack,
-  'US-OH': ohioContentPack,
-  'US-IL': illinoisContentPack,
+  'US-CA': withPictureQuestions(californiaContentPack),
+  'US-TX': withPictureQuestions(texasContentPack),
+  'US-FL': withPictureQuestions(floridaContentPack),
+  'US-NY': withPictureQuestions(newYorkContentPack),
+  'US-OH': withPictureQuestions(ohioContentPack),
+  'US-IL': withPictureQuestions(illinoisContentPack),
 } as const;
 
 export const contentScenarios: Record<JurisdictionCode, ContentScenario[]> = {

@@ -3,6 +3,8 @@ import { Pressable, Text, View, AccessibilityInfo, Linking } from 'react-native'
 import { Card, Body, Eyebrow, Screen, Title, usePalette, styles } from '@/components/ui';
 import { colors } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { ROAD_FIGURES } from '@workspace/road-signs';
+import { SvgXml } from 'react-native-svg';
 import { useCoastwise } from '@/lib/coastwise-context';
 import { getMobilePracticePack } from '@/lib/practice-content';
 
@@ -45,6 +47,11 @@ export default function PracticeScreen() {
           <Ionicons name="book" size={20} color={colors.primary} />
         </View>
         
+        {question.figure && (
+          <View accessible accessibilityRole="image" accessibilityLabel={ROAD_FIGURES[question.figure].alt} style={{ alignSelf: 'center', marginBottom: 20 }}>
+            <SvgXml xml={ROAD_FIGURES[question.figure].svg} width={168} height={168} />
+          </View>
+        )}
         <Text style={[styles.title, { color: palette.text, fontSize: 22, lineHeight: 30, marginBottom: 24 }]}>{question.prompt}</Text>
         
         <View style={{ gap: 12 }}>

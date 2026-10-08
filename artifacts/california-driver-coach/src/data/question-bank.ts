@@ -1,3 +1,4 @@
+import type { RoadFigureId } from '@workspace/road-signs';
 import { CALIFORNIA_CONTENT_PACK_VERSION, type JurisdictionCode } from '../lib/jurisdiction';
 
 export type HandbookSection = {
@@ -23,6 +24,7 @@ export type HandbookQuestion = {
   jurisdiction: JurisdictionCode;
   scope: 'universal' | 'jurisdiction-specific';
   difficulty: 'easy' | 'medium' | 'hard';
+  figure?: RoadFigureId;
 };
 
 export type HandbookContentPack = {
