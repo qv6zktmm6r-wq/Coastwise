@@ -716,6 +716,27 @@ function Drive({ state, setState }: { state: AppState; setState: (next: AppState
     return () => window.cancelAnimationFrame(frame);
   }, [showPreflight]);
   useEffect(() => {
+    if (!tracking || !('wakeLock' in navigator)) return;
+    // A locked screen suspends the page, which stops GPS and drops miles.
+    // The browser releases the lock whenever the page is hidden, so take it again on return.
+    let lock: WakeLockSentinel | null = null;
+    let cancelled = false;
+    const acquire = () => {
+      if (cancelled || document.visibilityState !== 'visible' || (lock && !lock.released)) return;
+      void navigator.wakeLock.request('screen').then((next) => {
+        if (cancelled) void next.release();
+        else lock = next;
+      }).catch(() => undefined);
+    };
+    acquire();
+    document.addEventListener('visibilitychange', acquire);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', acquire);
+      void lock?.release().catch(() => undefined);
+    };
+  }, [tracking]);
+  useEffect(() => {
     if (!tracking) return;
     const frame = window.requestAnimationFrame(() => {
       activeRecordingPanel.current?.scrollIntoView({

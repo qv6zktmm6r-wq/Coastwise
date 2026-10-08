@@ -1,5 +1,6 @@
 import { useCreateDriveDebrief } from '@workspace/api-client-react';
 import { CameraView, useCameraPermissions, useMicrophonePermissions, type CameraView as CameraViewType } from 'expo-camera';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, Linking, Platform, Pressable, Text, View, AccessibilityInfo } from 'react-native';
@@ -23,8 +24,10 @@ import {
   DriveLifecycleCoordinator,
   shouldRequestMicrophonePermission,
 } from '@/lib/drive-lifecycle';
+import { addDistanceFix, MAX_FIX_ACCURACY_METERS, METERS_PER_MILE, type DistanceFix } from '@/lib/drive-distance';
 
 const DRIVE_SKILLS = ['turns', 'intersections'];
+const KEEP_AWAKE_TAG = 'coastwise-active-drive';
 function explainPermission(title: string, permission: { granted: boolean; canAskAgain?: boolean } | null | undefined) {
   if (permission?.granted) return;
   const canAskAgain = permission?.canAskAgain !== false;
@@ -69,13 +72,14 @@ export default function DriveScreen() {
   } = useCoastwise();
   const cameraRef = useRef<CameraViewType | null>(null);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
-  const lastCoordinates = useRef<Location.LocationObjectCoords | null>(null);
+  const distanceAnchor = useRef<DistanceFix | null>(null);
   const driveRef = useRef<MobileDrive | null>(null);
   const elapsedRef = useRef(0);
   const lifecycleRef = useRef(new DriveLifecycleCoordinator());
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [microphonePermission, requestMicrophonePermission] = useMicrophonePermissions();
   const [locationReady, setLocationReady] = useState(false);
+  const [gpsAccuracyMeters, setGpsAccuracyMeters] = useState<number | null>(null);
   const [active, setActive] = useState(false);
   const [recoveryPending, setRecoveryPending] = useState(false);
   const [recoveryActionPending, setRecoveryActionPending] = useState(false);
@@ -150,9 +154,19 @@ export default function DriveScreen() {
     cameraRef.current?.stopRecording();
     locationSubscription.current?.remove();
     locationSubscription.current = null;
-    lastCoordinates.current = null;
+    distanceAnchor.current = null;
     setLocationReady(false);
+    setGpsAccuracyMeters(null);
   }, []);
+
+  useEffect(() => {
+    if (!active) return;
+    // iOS auto-lock backgrounds the app, which pauses the drive and stops location.
+    void activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => undefined);
+    return () => {
+      void deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => undefined);
+    };
+  }, [active]);
 
   const pauseForInterruption = useCallback(() => {
     const current = driveRef.current;
@@ -192,27 +206,31 @@ export default function DriveScreen() {
       explainPermission('Location', location);
       return false;
     }
+    const previousDrive = driveRef.current;
+    const previousElapsed = elapsedRef.current;
     try {
-      lastCoordinates.current = null;
+      distanceAnchor.current = null;
+      driveRef.current = session;
+      elapsedRef.current = session.elapsedSeconds;
+      setDrive(session);
+      setElapsed(session.elapsedSeconds);
       locationSubscription.current = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.Balanced, distanceInterval: 20, timeInterval: 5000 },
-        ({ coords }) => {
-          const previous = lastCoordinates.current;
-          lastCoordinates.current = coords;
-          if (!previous) return;
-          const toRadians = (degrees: number) => degrees * Math.PI / 180;
-          const latitudeDelta = toRadians(coords.latitude - previous.latitude);
-          const longitudeDelta = toRadians(coords.longitude - previous.longitude);
-          const a = Math.sin(latitudeDelta / 2) ** 2
-            + Math.cos(toRadians(previous.latitude)) * Math.cos(toRadians(coords.latitude))
-            * Math.sin(longitudeDelta / 2) ** 2;
-          const miles = 3958.8 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          if (miles <= 0 || miles >= 0.25) return;
+        { accuracy: Location.Accuracy.BestForNavigation, distanceInterval: 5, timeInterval: 1000 },
+        ({ coords, timestamp }) => {
+          setGpsAccuracyMeters(coords.accuracy ?? null);
+          const step = addDistanceFix(distanceAnchor.current, {
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            accuracyMeters: coords.accuracy ?? null,
+            timestamp,
+          });
+          distanceAnchor.current = step.anchor;
+          if (step.meters <= 0) return;
           const current = driveRef.current;
-          if (!current) return;
+          if (!current || current.id !== session.id) return;
           const updated: ActiveMobileDrive = {
             ...current,
-            distanceMiles: current.distanceMiles + miles,
+            distanceMiles: current.distanceMiles + step.meters / METERS_PER_MILE,
             startedAt: session.startedAt,
             elapsedSeconds: elapsedRef.current,
           };
@@ -221,10 +239,6 @@ export default function DriveScreen() {
           updateActiveDrive(updated);
         },
       );
-      driveRef.current = session;
-      elapsedRef.current = session.elapsedSeconds;
-      setDrive(session);
-      setElapsed(session.elapsedSeconds);
       setLocationReady(true);
       AccessibilityInfo.announceForAccessibility("GPS location ready.");
       setRecoveryPending(false);
@@ -233,6 +247,10 @@ export default function DriveScreen() {
     } catch {
       Alert.alert('Location unavailable', 'Coastwise could not start foreground location. Your saved progress is unchanged.');
       stopNativeSession();
+      driveRef.current = previousDrive;
+      elapsedRef.current = previousElapsed;
+      setDrive(previousDrive);
+      setElapsed(previousElapsed);
       return false;
     }
   };
@@ -450,6 +468,10 @@ export default function DriveScreen() {
     });
   };
 
+  const gpsSignalGood = locationReady
+    && gpsAccuracyMeters !== null
+    && gpsAccuracyMeters <= MAX_FIX_ACCURACY_METERS;
+
   if (active) {
     return (
       <Screen scroll={false}>
@@ -457,22 +479,35 @@ export default function DriveScreen() {
           <View style={{ marginTop: 12, marginBottom: 24 }}>
             <Eyebrow>Active coached drive</Eyebrow>
             <Title large>Keep your attention on the road.</Title>
-            <Body muted>Coastwise is using location while this drive is active. Do not touch the phone while moving. Pull over before stopping or reviewing.</Body>
+            <Body muted>Coastwise is using location while this drive is active. Keep the screen on in a mount; locking the phone pauses tracking. Do not touch the phone while moving.</Body>
           </View>
           
           <Card accent padding={32}>
-            <View style={{ alignItems: 'center', marginBottom: 32 }}>
-              <Eyebrow>Drive time</Eyebrow>
-              <Text style={{ color: palette.text, fontSize: 64, fontWeight: '800', fontVariant: ['tabular-nums'], letterSpacing: -2 }}>
-                {Math.max(1, Math.floor(elapsed / 60))}
-                <Text style={{ fontSize: 24, color: palette.muted, fontWeight: '700', letterSpacing: 0 }}> min</Text>
-              </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 32 }}>
+              <View style={{ alignItems: 'center' }}>
+                <Eyebrow>Drive time</Eyebrow>
+                <Text style={{ color: palette.text, fontSize: 48, fontWeight: '800', fontVariant: ['tabular-nums'], letterSpacing: -2 }}>
+                  {Math.max(1, Math.floor(elapsed / 60))}
+                  <Text style={{ fontSize: 20, color: palette.muted, fontWeight: '700', letterSpacing: 0 }}> min</Text>
+                </Text>
+              </View>
+              <View style={{ alignItems: 'center' }}>
+                <Eyebrow>Distance</Eyebrow>
+                <Text style={{ color: palette.text, fontSize: 48, fontWeight: '800', fontVariant: ['tabular-nums'], letterSpacing: -2 }}>
+                  {(drive?.distanceMiles ?? 0).toFixed(1)}
+                  <Text style={{ fontSize: 20, color: palette.muted, fontWeight: '700', letterSpacing: 0 }}> mi</Text>
+                </Text>
+              </View>
             </View>
             
             <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12, marginBottom: 32 }}>
-              <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: locationReady ? palette.success : palette.warning }} />
-              <Text style={{ color: locationReady ? palette.success : palette.warning, fontSize: 16, fontWeight: '700' }}>
-                {locationReady ? 'Location active' : 'Waiting for GPS (requires clear sky)'}
+              <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: gpsSignalGood ? palette.success : palette.warning }} />
+              <Text style={{ color: gpsSignalGood ? palette.success : palette.warning, fontSize: 16, fontWeight: '700' }}>
+                {!locationReady || gpsAccuracyMeters === null
+                  ? 'Waiting for GPS (requires clear sky)'
+                  : gpsSignalGood
+                    ? `GPS strong (±${Math.round(gpsAccuracyMeters)} m)`
+                    : `GPS weak (±${Math.round(gpsAccuracyMeters)} m), waiting for a better fix`}
               </Text>
             </View>
             
