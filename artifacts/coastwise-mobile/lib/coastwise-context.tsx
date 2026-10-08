@@ -24,6 +24,8 @@ export type MobileDrive = {
   driverAttention?: boolean;
   /** 'manual' when a supervising adult logged a drive made without the app; nothing was measured. */
   source?: 'app' | 'manual';
+  /** True when the drive was a mock road test: directions only, graded at the end. */
+  mockTest?: boolean;
   /** Per-turn review for drives that followed a planned route. Stays on this device. */
   turnScores?: TurnScore[];
   debrief?: DriveDebrief;

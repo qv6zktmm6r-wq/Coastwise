@@ -44,6 +44,7 @@ import { isAfterDark } from '@/lib/sun';
 import { emptyMapFeatures, fetchMapTile, MAP_ATTRIBUTION, mergeMapFeatures, tileKey, type MapFeatures } from '@/lib/map-data';
 import { evaluateVision, initialVisionState, type Detection, type VisionState } from '@/lib/road-vision';
 import { evaluateAttention, headTurnsBetween, initialAttentionState, stopScanVerdict, trackingReliable, type AttentionState } from '@/lib/driver-attention';
+import { gradeMockTest, MOCK_TEST_MAX_MISTAKES } from '@/lib/mock-test';
 import { approachStart, scoreTurn, summarizeTurns, TURN_SETTLE_MS, TURNING_SPEED_MPH, type TurnCheck, type TurnObservation, type TurnScore } from '@/lib/turn-scores';
 import { loadCoachCameras } from '@/lib/native-vision';
 import { chooseCoachVoice, type ChosenVoice } from '@/lib/coach-voice';
@@ -189,6 +190,8 @@ export default function DriveScreen() {
   const roughEvents = useRef<Array<{ at: number; kind: string }>>([]);
   const turnCallTimes = useRef(new Map<number, { preparedAt: number | null; signaledAt: number | null }>());
   const pendingTurns = useRef<Array<Omit<TurnObservation, 'speeds' | 'roughEvents' | 'headCheck'>>>([]);
+  const [mockTest, setMockTest] = useState(false);
+  const mockTestRef = useRef(false);
   const [avoidFreeways, setAvoidFreeways] = useState(true);
   const [routeFocus, setRouteFocus] = useState<PracticeFocus>('mixed');
 
@@ -392,7 +395,7 @@ export default function DriveScreen() {
       events = recordEvent(events, event, elapsedRef.current);
       const cue = chooseSpokenCue(coachVoiceState.current, event);
       coachVoiceState.current = cue.state;
-      if (cue.spoken) speakCue(cue.spoken);
+      if (cue.spoken && !mockTestRef.current) speakCue(cue.spoken);
     }
     const updated: ActiveMobileDrive = {
       ...(current as ActiveMobileDrive),
@@ -582,7 +585,7 @@ export default function DriveScreen() {
           const route = activeRouteRef.current;
           if (route && (coords.accuracy ?? Infinity) <= MAX_FIX_ACCURACY_METERS) {
             const before = guidanceState.current;
-            const guidance = advanceGuidance(route, before, coords.latitude, coords.longitude);
+            const guidance = advanceGuidance(route, before, coords.latitude, coords.longitude, mockTestRef.current ? 'examiner' : 'coach');
             guidanceState.current = guidance.state;
             noteTurnProgress(route, before, guidance.state, timestamp);
             setNextInstruction(guidance.nextInstruction);
@@ -725,11 +728,16 @@ export default function DriveScreen() {
   const driveThisRoute = async () => {
     if (!plannedRoute) return;
     if (CoachCameras && !recordingPrepared) setCameraCoaching(true);
+    mockTestRef.current = mockTest;
     setDriveRoute(plannedRoute);
-    if (!(await startDrive(plannedRoute))) setDriveRoute(null);
+    if (!(await startDrive(plannedRoute, mockTest))) {
+      setDriveRoute(null);
+      mockTestRef.current = false;
+    }
   };
 
-  const startDrive = async (route: PlannedRoute | null = null) => {
+  const startDrive = async (route: PlannedRoute | null = null, asMockTest = false) => {
+    if (!route) mockTestRef.current = false;
     const session: ActiveMobileDrive = {
       id: `drive-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       date: new Date().toISOString(),
@@ -740,6 +748,7 @@ export default function DriveScreen() {
       startedAt: new Date().toISOString(),
       elapsedSeconds: 0,
       recordingRequested: recordingPrepared,
+      ...(route && asMockTest ? { mockTest: true } : {}),
     };
     speedSamples.current = [];
     roughEvents.current = [];
@@ -749,7 +758,9 @@ export default function DriveScreen() {
       beginActiveDrive(session);
       coachVoiceState.current = initialCoachVoiceState;
       setLastCue(null);
-      speakCue(route
+      speakCue(route && asMockTest
+        ? `Mock driving test started. I will give directions only, like an examiner, and score the drive at the end. First, ${route.steps[0] ? route.steps[0].instruction.charAt(0).toLowerCase() + route.steps[0].instruction.slice(1) : 'follow the road'}.`
+        : route
         ? `Route loaded. I will call out each turn. First, ${route.steps[0] ? route.steps[0].instruction.charAt(0).toLowerCase() + route.steps[0].instruction.slice(1) : 'follow the road'}.`
         : 'Coached drive started. I will speak up when GPS measures something worth coaching.');
       return true;
@@ -860,6 +871,7 @@ export default function DriveScreen() {
         setRecoveryPending(false);
         setDriveRoute(null);
         setPlannedRoute(null);
+        mockTestRef.current = false;
         AccessibilityInfo.announceForAccessibility("Drive finished.");
       },
       setRecoveryActionPending,
@@ -884,6 +896,7 @@ export default function DriveScreen() {
               setActive(false);
               setRecoveryPending(false);
               setDriveRoute(null);
+              mockTestRef.current = false;
             },
             setRecoveryActionPending,
           );
@@ -982,7 +995,7 @@ export default function DriveScreen() {
       <Screen>
         <View style={{ flex: 1, paddingBottom: 24 }}>
           <View style={{ marginTop: 12, marginBottom: showRoadPreview ? 16 : 24 }}>
-            <Eyebrow>Active coached drive</Eyebrow>
+            <Eyebrow>{drive?.mockTest ? 'Mock driving test' : 'Active coached drive'}</Eyebrow>
             <Title large>Keep your attention on the road.</Title>
             <Body muted>Coastwise is using location while this drive is active. Keep the screen on in a mount; locking the phone pauses tracking. Do not touch the phone while moving.</Body>
           </View>
@@ -1255,6 +1268,17 @@ export default function DriveScreen() {
           </View>
 
           <Pressable
+            onPress={() => setMockTest((value) => !value)}
+            disabled={routeLoading}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: mockTest, disabled: routeLoading }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 }}
+          >
+            <Ionicons name={mockTest ? 'checkbox' : 'square-outline'} size={24} color={mockTest ? colors.primary : palette.muted} />
+            <Text style={{ color: palette.text, fontSize: 15, fontWeight: '600', flex: 1 }}>Mock driving test (directions only, scored at the end)</Text>
+          </Pressable>
+
+          <Pressable
             onPress={() => {
               setAvoidFreeways((value) => !value);
               setPlannedRoute(null);
@@ -1293,7 +1317,7 @@ export default function DriveScreen() {
           ) : plannedRoute ? (
             <View style={{ gap: 10 }}>
               <ActionButton onPress={() => void driveThisRoute()}>
-                {CoachCameras && !recordingPrepared ? 'Use this route and start camera' : 'Use this route'}
+                {mockTest ? 'Start mock test on this route' : CoachCameras && !recordingPrepared ? 'Use this route and start camera' : 'Use this route'}
               </ActionButton>
               <ActionButton onPress={() => void generateRoute()} secondary>Regenerate route</ActionButton>
             </View>
@@ -1460,6 +1484,31 @@ export default function DriveScreen() {
                 ))}
               </View>
             )}
+            {drive.mockTest && (() => {
+              const result = gradeMockTest(drive);
+              const color = result.outcome === 'ready' ? palette.success : result.outcome === 'keep-practicing' ? palette.warning : palette.muted;
+              return (
+                <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: palette.border, gap: 8 }}>
+                  <Eyebrow>Mock test result</Eyebrow>
+                  <Text accessibilityRole="header" style={{ color, fontSize: 22, fontWeight: '800' }}>
+                    {result.outcome === 'ready' ? 'Ready by measured checks' : result.outcome === 'keep-practicing' ? 'Keep practicing' : 'Not enough to judge'}
+                  </Text>
+                  <Text style={{ color: palette.text, fontSize: 14, lineHeight: 20 }}>
+                    {result.outcome === 'not-enough-data'
+                      ? `Drive at least 10 minutes and complete 5 or more route turns for a result. ${result.turnsCompleted} turns completed.`
+                      : `${result.critical.length > 0 ? `${result.critical.reduce((sum, item) => sum + item.count, 0)} critical error${result.critical.reduce((sum, item) => sum + item.count, 0) === 1 ? '' : 's'}, ` : 'No critical errors, '}${result.totalMistakes} measured mistake${result.totalMistakes === 1 ? '' : 's'} over ${result.turnsCompleted} turns.`}
+                  </Text>
+                  {[...result.critical.map((item) => ({ ...item, critical: true })), ...result.mistakes.map((item) => ({ ...item, critical: false }))].map((item) => (
+                    <Text key={item.label} style={{ color: item.critical ? palette.destructive : palette.text, fontSize: 14 }}>
+                      {item.critical ? '⛔ ' : '• '}{item.label}{item.count > 1 ? ` ×${item.count}` : ''}
+                    </Text>
+                  ))}
+                  <Text style={{ color: palette.muted, fontSize: 12, lineHeight: 17 }}>
+                    Coastwise's practice bar: no critical errors and no more than {MOCK_TEST_MAX_MISTAKES} measured mistakes. It is not a state's official scoring. The phone cannot see blinkers, lane position, or judgment calls, so the supervising adult should score those too.
+                  </Text>
+                </View>
+              );
+            })()}
             {(drive.turnScores?.length ?? 0) > 0 && (() => {
               const summary = summarizeTurns(drive.turnScores!);
               return (

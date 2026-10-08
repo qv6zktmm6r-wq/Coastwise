@@ -381,6 +381,8 @@ export function advanceGuidance(
   state: GuidanceState,
   latitude: number,
   longitude: number,
+  /** 'examiner' gives directions only, like a road-test examiner: no reminders. */
+  mode: 'coach' | 'examiner' = 'coach',
 ): { state: GuidanceState; cue: string | null; nextInstruction: string | null } {
   let { stepIndex, preparedIndex, signaledIndex } = state;
   const distanceTo = (index: number) => {
@@ -402,6 +404,12 @@ export function advanceGuidance(
     // The loop starts and ends at the same place, so only finish after some progress.
     if (stepIndex > 0 && meters <= STEP_REACHED_METERS * 2 && preparedIndex < stepIndex) {
       cue = step.instruction;
+      preparedIndex = stepIndex;
+      signaledIndex = stepIndex;
+    }
+  } else if (mode === 'examiner') {
+    if (meters <= PREPARE_AHEAD_METERS && preparedIndex < stepIndex) {
+      cue = meters <= SIGNAL_AHEAD_METERS ? `${step.instruction}.` : `${spokenDistance(meters)}, ${lowerFirst(step.instruction)}.`;
       preparedIndex = stepIndex;
       signaledIndex = stepIndex;
     }

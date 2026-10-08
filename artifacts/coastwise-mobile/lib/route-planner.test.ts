@@ -164,3 +164,10 @@ test('rejoining keeps the turns not yet reached', async () => {
   const rejoin = await requestRejoinRoute(37.31, -121.91, route, 0, async () => osrmResponse([{ type: 'depart' }, { type: 'turn', modifier: 'right', name: 'Elm St' }, { type: 'arrive' }]));
   assert.deepEqual(rejoin.steps.map((step) => step.instruction.split('.')[0]), ['Turn right onto Elm St', 'Turn left onto Oak Ave', 'You are back at the start']);
 });
+
+test('examiner mode gives the direction once, with no coaching reminders', () => {
+  let result = advanceGuidance(route, initialGuidanceState, 37.3 + 160 * LATITUDE_PER_METER, -121.9, 'examiner');
+  assert.match(result.cue ?? '', /^In about \d+ feet, turn left onto Oak Ave\.$/);
+  result = advanceGuidance(route, result.state, 37.3 + 250 * LATITUDE_PER_METER, -121.9, 'examiner');
+  assert.equal(result.cue, null);
+});
