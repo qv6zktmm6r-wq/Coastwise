@@ -51,11 +51,20 @@ import { RouteMap } from '@/components/RouteMap';
 import {
   advanceGuidance,
   describeRoute,
+  distanceFromRoute,
+  focusCount,
+  initialAdherenceState,
   initialGuidanceState,
-  requestPracticeLoop,
+  PRACTICE_FOCUS_LABELS,
+  requestPracticeRoute,
+  requestRejoinRoute,
+  ROUTE_CANDIDATES_PER_REQUEST,
   ROUTE_SERVICE_HOST,
+  trackAdherence,
+  type AdherenceState,
   type GuidanceState,
   type PlannedRoute,
+  type PracticeFocus,
 } from '@/lib/route-planner';
 
 const DRIVE_SKILLS = ['turns', 'intersections'];
@@ -67,6 +76,7 @@ const MPH_PER_METER_PER_SECOND = 2.236936;
 /** A face reading older than this means the driver camera no longer sees a face. */
 const FACE_STALE_MS = 600;
 const ATTENTION_SAMPLE_MS = 500;
+const REROUTE_COOLDOWN_MS = 30_000;
 const STOP_KINDS = new Set(['stop-sign-complete', 'rolling-stop', 'camera-stop-complete', 'camera-rolling-stop']);
 function explainPermission(title: string, permission: { granted: boolean; canAskAgain?: boolean } | null | undefined) {
   if (permission?.granted) return;
@@ -169,6 +179,11 @@ export default function DriveScreen() {
   const routeVariant = useRef(Math.floor(Math.random() * 8));
   const activeRouteRef = useRef<PlannedRoute | null>(null);
   const guidanceState = useRef<GuidanceState>(initialGuidanceState);
+  const adherenceState = useRef<AdherenceState>(initialAdherenceState);
+  const rerouting = useRef(false);
+  const lastRerouteAt = useRef(0);
+  const [avoidFreeways, setAvoidFreeways] = useState(true);
+  const [routeFocus, setRouteFocus] = useState<PracticeFocus>('mixed');
 
   const refreshRecordings = useCallback(async () => {
     setStorageLoading(true);
@@ -555,6 +570,26 @@ export default function DriveScreen() {
             guidanceState.current = guidance.state;
             setNextInstruction(guidance.nextInstruction);
             if (guidance.cue) speakCue(guidance.cue);
+            const adherence = trackAdherence(adherenceState.current, distanceFromRoute(route, coords.latitude, coords.longitude), timestamp);
+            adherenceState.current = adherence.state;
+            if (adherence.offRoute && !rerouting.current && Date.now() - lastRerouteAt.current > REROUTE_COOLDOWN_MS) {
+              rerouting.current = true;
+              lastRerouteAt.current = Date.now();
+              speakCue('You have left the route. Keep driving safely while I find the way back.');
+              void requestRejoinRoute(coords.latitude, coords.longitude, route, guidanceState.current.stepIndex)
+                .then((rejoin) => {
+                  if (activeRouteRef.current !== route) return;
+                  setDriveRoute(rejoin);
+                  const first = rejoin.steps[0]?.instruction;
+                  speakCue(first ? `Route updated. ${first}.` : 'Route updated. Follow the highlighted route.');
+                })
+                .catch(() => {
+                  if (activeRouteRef.current === route) speakCue('I could not reach the routing service. Head back toward the highlighted route when it is safe.');
+                })
+                .finally(() => {
+                  rerouting.current = false;
+                });
+            }
           }
         },
       );
@@ -577,6 +612,7 @@ export default function DriveScreen() {
   const setDriveRoute = (route: PlannedRoute | null) => {
     activeRouteRef.current = route;
     guidanceState.current = initialGuidanceState;
+    adherenceState.current = initialAdherenceState;
     setActiveRoute(route);
     setNextInstruction(route?.steps[0]?.instruction ?? null);
   };
@@ -594,8 +630,14 @@ export default function DriveScreen() {
         .catch(() => Location.getLastKnownPositionAsync());
       if (!here) throw new Error('No location');
       const variant = routeVariant.current;
-      routeVariant.current += 1;
-      setPlannedRoute(await requestPracticeLoop(here.coords.latitude, here.coords.longitude, routeMinutes, variant));
+      routeVariant.current += ROUTE_CANDIDATES_PER_REQUEST;
+      setPlannedRoute(await requestPracticeRoute(
+        here.coords.latitude,
+        here.coords.longitude,
+        routeMinutes,
+        variant,
+        { avoidFreeways, focus: routeFocus },
+      ));
     } catch {
       setRouteError('Could not build a route right now. Check your connection and try again, or start without a route.');
     } finally {
@@ -1106,10 +1148,59 @@ export default function DriveScreen() {
             ))}
           </View>
 
+          <Text style={{ color: palette.muted, fontSize: 13, fontWeight: '700', marginBottom: 8 }}>Practice</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            {(Object.keys(PRACTICE_FOCUS_LABELS) as PracticeFocus[]).map((focus) => (
+              <Pressable
+                key={focus}
+                onPress={() => {
+                  setRouteFocus(focus);
+                  setPlannedRoute(null);
+                }}
+                disabled={routeLoading}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: routeFocus === focus, disabled: routeLoading }}
+                style={{
+                  minHeight: 40,
+                  paddingHorizontal: 14,
+                  borderRadius: 20,
+                  justifyContent: 'center',
+                  backgroundColor: routeFocus === focus ? colors.primary : palette.soft,
+                }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '700', color: routeFocus === focus ? '#FFFFFF' : palette.text }}>{PRACTICE_FOCUS_LABELS[focus]}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Pressable
+            onPress={() => {
+              setAvoidFreeways((value) => !value);
+              setPlannedRoute(null);
+            }}
+            disabled={routeLoading}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: avoidFreeways, disabled: routeLoading }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, marginBottom: 12 }}
+          >
+            <Ionicons name={avoidFreeways ? 'checkbox' : 'square-outline'} size={24} color={avoidFreeways ? colors.primary : palette.muted} />
+            <Text style={{ color: palette.text, fontSize: 15, fontWeight: '600', flex: 1 }}>Avoid freeways (recommended for new drivers)</Text>
+          </Pressable>
+
           {plannedRoute && (
             <View style={{ marginBottom: 16, gap: 10 }}>
               <RouteMap route={plannedRoute} height={280} />
-              <Text style={{ color: palette.text, fontSize: 16, fontWeight: '800', textAlign: 'center' }}>{describeRoute(plannedRoute)}</Text>
+              <Text style={{ color: palette.text, fontSize: 16, fontWeight: '800', textAlign: 'center' }}>{describeRoute(plannedRoute, routeFocus)}</Text>
+              {avoidFreeways && plannedRoute.usesFreeway && (
+                <Text style={{ color: palette.warning, fontSize: 14, fontWeight: '600', textAlign: 'center' }}>
+                  Every nearby loop tried uses a freeway ramp. Regenerate, or pick a shorter route.
+                </Text>
+              )}
+              {routeFocus !== 'mixed' && focusCount(plannedRoute, routeFocus) === 0 && (
+                <Text style={{ color: palette.muted, fontSize: 14, textAlign: 'center' }}>
+                  None found on the loops tried. Regenerate, or try a longer route.
+                </Text>
+              )}
             </View>
           )}
 
@@ -1134,7 +1225,7 @@ export default function DriveScreen() {
           )}
 
           <Text style={{ color: palette.muted, fontSize: 12, lineHeight: 17, marginTop: 14 }}>
-            Generating sends your starting point, rounded to about 100 m, to the free public routing service {ROUTE_SERVICE_HOST}. Routes use OpenStreetMap data (© OpenStreetMap contributors) and can be wrong or out of date. Follow posted signs and the supervising adult over the route.
+            Generating sends your starting point, rounded to about 100 m, to the free public routing service {ROUTE_SERVICE_HOST}. If you leave the route during a drive, your position, rounded to about 10 m, is sent to find the way back. Routes use OpenStreetMap data (© OpenStreetMap contributors) and can be wrong or out of date. Follow posted signs and the supervising adult over the route.
           </Text>
         </Card>
       )}

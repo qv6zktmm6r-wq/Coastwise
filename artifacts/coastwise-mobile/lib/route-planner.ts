@@ -27,11 +27,33 @@ export type PlannedRoute = {
   distanceMeters: number;
   durationSeconds: number;
   origin: RouteCoordinate;
+  /** Uses a ramp or an Interstate, judged from the route's maneuvers and road numbers. */
+  usesFreeway: boolean;
 };
+
+export type PracticeFocus = 'mixed' | 'left' | 'right' | 'lanes' | 'roundabout';
+
+export const PRACTICE_FOCUS_LABELS: Record<PracticeFocus, string> = {
+  mixed: 'Mixed',
+  left: 'Left turns',
+  right: 'Right turns',
+  lanes: 'Merges & lanes',
+  roundabout: 'Roundabouts',
+};
+
+export type RouteOptions = { avoidFreeways: boolean; focus: PracticeFocus };
 
 export const ROUTE_SERVICE_HOST = 'router.project-osrm.org';
 /** Three decimals is roughly 100 m; the routing service never sees the exact spot. */
 const ORIGIN_DECIMALS = 3;
+/** Finding the way back needs the real street, so rerouting sends about 10 m precision. */
+const REJOIN_DECIMALS = 4;
+const CANDIDATE_ROUTES = 3;
+/** The public OSRM server asks for no more than one request per second. */
+const REQUEST_SPACING_MS = 1_100;
+const ON_ROUTE_METERS = 35;
+const OFF_ROUTE_METERS = 70;
+const OFF_ROUTE_SECONDS = 6;
 const REQUEST_TIMEOUT_MS = 12_000;
 /** First call: what is coming, check mirrors, ease off. */
 const PREPARE_AHEAD_METERS = 160;
@@ -43,6 +65,7 @@ const FEET_PER_METER = 3.28084;
 type OsrmStep = {
   distance: number;
   name?: string;
+  ref?: string;
   maneuver: { location: RouteCoordinate; modifier?: string; type?: string };
 };
 
@@ -55,8 +78,8 @@ type OsrmRoute = {
 
 type FetchLike = (url: string, init?: { signal?: AbortSignal }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
-function roundCoordinate(value: number) {
-  const factor = 10 ** ORIGIN_DECIMALS;
+function roundCoordinate(value: number, decimals = ORIGIN_DECIMALS) {
+  const factor = 10 ** decimals;
   return Math.round(value * factor) / factor;
 }
 
@@ -111,20 +134,7 @@ export function loopWaypoints(latitude: number, longitude: number, minutes: numb
   return [[longitude, latitude], ...around, [longitude, latitude]];
 }
 
-export async function requestPracticeLoop(
-  latitude: number,
-  longitude: number,
-  minutes: number,
-  variant: number,
-  fetchImpl: FetchLike = fetch,
-): Promise<PlannedRoute> {
-  const lat = roundCoordinate(latitude);
-  const lon = roundCoordinate(longitude);
-  const coordinates = loopWaypoints(lat, lon, minutes, variant)
-    .map(([x, y]) => `${x.toFixed(5)},${y.toFixed(5)}`)
-    .join(';');
-  const url = `https://${ROUTE_SERVICE_HOST}/route/v1/driving/${coordinates}?overview=full&geometries=geojson&steps=true&continue_straight=true`;
-
+async function fetchOsrmRoute(url: string, fetchImpl: FetchLike): Promise<OsrmRoute> {
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const controller = new AbortController();
@@ -134,20 +144,8 @@ export async function requestPracticeLoop(
       if (!response.ok) throw new Error(`Route service returned ${response.status}`);
       const data = await response.json() as { code?: string; routes?: OsrmRoute[] };
       const route = data.routes?.[0];
-      if (data.code !== 'Ok' || !route) throw new Error('No nearby driving loop was found');
-      return {
-        coordinates: route.geometry.coordinates,
-        distanceMeters: route.distance,
-        durationSeconds: route.duration,
-        origin: [lon, lat],
-        steps: route.legs.flatMap((leg) => leg.steps)
-          .filter((step) => step.maneuver.type !== 'depart' && step.maneuver.type !== 'arrive' && step.distance > 12)
-          .concat(route.legs.at(-1)?.steps.filter((step) => step.maneuver.type === 'arrive').slice(-1) ?? [])
-          .map((step) => {
-            const kind = maneuverKind(step);
-            return { instruction: instructionFor(step, kind), location: step.maneuver.location, kind };
-          }),
-      };
+      if (data.code !== 'Ok' || !route) throw new Error('No driving route was found');
+      return route;
     } catch (error) {
       lastError = error;
     } finally {
@@ -155,6 +153,178 @@ export async function requestPracticeLoop(
     }
   }
   throw lastError instanceof Error ? lastError : new Error('Route service unavailable');
+}
+
+function routeUrl(points: RouteCoordinate[], extra = '') {
+  const coordinates = points.map(([x, y]) => `${x.toFixed(5)},${y.toFixed(5)}`).join(';');
+  return `https://${ROUTE_SERVICE_HOST}/route/v1/driving/${coordinates}?overview=full&geometries=geojson&steps=true${extra}`;
+}
+
+function isFreewayStep(step: OsrmStep) {
+  const type = step.maneuver.type;
+  return type === 'on ramp' || type === 'off ramp' || /^I[\s-]?\d/.test(step.ref ?? '');
+}
+
+function toPlannedRoute(route: OsrmRoute, origin: RouteCoordinate): PlannedRoute {
+  const allSteps = route.legs.flatMap((leg) => leg.steps);
+  return {
+    coordinates: route.geometry.coordinates,
+    distanceMeters: route.distance,
+    durationSeconds: route.duration,
+    origin,
+    usesFreeway: allSteps.some(isFreewayStep),
+    steps: allSteps
+      .filter((step) => step.maneuver.type !== 'depart' && step.maneuver.type !== 'arrive' && step.distance > 12)
+      .concat(route.legs.at(-1)?.steps.filter((step) => step.maneuver.type === 'arrive').slice(-1) ?? [])
+      .map((step) => {
+        const kind = maneuverKind(step);
+        return { instruction: instructionFor(step, kind), location: step.maneuver.location, kind };
+      }),
+  };
+}
+
+export async function requestPracticeLoop(
+  latitude: number,
+  longitude: number,
+  minutes: number,
+  variant: number,
+  fetchImpl: FetchLike = fetch,
+): Promise<PlannedRoute> {
+  const lat = roundCoordinate(latitude);
+  const lon = roundCoordinate(longitude);
+  const route = await fetchOsrmRoute(routeUrl(loopWaypoints(lat, lon, minutes, variant), '&continue_straight=true'), fetchImpl);
+  return toPlannedRoute(route, [lon, lat]);
+}
+
+export function focusCount(route: PlannedRoute, focus: PracticeFocus) {
+  const kinds: Record<PracticeFocus, ManeuverKind[]> = {
+    mixed: ['left', 'right', 'keep-left', 'keep-right', 'merge-left', 'merge-right', 'roundabout'],
+    left: ['left'],
+    right: ['right'],
+    lanes: ['keep-left', 'keep-right', 'merge-left', 'merge-right'],
+    roundabout: ['roundabout'],
+  };
+  return route.steps.filter((step) => kinds[focus].includes(step.kind)).length;
+}
+
+/** Freeway-free first when asked, then the most practice of the chosen kind. */
+export function chooseRoute(candidates: PlannedRoute[], options: RouteOptions) {
+  const score = (route: PlannedRoute) => (options.avoidFreeways && route.usesFreeway ? -1000 : 0) + focusCount(route, options.focus);
+  return candidates.reduce((best, route) => (score(route) > score(best) ? route : best));
+}
+
+/**
+ * Builds a few candidate loops and keeps the best one for the options.
+ * `variant` should advance by CANDIDATE_ROUTES between calls.
+ */
+export async function requestPracticeRoute(
+  latitude: number,
+  longitude: number,
+  minutes: number,
+  variant: number,
+  options: RouteOptions,
+  fetchImpl: FetchLike = fetch,
+  wait: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+): Promise<PlannedRoute> {
+  const candidates: PlannedRoute[] = [];
+  let lastError: unknown;
+  for (let offset = 0; offset < CANDIDATE_ROUTES; offset += 1) {
+    if (offset > 0) await wait(REQUEST_SPACING_MS);
+    try {
+      const route = await requestPracticeLoop(latitude, longitude, minutes, variant + offset, fetchImpl);
+      candidates.push(route);
+      const goodEnough = !(options.avoidFreeways && route.usesFreeway) && options.focus === 'mixed';
+      if (goodEnough) break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (options.avoidFreeways && candidates.length > 0 && candidates.every((route) => route.usesFreeway)) {
+    // Smaller loops are less likely to reach a freeway.
+    for (const scale of [0.6, 0.35]) {
+      await wait(REQUEST_SPACING_MS);
+      try {
+        const route = await requestPracticeLoop(latitude, longitude, minutes * scale, variant, fetchImpl);
+        candidates.push(route);
+        if (!route.usesFreeway) break;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+  }
+  if (candidates.length === 0) throw lastError instanceof Error ? lastError : new Error('No nearby driving loop was found');
+  return chooseRoute(candidates, options);
+}
+
+export const ROUTE_CANDIDATES_PER_REQUEST = CANDIDATE_ROUTES;
+
+function nearestCoordinateIndex(coordinates: RouteCoordinate[], target: RouteCoordinate) {
+  let best = 0;
+  let bestMeters = Infinity;
+  coordinates.forEach(([lon, lat], index) => {
+    const meters = distanceMeters(lat, lon, target[1], target[0]);
+    if (meters < bestMeters) {
+      bestMeters = meters;
+      best = index;
+    }
+  });
+  return best;
+}
+
+/** A path from the driver back to the next turn they have not reached, followed by the rest of the loop. */
+export async function requestRejoinRoute(
+  latitude: number,
+  longitude: number,
+  route: PlannedRoute,
+  stepIndex: number,
+  fetchImpl: FetchLike = fetch,
+): Promise<PlannedRoute> {
+  const remaining = route.steps.slice(Math.min(stepIndex, route.steps.length - 1));
+  const target = remaining[0]?.location ?? route.origin;
+  const here: RouteCoordinate = [roundCoordinate(longitude, REJOIN_DECIMALS), roundCoordinate(latitude, REJOIN_DECIMALS)];
+  const back = toPlannedRoute(await fetchOsrmRoute(routeUrl([here, target]), fetchImpl), route.origin);
+  return {
+    coordinates: [...back.coordinates, ...route.coordinates.slice(nearestCoordinateIndex(route.coordinates, target))],
+    distanceMeters: back.distanceMeters,
+    durationSeconds: back.durationSeconds,
+    origin: route.origin,
+    usesFreeway: back.usesFreeway || route.usesFreeway,
+    steps: [...back.steps.filter((step) => step.kind !== 'arrive'), ...remaining],
+  };
+}
+
+/** Meters from a point to the closest part of the route line. */
+export function distanceFromRoute(route: PlannedRoute, latitude: number, longitude: number) {
+  const metersPerLat = 111_195;
+  const metersPerLon = metersPerLat * Math.cos(latitude * Math.PI / 180);
+  const toLocal = ([lon, lat]: RouteCoordinate) => [(lon - longitude) * metersPerLon, (lat - latitude) * metersPerLat];
+  let best = Infinity;
+  for (let index = 1; index < route.coordinates.length; index += 1) {
+    const [ax, ay] = toLocal(route.coordinates[index - 1]);
+    const [bx, by] = toLocal(route.coordinates[index]);
+    const dx = bx - ax;
+    const dy = by - ay;
+    const lengthSquared = dx * dx + dy * dy;
+    const t = lengthSquared === 0 ? 0 : Math.max(0, Math.min(1, -(ax * dx + ay * dy) / lengthSquared));
+    best = Math.min(best, Math.hypot(ax + t * dx, ay + t * dy));
+  }
+  return best;
+}
+
+export type AdherenceState = { joined: boolean; offSince: number | null };
+export const initialAdherenceState: AdherenceState = { joined: false, offSince: null };
+
+/**
+ * Reports leaving the route only after the driver has been on it, and only
+ * when they stay well away from it for several seconds, so GPS jitter and the
+ * drive to the first street do not trigger a reroute.
+ */
+export function trackAdherence(state: AdherenceState, metersFromRoute: number, timestamp: number) {
+  if (metersFromRoute <= ON_ROUTE_METERS) return { state: { joined: true, offSince: null }, offRoute: false };
+  if (!state.joined || metersFromRoute <= OFF_ROUTE_METERS) return { state: { ...state, offSince: null }, offRoute: false };
+  const offSince = state.offSince ?? timestamp;
+  const offRoute = timestamp - offSince >= OFF_ROUTE_SECONDS * 1000;
+  return { state: offRoute ? initialAdherenceState : { joined: true, offSince }, offRoute };
 }
 
 export type GuidanceState = { stepIndex: number; preparedIndex: number; signaledIndex: number };
@@ -248,9 +418,18 @@ export function advanceGuidance(
   return { state: { stepIndex, preparedIndex, signaledIndex }, cue, nextInstruction: step.instruction };
 }
 
-export function describeRoute(route: PlannedRoute) {
+const FOCUS_UNITS: Record<PracticeFocus, [string, string]> = {
+  mixed: ['turn', 'turns'],
+  left: ['left turn', 'left turns'],
+  right: ['right turn', 'right turns'],
+  lanes: ['merge or lane change', 'merges or lane changes'],
+  roundabout: ['roundabout', 'roundabouts'],
+};
+
+export function describeRoute(route: PlannedRoute, focus: PracticeFocus = 'mixed') {
   const miles = route.distanceMeters / METERS_PER_MILE;
   const minutes = Math.max(1, Math.round(route.durationSeconds / 60));
-  const turns = route.steps.filter((step) => step.kind !== 'arrive' && step.kind !== 'straight').length;
-  return `${miles.toFixed(1)} mi · about ${minutes} min · ${turns} turns`;
+  const count = focusCount(route, focus);
+  const [one, many] = FOCUS_UNITS[focus];
+  return `${miles.toFixed(1)} mi · about ${minutes} min · ${count} ${count === 1 ? one : many}`;
 }

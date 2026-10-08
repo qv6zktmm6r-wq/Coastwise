@@ -2,9 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   advanceGuidance,
+  chooseRoute,
+  distanceFromRoute,
+  initialAdherenceState,
   initialGuidanceState,
   loopWaypoints,
   requestPracticeLoop,
+  requestPracticeRoute,
+  requestRejoinRoute,
+  trackAdherence,
   type PlannedRoute,
 } from './route-planner.ts';
 
@@ -52,6 +58,7 @@ const route: PlannedRoute = {
   distanceMeters: 1000,
   durationSeconds: 120,
   origin: [-121.9, 37.3],
+  usesFreeway: false,
   steps: [
     { instruction: 'Turn left onto Oak Ave', location: [-121.9, 37.3 + 300 * LATITUDE_PER_METER], kind: 'left' },
     { instruction: 'You are back at the start.', location: [-121.9, 37.3], kind: 'arrive' },
@@ -92,4 +99,68 @@ test('a merge right calls out the right mirror and blind spot', () => {
 test('does not finish the loop at the very start', () => {
   const finishOnly: PlannedRoute = { ...route, steps: [route.steps[1]] };
   assert.equal(advanceGuidance(finishOnly, initialGuidanceState, 37.3, -121.9).cue, null);
+});
+
+function osrmResponse(steps: Array<{ type: string; modifier?: string; ref?: string; name?: string }>) {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({
+      code: 'Ok',
+      routes: [{
+        distance: 4000,
+        duration: 500,
+        geometry: { coordinates: [[-121.9, 37.3], [-121.9, 37.31]] },
+        legs: [{
+          steps: steps.map((step, index) => ({
+            distance: 200,
+            name: step.name ?? `Street ${index}`,
+            ref: step.ref,
+            maneuver: { type: step.type, modifier: step.modifier, location: [-121.9, 37.3 + index * 0.001] },
+          })),
+        }],
+      }],
+    }),
+  };
+}
+
+test('freeway ramps and Interstates are flagged, and a freeway-free loop is preferred', async () => {
+  const responses = [
+    osrmResponse([{ type: 'depart' }, { type: 'on ramp', modifier: 'slight right' }, { type: 'merge', modifier: 'slight left', ref: 'I 280' }, { type: 'arrive' }]),
+    osrmResponse([{ type: 'depart' }, { type: 'turn', modifier: 'left' }, { type: 'arrive' }]),
+  ];
+  let calls = 0;
+  const chosen = await requestPracticeRoute(37.3, -121.9, 20, 0, { avoidFreeways: true, focus: 'mixed' }, async () => responses[Math.min(calls++, 1)], async () => undefined);
+  assert.equal(chosen.usesFreeway, false);
+  assert.equal(calls, 2);
+});
+
+test('a practice focus picks the loop with the most of that maneuver', () => {
+  const withTurns = (kinds: Array<'left' | 'right'>): PlannedRoute => ({
+    ...route,
+    steps: kinds.map((kind) => ({ instruction: kind, location: route.origin, kind })),
+  });
+  const best = chooseRoute([withTurns(['right', 'left']), withTurns(['left', 'left', 'left'])], { avoidFreeways: true, focus: 'left' });
+  assert.equal(best.steps.length, 3);
+});
+
+test('leaving the route is reported only after being on it and staying away', () => {
+  const line: PlannedRoute = { ...route, coordinates: [[-121.9, 37.3], [-121.9, 37.31]] };
+  const east = (meters: number) => -121.9 + meters / (111_195 * Math.cos(37.3 * Math.PI / 180));
+  assert.ok(distanceFromRoute(line, 37.305, east(100)) > 95);
+
+  let result = trackAdherence(initialAdherenceState, 200, 0);
+  assert.equal(result.offRoute, false);
+  assert.equal(result.state.joined, false);
+
+  result = trackAdherence(result.state, 10, 1000);
+  result = trackAdherence(result.state, 100, 2000);
+  assert.equal(result.offRoute, false);
+  result = trackAdherence(result.state, 100, 9000);
+  assert.equal(result.offRoute, true);
+});
+
+test('rejoining keeps the turns not yet reached', async () => {
+  const rejoin = await requestRejoinRoute(37.31, -121.91, route, 0, async () => osrmResponse([{ type: 'depart' }, { type: 'turn', modifier: 'right', name: 'Elm St' }, { type: 'arrive' }]));
+  assert.deepEqual(rejoin.steps.map((step) => step.instruction.split('.')[0]), ['Turn right onto Elm St', 'Turn left onto Oak Ave', 'You are back at the start']);
 });
