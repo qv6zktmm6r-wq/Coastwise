@@ -1,7 +1,9 @@
 import { useCreateDriveDebrief } from '@workspace/api-client-react';
 import { CameraView, useCameraPermissions, useMicrophonePermissions, type CameraView as CameraViewType } from 'expo-camera';
+import { setAudioModeAsync } from 'expo-audio';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as Location from 'expo-location';
+import * as Speech from 'expo-speech';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, Linking, Platform, Pressable, Text, View, AccessibilityInfo } from 'react-native';
 import { ActionButton, Body, Card, Eyebrow, Screen, Title, usePalette } from '@/components/ui';
@@ -25,6 +27,16 @@ import {
   shouldRequestMicrophonePermission,
 } from '@/lib/drive-lifecycle';
 import { addDistanceFix, MAX_FIX_ACCURACY_METERS, METERS_PER_MILE, type DistanceFix } from '@/lib/drive-distance';
+import { evaluateSignals, initialSignalState, type SignalState } from '@/lib/drive-signals';
+import {
+  chooseSpokenCue,
+  coachTitle,
+  describeEvent,
+  initialCoachVoiceState,
+  recordEvent,
+  summarizeForDebrief,
+  type CoachVoiceState,
+} from '@/lib/drive-coach';
 
 const DRIVE_SKILLS = ['turns', 'intersections'];
 const KEEP_AWAKE_TAG = 'coastwise-active-drive';
@@ -73,6 +85,9 @@ export default function DriveScreen() {
   const cameraRef = useRef<CameraViewType | null>(null);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
   const distanceAnchor = useRef<DistanceFix | null>(null);
+  const signalState = useRef<SignalState>(initialSignalState);
+  const coachVoiceState = useRef<CoachVoiceState>(initialCoachVoiceState);
+  const voiceOnRef = useRef(true);
   const driveRef = useRef<MobileDrive | null>(null);
   const elapsedRef = useRef(0);
   const lifecycleRef = useRef(new DriveLifecycleCoordinator());
@@ -80,6 +95,9 @@ export default function DriveScreen() {
   const [microphonePermission, requestMicrophonePermission] = useMicrophonePermissions();
   const [locationReady, setLocationReady] = useState(false);
   const [gpsAccuracyMeters, setGpsAccuracyMeters] = useState<number | null>(null);
+  const [speedMph, setSpeedMph] = useState<number | null>(null);
+  const [lastCue, setLastCue] = useState<string | null>(null);
+  const [voiceOn, setVoiceOn] = useState(true);
   const [active, setActive] = useState(false);
   const [recoveryPending, setRecoveryPending] = useState(false);
   const [recoveryActionPending, setRecoveryActionPending] = useState(false);
@@ -155,9 +173,26 @@ export default function DriveScreen() {
     locationSubscription.current?.remove();
     locationSubscription.current = null;
     distanceAnchor.current = null;
+    signalState.current = initialSignalState;
+    void Speech.stop();
     setLocationReady(false);
     setGpsAccuracyMeters(null);
+    setSpeedMph(null);
   }, []);
+
+  const speakCue = useCallback((text: string) => {
+    setLastCue(text);
+    if (!voiceOnRef.current) return;
+    void Speech.stop();
+    Speech.speak(text, { language: 'en-US', rate: 0.95 });
+  }, []);
+
+  const toggleVoice = () => {
+    const next = !voiceOnRef.current;
+    voiceOnRef.current = next;
+    setVoiceOn(next);
+    if (!next) void Speech.stop();
+  };
 
   useEffect(() => {
     if (!active) return;
@@ -167,6 +202,17 @@ export default function DriveScreen() {
       void deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => undefined);
     };
   }, [active]);
+
+  useEffect(() => {
+    if (!active) return;
+    // Without this, the iPhone silent switch mutes every spoken cue.
+    void setAudioModeAsync({
+      playsInSilentMode: true,
+      interruptionMode: 'duckOthers',
+      allowsRecording: recordingPrepared && Boolean(microphonePermission?.granted),
+      shouldPlayInBackground: false,
+    }).catch(() => undefined);
+  }, [active, recordingPrepared, microphonePermission?.granted]);
 
   const pauseForInterruption = useCallback(() => {
     const current = driveRef.current;
@@ -225,12 +271,28 @@ export default function DriveScreen() {
             timestamp,
           });
           distanceAnchor.current = step.anchor;
-          if (step.meters <= 0) return;
+          const measured = evaluateSignals(signalState.current, {
+            speedMetersPerSecond: coords.speed,
+            headingDegrees: coords.heading,
+            accuracyMeters: coords.accuracy,
+            timestamp,
+          });
+          signalState.current = measured.state;
+          setSpeedMph(measured.speedMph);
+          if (step.meters <= 0 && measured.signals.length === 0) return;
           const current = driveRef.current;
           if (!current || current.id !== session.id) return;
+          let events = current.events;
+          for (const signal of measured.signals) {
+            events = recordEvent(events, signal, elapsedRef.current);
+            const cue = chooseSpokenCue(coachVoiceState.current, signal);
+            coachVoiceState.current = cue.state;
+            if (cue.spoken) speakCue(cue.spoken);
+          }
           const updated: ActiveMobileDrive = {
             ...current,
             distanceMiles: current.distanceMiles + step.meters / METERS_PER_MILE,
+            events,
             startedAt: session.startedAt,
             elapsedSeconds: elapsedRef.current,
           };
@@ -270,7 +332,9 @@ export default function DriveScreen() {
     if (await beginLocationTracking(session)) {
       lifecycleRef.current.beginDrive();
       beginActiveDrive(session);
-      AccessibilityInfo.announceForAccessibility("Coached drive started.");
+      coachVoiceState.current = initialCoachVoiceState;
+      setLastCue(null);
+      speakCue('Coached drive started. I will speak up when GPS measures something worth coaching.');
     }
   };
 
@@ -452,7 +516,7 @@ export default function DriveScreen() {
         distanceMiles: drive.distanceMiles,
         night: drive.night,
         skills: drive.skills,
-        events: [],
+        events: summarizeForDebrief(drive.events),
         weakTopics: getMobileWeakTopics(jurisdiction, contentPackVersion, practiceProgress ?? {}),
         jurisdiction,
         contentPackVersion,
@@ -509,6 +573,26 @@ export default function DriveScreen() {
                     ? `GPS strong (±${Math.round(gpsAccuracyMeters)} m)`
                     : `GPS weak (±${Math.round(gpsAccuracyMeters)} m), waiting for a better fix`}
               </Text>
+            </View>
+
+            <Text style={{ color: palette.muted, fontSize: 15, fontWeight: '600', textAlign: 'center', marginBottom: 16 }}>
+              {speedMph === null ? 'GPS speed estimate unavailable' : `About ${Math.round(speedMph)} mph (GPS estimate)`}
+            </Text>
+
+            <View
+              accessibilityLiveRegion="polite"
+              style={{ backgroundColor: palette.soft, borderRadius: 16, padding: 16, marginBottom: 16 }}
+            >
+              <Eyebrow>Coach</Eyebrow>
+              <Text style={{ color: palette.text, fontSize: 17, fontWeight: '700', lineHeight: 24 }}>
+                {lastCue ?? 'Listening to GPS. Quiet means nothing needed coaching.'}
+              </Text>
+            </View>
+
+            <View style={{ marginBottom: 16 }}>
+              <ActionButton onPress={toggleVoice} secondary>
+                {voiceOn ? 'Mute coach voice' : 'Turn coach voice on'}
+              </ActionButton>
             </View>
             
             <ActionButton onPress={() => void stopDrive()} destructive>Stop drive while parked</ActionButton>
@@ -656,6 +740,16 @@ export default function DriveScreen() {
               <Ionicons name="git-merge" size={16} color={palette.text} />
               <Text style={{ color: palette.text, fontWeight: '600' }}>{drive.skills.join(' and ')}</Text>
             </View>
+            {(drive.events?.length ?? 0) > 0 && (
+              <View style={{ marginTop: 12, gap: 6 }}>
+                {drive.events!.slice(-5).reverse().map((event, index) => (
+                  <Text key={`${event.secondsIntoDrive}-${event.kind}-${index}`} style={{ color: palette.text, fontSize: 14 }}>
+                    <Text style={{ fontWeight: '700' }}>{coachTitle(event.kind)}</Text>
+                    {` at ${Math.floor(event.secondsIntoDrive / 60)}:${String(event.secondsIntoDrive % 60).padStart(2, '0')}. ${describeEvent(event)}`}
+                  </Text>
+                ))}
+              </View>
+            )}
             {drive.recordingSizeBytes !== undefined && (
               <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 8 }}>
                 <Ionicons name="videocam" size={16} color={palette.text} />

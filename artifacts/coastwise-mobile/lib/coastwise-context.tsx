@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { DriveDebrief, NextDrivePlan } from '@workspace/api-client-react';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import type { DriveEventRecord } from './drive-coach';
 import { beginDriveState, CURRENT_CALIFORNIA_CONTENT_PACK_VERSION, DEFAULT_JURISDICTION, finishDriveState, getMobileContentPackVersion, hydrateMobileState, isApprovedMobileJurisdiction, saveDriveState, updateDriveState } from './mobile-state';
 
 const STORAGE_KEY = 'coastwise-mobile-state';
@@ -12,6 +13,8 @@ export type MobileDrive = {
   distanceMiles: number;
   night: boolean;
   skills: string[];
+  /** Measured GPS events. Stays on this device; the debrief receives counts only. */
+  events?: DriveEventRecord[];
   debrief?: DriveDebrief;
   recordingUri?: string;
   recordingSizeBytes?: number;
