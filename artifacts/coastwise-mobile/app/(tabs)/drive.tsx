@@ -43,7 +43,8 @@ import { evaluateManeuvers, initialManeuverState, type ManeuverState } from '@/l
 import { isAfterDark } from '@/lib/sun';
 import { emptyMapFeatures, fetchMapTile, MAP_ATTRIBUTION, mergeMapFeatures, tileKey, type MapFeatures } from '@/lib/map-data';
 import { evaluateVision, initialVisionState, type Detection, type VisionState } from '@/lib/road-vision';
-import { evaluateAttention, initialAttentionState, stopScanVerdict, type AttentionState } from '@/lib/driver-attention';
+import { evaluateAttention, headTurnsBetween, initialAttentionState, stopScanVerdict, trackingReliable, type AttentionState } from '@/lib/driver-attention';
+import { approachStart, scoreTurn, summarizeTurns, TURN_SETTLE_MS, TURNING_SPEED_MPH, type TurnCheck, type TurnObservation, type TurnScore } from '@/lib/turn-scores';
 import { loadCoachCameras } from '@/lib/native-vision';
 import { chooseCoachVoice, type ChosenVoice } from '@/lib/coach-voice';
 import type { CoachCameraStatus } from '@/components/CoachCameras';
@@ -77,6 +78,8 @@ const MPH_PER_METER_PER_SECOND = 2.236936;
 const FACE_STALE_MS = 600;
 const ATTENTION_SAMPLE_MS = 500;
 const REROUTE_COOLDOWN_MS = 30_000;
+const TURN_HISTORY_MS = 90_000;
+const TURN_CHECK_LABELS: Record<TurnCheck, string> = { pass: '✓', miss: '✗', 'not-measured': '–', 'not-applicable': '' };
 const STOP_KINDS = new Set(['stop-sign-complete', 'rolling-stop', 'camera-stop-complete', 'camera-rolling-stop']);
 function explainPermission(title: string, permission: { granted: boolean; canAskAgain?: boolean } | null | undefined) {
   if (permission?.granted) return;
@@ -182,6 +185,10 @@ export default function DriveScreen() {
   const adherenceState = useRef<AdherenceState>(initialAdherenceState);
   const rerouting = useRef(false);
   const lastRerouteAt = useRef(0);
+  const speedSamples = useRef<Array<{ at: number; mph: number }>>([]);
+  const roughEvents = useRef<Array<{ at: number; kind: string }>>([]);
+  const turnCallTimes = useRef(new Map<number, { preparedAt: number | null; signaledAt: number | null }>());
+  const pendingTurns = useRef<Array<Omit<TurnObservation, 'speeds' | 'roughEvents' | 'headCheck'>>>([]);
   const [avoidFreeways, setAvoidFreeways] = useState(true);
   const [routeFocus, setRouteFocus] = useState<PracticeFocus>('mixed');
 
@@ -377,6 +384,9 @@ export default function DriveScreen() {
         });
       }
     }
+    for (const event of detected) {
+      if (event.kind === 'hard-brake' || event.kind === 'sharp-turn') roughEvents.current.push({ at: event.at, kind: event.kind });
+    }
     let events = current.events;
     for (const event of withScans) {
       events = recordEvent(events, event, elapsedRef.current);
@@ -564,10 +574,17 @@ export default function DriveScreen() {
             detected.push(...graded.events);
           }
           applyEvents(detected, step.meters, session.id);
+          if (measured.speedMph !== null) {
+            speedSamples.current = [...speedSamples.current.filter((sample) => timestamp - sample.at <= TURN_HISTORY_MS), { at: timestamp, mph: measured.speedMph }];
+          }
+          roughEvents.current = roughEvents.current.filter((event) => timestamp - event.at <= TURN_HISTORY_MS);
+          finalizeTurns(timestamp);
           const route = activeRouteRef.current;
           if (route && (coords.accuracy ?? Infinity) <= MAX_FIX_ACCURACY_METERS) {
-            const guidance = advanceGuidance(route, guidanceState.current, coords.latitude, coords.longitude);
+            const before = guidanceState.current;
+            const guidance = advanceGuidance(route, before, coords.latitude, coords.longitude);
             guidanceState.current = guidance.state;
+            noteTurnProgress(route, before, guidance.state, timestamp);
             setNextInstruction(guidance.nextInstruction);
             if (guidance.cue) speakCue(guidance.cue);
             const adherence = trackAdherence(adherenceState.current, distanceFromRoute(route, coords.latitude, coords.longitude), timestamp);
@@ -579,6 +596,10 @@ export default function DriveScreen() {
               void requestRejoinRoute(coords.latitude, coords.longitude, route, guidanceState.current.stepIndex)
                 .then((rejoin) => {
                   if (activeRouteRef.current !== route) return;
+                  const skipped = route.steps[guidanceState.current.stepIndex];
+                  if (skipped && skipped.kind !== 'arrive' && skipped.kind !== 'straight') {
+                    pendingTurns.current.push({ instruction: skipped.instruction, kind: skipped.kind, completed: false, preparedAt: null, signaledAt: null, reachedAt: Date.now() });
+                  }
                   setDriveRoute(rejoin);
                   const first = rejoin.steps[0]?.instruction;
                   speakCue(first ? `Route updated. ${first}.` : 'Route updated. Follow the highlighted route.');
@@ -609,10 +630,66 @@ export default function DriveScreen() {
     }
   };
 
+  const appendTurnScores = (scores: TurnScore[]) => {
+    const current = driveRef.current;
+    if (!current || scores.length === 0) return;
+    const updated: ActiveMobileDrive = {
+      ...(current as ActiveMobileDrive),
+      turnScores: [...(current.turnScores ?? []), ...scores],
+      startedAt: (current as ActiveMobileDrive).startedAt ?? activeDrive?.startedAt ?? new Date().toISOString(),
+      elapsedSeconds: elapsedRef.current,
+    };
+    driveRef.current = updated;
+    setDrive(updated);
+    updateActiveDrive(updated);
+  };
+
+  /** Scores turns once they have settled, or all of them when the drive ends. */
+  const finalizeTurns = (now: number | null) => {
+    const ready = pendingTurns.current.filter((turn) => now === null || now - turn.reachedAt >= TURN_SETTLE_MS);
+    if (ready.length === 0) return;
+    pendingTurns.current = pendingTurns.current.filter((turn) => !ready.includes(turn));
+    const attention = attentionState.current;
+    appendTurnScores(ready.map((turn) => {
+      const from = (turn.signaledAt ?? approachStart(turn)) - 1_000;
+      return scoreTurn({
+        ...turn,
+        speeds: speedSamples.current,
+        roughEvents: roughEvents.current,
+        headCheck: driveRef.current?.driverAttention
+          ? { reliable: trackingReliable(attention, turn.reachedAt), headTurns: headTurnsBetween(attention, from, turn.reachedAt + 1_000) }
+          : null,
+      });
+    }));
+  };
+
+  const noteTurnProgress = (route: PlannedRoute, before: GuidanceState, after: GuidanceState, timestamp: number) => {
+    const times = turnCallTimes.current;
+    if (after.preparedIndex > before.preparedIndex) {
+      times.set(after.preparedIndex, { preparedAt: timestamp, signaledAt: times.get(after.preparedIndex)?.signaledAt ?? null });
+    }
+    if (after.signaledIndex > before.signaledIndex) {
+      times.set(after.signaledIndex, { preparedAt: times.get(after.signaledIndex)?.preparedAt ?? null, signaledAt: timestamp });
+    }
+    for (let index = before.stepIndex; index < after.stepIndex; index += 1) {
+      const step = route.steps[index];
+      if (!step || step.kind === 'arrive' || step.kind === 'straight') continue;
+      pendingTurns.current.push({
+        instruction: step.instruction,
+        kind: step.kind,
+        completed: index === after.stepIndex - 1,
+        preparedAt: times.get(index)?.preparedAt ?? null,
+        signaledAt: times.get(index)?.signaledAt ?? null,
+        reachedAt: timestamp,
+      });
+    }
+  };
+
   const setDriveRoute = (route: PlannedRoute | null) => {
     activeRouteRef.current = route;
     guidanceState.current = initialGuidanceState;
     adherenceState.current = initialAdherenceState;
+    turnCallTimes.current = new Map();
     setActiveRoute(route);
     setNextInstruction(route?.steps[0]?.instruction ?? null);
   };
@@ -664,6 +741,9 @@ export default function DriveScreen() {
       elapsedSeconds: 0,
       recordingRequested: recordingPrepared,
     };
+    speedSamples.current = [];
+    roughEvents.current = [];
+    pendingTurns.current = [];
     if (await beginLocationTracking(session)) {
       lifecycleRef.current.beginDrive();
       beginActiveDrive(session);
@@ -766,6 +846,7 @@ export default function DriveScreen() {
   };
 
   const stopDrive = async () => {
+    finalizeTurns(null);
     await lifecycleRef.current.end(
       () => driveRef.current,
       () => elapsedRef.current,
@@ -1379,6 +1460,58 @@ export default function DriveScreen() {
                 ))}
               </View>
             )}
+            {(drive.turnScores?.length ?? 0) > 0 && (() => {
+              const summary = summarizeTurns(drive.turnScores!);
+              return (
+                <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: palette.border, gap: 10 }}>
+                  <Eyebrow>Turn by turn</Eyebrow>
+                  <Text style={{ color: palette.text, fontSize: 16, fontWeight: '800' }}>
+                    {summary.clean} of {summary.completed} turns clean{summary.missed > 0 ? ` · ${summary.missed} missed` : ''}
+                  </Text>
+                  {drive.turnScores!.map((turn, index) => (
+                    <View
+                      key={`${index}-${turn.instruction}`}
+                      accessible
+                      accessibilityLabel={turn.completed
+                        ? `${turn.instruction}. Slowed: ${turn.slowed}. Smooth: ${turn.smooth}. Head check: ${turn.headCheck}.`
+                        : `${turn.instruction}. Missed.`}
+                      style={{ backgroundColor: palette.card, borderRadius: 12, padding: 12, gap: 6 }}
+                    >
+                      <Text style={{ color: palette.text, fontSize: 15, fontWeight: '700' }}>{turn.instruction}</Text>
+                      {turn.completed ? (
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                          {([
+                            ['Slowed', turn.slowed, turn.slowestMph !== null ? ` ${turn.slowestMph} mph` : ''],
+                            ['Smooth', turn.smooth, ''],
+                            ['Head check', turn.headCheck, ''],
+                          ] as const).filter(([, check]) => check !== 'not-applicable').map(([label, check, extra]) => (
+                            <View
+                              key={label}
+                              style={{
+                                flexDirection: 'row',
+                                paddingHorizontal: 10,
+                                paddingVertical: 4,
+                                borderRadius: 999,
+                                backgroundColor: check === 'pass' ? `${palette.success}20` : check === 'miss' ? `${palette.warning}25` : palette.soft,
+                              }}
+                            >
+                              <Text style={{ color: check === 'pass' ? palette.success : check === 'miss' ? palette.warning : palette.muted, fontSize: 13, fontWeight: '700' }}>
+                                {TURN_CHECK_LABELS[check]} {label}{check === 'not-measured' ? ' (not measured)' : extra}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      ) : (
+                        <Text style={{ color: palette.warning, fontSize: 13, fontWeight: '700' }}>Missed: the route was left before this turn</Text>
+                      )}
+                    </View>
+                  ))}
+                  <Text style={{ color: palette.muted, fontSize: 12, lineHeight: 17 }}>
+                    Slowed means under {TURNING_SPEED_MPH} mph through the turn by GPS. Smooth means no hard braking or sharp cornering was measured. Head checks need the driver camera. Blinker use is not measured, so ask the supervising adult.
+                  </Text>
+                </View>
+              );
+            })()}
             {drive.recordingSizeBytes !== undefined && (
               <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 8 }}>
                 <Ionicons name="videocam" size={16} color={palette.text} />

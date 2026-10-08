@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { TurnScore } from './turn-scores';
 import type { DriveDebrief, NextDrivePlan } from '@workspace/api-client-react';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { DriveEventRecord } from './drive-coach';
@@ -21,6 +22,8 @@ export type MobileDrive = {
   cameraCoaching?: boolean;
   /** True when the opt-in driver-facing attention camera ran for this drive. */
   driverAttention?: boolean;
+  /** Per-turn review for drives that followed a planned route. Stays on this device. */
+  turnScores?: TurnScore[];
   debrief?: DriveDebrief;
   recordingUri?: string;
   recordingSizeBytes?: number;
