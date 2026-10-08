@@ -22,6 +22,8 @@ const BASELINE_PATH = resolve(dirname(fileURLToPath(import.meta.url)), '../../..
 const FETCH_TIMEOUT_MS = 90_000;
 const FETCH_ATTEMPTS = 2;
 export const REVIEW_MAX_AGE_DAYS = 180;
+/** Hosts whose bot protection never answers automated requests; they are listed for a by-hand check instead. */
+const MANUAL_CHECK_HOSTS = new Set(['www.ilsos.gov']);
 const DAY_MS = 86_400_000;
 
 type Fingerprint = { sha256: string; kind: 'html' | 'binary'; reviewedAt: string };
@@ -121,8 +123,10 @@ async function main() {
   const changed: string[] = [];
   const unreviewed: string[] = [];
   const unreachable: { url: string; reason: string }[] = [];
+  const manual = [...sources.keys()].filter((url) => MANUAL_CHECK_HOSTS.has(new URL(url).host)).sort();
+  for (const url of manual) if (baseline[url]) next[url] = baseline[url];
 
-  const urls = [...sources.keys()].sort();
+  const urls = [...sources.keys()].filter((url) => !manual.includes(url)).sort();
   await Promise.all(urls.map(async (url) => {
     try {
       const current = await fingerprint(url);
@@ -146,11 +150,12 @@ async function main() {
   };
   const sections = [
     `# Content source check — ${today}`,
-    `Checked ${urls.length} official sources.`,
+    `Checked ${urls.length} official sources automatically.`,
     changed.length ? `## Changed since last review (${changed.length})\nRe-read these sources, update affected questions if the rules changed, bump the state's pack version, then run \`pnpm content:sources --update\`.\n\n${changed.sort().map(describe).join('\n')}` : '## No reviewed source changed',
     stale.length ? `## Review older than ${REVIEW_MAX_AGE_DAYS} days (${stale.length})\nRe-read the handbook for law changes, update questions if needed, then update the review date.\n\n${stale.join('\n')}` : '',
     unreviewed.length ? `## Not yet in the reviewed baseline (${unreviewed.length})\n${unreviewed.sort().map(describe).join('\n')}` : '',
     unreachable.length ? `## Could not be checked (${unreachable.length})\nUsually temporary; a source that stays unreachable may have moved.\n\n${unreachable.sort((a, b) => a.url.localeCompare(b.url)).map(({ url, reason }) => `${describe(url)}\n  - ${reason}`).join('\n')}` : '',
+    manual.length ? `## Check by hand at the scheduled law-change review (${manual.length})\nThese sites block automated checks.\n\n${manual.map(describe).join('\n')}` : '',
   ].filter(Boolean).join('\n\n');
 
   console.log(sections);

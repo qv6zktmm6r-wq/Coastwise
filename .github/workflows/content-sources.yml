@@ -68,6 +68,7 @@ jobs:
 
           - [ ] Check the state DMV news or legislative summary for new traffic laws.
           - [ ] Compare the current official handbook against the source matrix in docs/content-packs.
+          - [ ] Open the Illinois Secretary of State pages by hand (ilsos.gov blocks automated checks) and compare them with docs/content-packs/illinois-source-matrix.md.
           - [ ] Update affected questions, scenarios, and picture questions; bump the pack version.
           - [ ] Update the pack and source-matrix review dates.
           - [ ] Run pnpm --dir artifacts/california-driver-coach run content:sources --update after review.
