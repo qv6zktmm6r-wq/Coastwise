@@ -71,6 +71,15 @@ export default function PrivacyScreen() {
           </View>
           <Body>If you turn on map coaching, Coastwise downloads OpenStreetMap stop signs and speed limits for the roughly 2 km square you are driving in. The request names only that square, never your exact position or route, and is sent to the public OpenStreetMap Overpass service. Map data can be missing or out of date, so cues always say they come from the map.</Body>
         </Card>
+        <Card>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: palette.soft, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="eye" size={20} color={palette.text} />
+            </View>
+            <Eyebrow style={{ marginBottom: 0 }}>Optional camera coaching</Eyebrow>
+          </View>
+          <Body>If you turn on the road camera, an object detector running on this phone looks for stop signs and the vehicle ahead. If the student and supervising adult both agree to the driver camera, the phone reads only head angles to check head turns and long looks away. Camera frames are analyzed in memory and immediately discarded. They are never saved, synced, or sent to any AI service. Only the resulting moments (for example, "rolling stop at 4:12") are kept with the drive on this device, and only their counts are included in an optional debrief.</Body>
+        </Card>
       </View>
       
       <Pressable onPress={() => router.back()} accessibilityRole="button" style={({ pressed }) => [{ marginTop: 32, alignItems: 'center', justifyContent: 'center', minHeight: 56, backgroundColor: palette.soft, borderRadius: 18, opacity: pressed ? 0.7 : 1 }]}>
