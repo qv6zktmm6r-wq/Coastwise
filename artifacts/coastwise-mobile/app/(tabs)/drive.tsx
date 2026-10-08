@@ -773,7 +773,7 @@ export default function DriveScreen() {
 
   if (active) {
     return (
-      <Screen scroll={false}>
+      <Screen>
         <View style={{ flex: 1, paddingBottom: 24 }}>
           <View style={{ marginTop: 12, marginBottom: 24 }}>
             <Eyebrow>Active coached drive</Eyebrow>
