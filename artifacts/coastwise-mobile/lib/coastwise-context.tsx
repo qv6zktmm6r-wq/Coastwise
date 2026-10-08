@@ -12,6 +12,8 @@ export type MobileDrive = {
   durationMinutes: number;
   distanceMiles: number;
   night: boolean;
+  /** Minutes driven between local sunset and sunrise. Missing on drives saved before it was measured. */
+  nightMinutes?: number;
   skills: string[];
   /** Measured GPS events. Stays on this device; the debrief receives counts only. */
   events?: DriveEventRecord[];
@@ -23,6 +25,8 @@ export type MobileDrive = {
 export type ActiveMobileDrive = MobileDrive & {
   startedAt: string;
   elapsedSeconds: number;
+  /** Seconds driven after dark so far, from local sunrise and sunset. */
+  nightSeconds?: number;
   recordingRequested?: boolean;
 };
 

@@ -39,6 +39,7 @@ import {
   type CoachVoiceState,
 } from '@/lib/drive-coach';
 import { evaluateManeuvers, initialManeuverState, type ManeuverState, type MapEvent } from '@/lib/maneuvers';
+import { isAfterDark } from '@/lib/sun';
 import { emptyMapFeatures, fetchMapTile, MAP_ATTRIBUTION, mergeMapFeatures, tileKey, type MapFeatures } from '@/lib/map-data';
 
 const DRIVE_SKILLS = ['turns', 'intersections'];
@@ -93,6 +94,9 @@ export default function DriveScreen() {
   const coachVoiceState = useRef<CoachVoiceState>(initialCoachVoiceState);
   const voiceOnRef = useRef(true);
   const maneuverState = useRef<ManeuverState>(initialManeuverState);
+  /** Last known position, kept in memory only, to tell day from night. */
+  const sunPlace = useRef<{ latitude: number; longitude: number } | null>(null);
+  const nightSecondsRef = useRef(0);
   const mapCoachingRef = useRef(false);
   const mapTiles = useRef(new Map<string, MapFeatures>());
   const mapTilesRequested = useRef(new Set<string>());
@@ -165,12 +169,16 @@ export default function DriveScreen() {
       const nextElapsed = elapsedRef.current + 1;
       elapsedRef.current = nextElapsed;
       setElapsed(nextElapsed);
+      const place = sunPlace.current;
+      if (place && isAfterDark(Date.now(), place.latitude, place.longitude)) nightSecondsRef.current += 1;
       const current = driveRef.current;
       if (current && nextElapsed % 5 === 0) {
         const updated: ActiveMobileDrive = {
           ...current,
           startedAt: activeDrive?.startedAt ?? new Date().toISOString(),
           elapsedSeconds: nextElapsed,
+          // Until GPS has a position, keep the start-time guess instead of logging zero night time.
+          nightSeconds: sunPlace.current ? nightSecondsRef.current : (current as ActiveMobileDrive).nightSeconds,
         };
         driveRef.current = updated;
         setDrive(updated);
@@ -300,6 +308,8 @@ export default function DriveScreen() {
     const previousElapsed = elapsedRef.current;
     try {
       distanceAnchor.current = null;
+      nightSecondsRef.current = session.nightSeconds ?? 0;
+      if (session.nightSeconds === undefined) sunPlace.current = null;
       driveRef.current = session;
       elapsedRef.current = session.elapsedSeconds;
       setDrive(session);
@@ -308,6 +318,7 @@ export default function DriveScreen() {
         { accuracy: Location.Accuracy.BestForNavigation, distanceInterval: 5, timeInterval: 1000 },
         ({ coords, timestamp }) => {
           setGpsAccuracyMeters(coords.accuracy ?? null);
+          sunPlace.current = { latitude: coords.latitude, longitude: coords.longitude };
           const step = addDistanceFix(distanceAnchor.current, {
             latitude: coords.latitude,
             longitude: coords.longitude,

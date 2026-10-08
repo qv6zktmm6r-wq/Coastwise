@@ -7,10 +7,24 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@/theme';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import { driveNightMinutes, nextFocus, permitProgress, skillTrends } from '@/lib/permit-progress';
+
+const formatHours = (minutes: number) => (minutes / 60).toFixed(1);
+
+function ProgressBar({ value, color, track }: { value: number; color: string; track: string }) {
+  return (
+    <View style={{ height: 10, borderRadius: 5, backgroundColor: track, overflow: 'hidden', marginTop: 8 }}>
+      <View style={{ width: `${Math.min(100, Math.max(0, value * 100))}%`, height: '100%', backgroundColor: color }} />
+    </View>
+  );
+}
 
 export default function ParentScreen() {
   const palette = usePalette();
-  const { drives, plan, role, parentGoal, setParentGoal } = useCoastwise();
+  const { drives, plan, role, parentGoal, setParentGoal, jurisdiction } = useCoastwise();
+  const permit = useMemo(() => permitProgress(drives, jurisdiction), [drives, jurisdiction]);
+  const skills = useMemo(() => skillTrends(drives), [drives]);
+  const focus = nextFocus(skills.trends);
   
   const [filterMode, setFilterMode] = useState<'all' | 'day' | 'night'>('all');
   const [filterSkill, setFilterSkill] = useState<string | null>(null);
@@ -66,17 +80,15 @@ export default function ParentScreen() {
         return;
       }
       
-      const totalMin = drives.reduce((sum, d) => sum + d.durationMinutes, 0);
-      const nightMin = drives.filter(d => d.night).reduce((sum, d) => sum + d.durationMinutes, 0);
-      
       let csv = 'Coastwise Personal Record (Not an official DMV submission)\n\n';
-      csv += `Total Minutes,${totalMin}\n`;
-      csv += `Night Minutes,${nightMin}\n\n`;
-      csv += 'Date,Duration (min),Night,Distance (mi),Skills\n';
+      csv += `Total Minutes,${permit.totalMinutes}\n`;
+      csv += `Night Minutes,${permit.nightMinutes}\n`;
+      csv += `Required,${permit.totalHours} hours including ${permit.nightHours} ${permit.nightLabel}\n\n`;
+      csv += 'Date,Duration (min),Night (min),Distance (mi),Skills\n';
       
       const sorted = [...drives].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       sorted.forEach(d => {
-        csv += `${new Date(d.date).toLocaleDateString()},${d.durationMinutes},${d.night ? 'Yes' : 'No'},${d.distanceMiles.toFixed(1)},"${d.skills.join('; ')}"\n`;
+        csv += `${new Date(d.date).toLocaleDateString()},${d.durationMinutes},${driveNightMinutes(d)},${d.distanceMiles.toFixed(1)},"${d.skills.join('; ')}"\n`;
       });
       
       if (FileSystem.documentDirectory) {
@@ -119,6 +131,12 @@ export default function ParentScreen() {
     const lastDrive = [...drives].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
     
     const summary = {
+      practiceLog: {
+        totalHours: Number(formatHours(permit.totalMinutes)),
+        nightHours: Number(formatHours(permit.nightMinutes)),
+        required: `${permit.totalHours} hours including ${permit.nightHours} ${permit.nightLabel}`,
+      },
+      nextFocus: focus?.label ?? null,
       weeklyMinutes,
       weeklyDriveCount: weeklyDrives.length,
       practicedSkills: Array.from(new Set(weeklyDrives.flatMap(d => d.skills))),
@@ -149,6 +167,52 @@ export default function ParentScreen() {
         <Title large>Keep practice calm and specific.</Title>
         <Body muted>Coastwise keeps drive media and precise locations on the driver’s device. Use this view to review history and set goals.</Body>
       </View>
+
+      <Card padding={24} accent>
+        <Eyebrow>Supervised practice log</Eyebrow>
+        <Title>
+          {formatHours(permit.totalMinutes)} of {permit.totalHours} hours
+        </Title>
+        <ProgressBar value={permit.totalMinutes / (permit.totalHours * 60)} color={permit.totalComplete ? palette.success : colors.primary} track={palette.soft} />
+        <Text style={{ color: palette.text, fontSize: 16, fontWeight: '700', marginTop: 16 }}>
+          {formatHours(permit.nightMinutes)} of {permit.nightHours} hours {permit.nightLabel}
+        </Text>
+        <ProgressBar value={permit.nightMinutes / (permit.nightHours * 60)} color={permit.nightComplete ? palette.success : colors.accent} track={palette.soft} />
+        <Text style={{ color: palette.muted, fontSize: 13, lineHeight: 18, marginTop: 16 }}>
+          {permit.totalMiles.toFixed(1)} miles logged. Night time is measured from local sunset and sunrise on this device. This is a personal log; follow your state’s official certification process.
+        </Text>
+      </Card>
+
+      <View style={{ height: 16 }} />
+
+      <Card padding={24}>
+        <Eyebrow>Driving skills (measured)</Eyebrow>
+        {skills.drivesConsidered === 0 ? (
+          <Body muted>Complete a coached drive to see measured skills. Coastwise only reports what GPS and map data recorded.</Body>
+        ) : (
+          <>
+            <Text style={{ color: palette.muted, fontSize: 13, marginBottom: 12 }}>
+              Last {skills.drivesConsidered} measured drive{skills.drivesConsidered === 1 ? '' : 's'} · {skills.miles.toFixed(1)} miles
+            </Text>
+            <View style={{ gap: 10 }}>
+              {skills.trends.filter((trend) => trend.summary !== null).map((trend) => (
+                <View key={trend.id}>
+                  <Text style={{ color: palette.text, fontWeight: '700', fontSize: 15 }}>{trend.label}</Text>
+                  <Text style={{ color: palette.muted, fontSize: 14, marginTop: 2 }}>{trend.summary}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={{ backgroundColor: palette.soft, borderRadius: 16, padding: 16, marginTop: 16 }}>
+              <Eyebrow>Next practice focus</Eyebrow>
+              <Text style={{ color: palette.text, fontSize: 15, lineHeight: 22, fontWeight: '600' }}>
+                {focus ? `${focus.label}: ${focus.focus}` : 'Nothing measured needs extra work. Keep building hours in new conditions.'}
+              </Text>
+            </View>
+          </>
+        )}
+      </Card>
+
+      <View style={{ height: 16 }} />
 
       <Card padding={24} accent>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>

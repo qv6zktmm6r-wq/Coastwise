@@ -111,9 +111,13 @@ export function completeDrive(drive: MobileDrive, elapsedSeconds: number): Mobil
     startedAt: _startedAt,
     elapsedSeconds: _elapsedSeconds,
     recordingRequested: _recordingRequested,
+    nightSeconds,
     ...completed
   } = drive as ActiveMobileDrive;
-  return { ...completed, durationMinutes: Math.max(1, Math.round(elapsedSeconds / 60)) };
+  const durationMinutes = Math.max(1, Math.round(elapsedSeconds / 60));
+  if (nightSeconds === undefined) return { ...completed, durationMinutes };
+  const nightMinutes = Math.min(durationMinutes, Math.round(nightSeconds / 60));
+  return { ...completed, durationMinutes, nightMinutes, night: nightSeconds * 2 >= elapsedSeconds };
 }
 
 export function attachRecording(
