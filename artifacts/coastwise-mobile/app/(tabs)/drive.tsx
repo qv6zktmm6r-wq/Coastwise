@@ -47,6 +47,16 @@ import { evaluateAttention, initialAttentionState, stopScanVerdict, type Attenti
 import { loadCoachCameras } from '@/lib/native-vision';
 import { chooseCoachVoice, type ChosenVoice } from '@/lib/coach-voice';
 import type { CoachCameraStatus } from '@/components/CoachCameras';
+import { RouteMap } from '@/components/RouteMap';
+import {
+  advanceGuidance,
+  describeRoute,
+  initialGuidanceState,
+  requestPracticeLoop,
+  ROUTE_SERVICE_HOST,
+  type GuidanceState,
+  type PlannedRoute,
+} from '@/lib/route-planner';
 
 const DRIVE_SKILLS = ['turns', 'intersections'];
 const KEEP_AWAKE_TAG = 'coastwise-active-drive';
@@ -150,6 +160,15 @@ export default function DriveScreen() {
   const [storageLoading, setStorageLoading] = useState(true);
   const [debriefError, setDebriefError] = useState(false);
   const createDebrief = useCreateDriveDebrief();
+  const [routeMinutes, setRouteMinutes] = useState(20);
+  const [plannedRoute, setPlannedRoute] = useState<PlannedRoute | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [routeError, setRouteError] = useState<string | null>(null);
+  const [activeRoute, setActiveRoute] = useState<PlannedRoute | null>(null);
+  const [nextInstruction, setNextInstruction] = useState<string | null>(null);
+  const routeVariant = useRef(Math.floor(Math.random() * 8));
+  const activeRouteRef = useRef<PlannedRoute | null>(null);
+  const guidanceState = useRef<GuidanceState>(initialGuidanceState);
 
   const refreshRecordings = useCallback(async () => {
     setStorageLoading(true);
@@ -530,6 +549,13 @@ export default function DriveScreen() {
             detected.push(...graded.events);
           }
           applyEvents(detected, step.meters, session.id);
+          const route = activeRouteRef.current;
+          if (route && (coords.accuracy ?? Infinity) <= MAX_FIX_ACCURACY_METERS) {
+            const guidance = advanceGuidance(route, guidanceState.current, coords.latitude, coords.longitude);
+            guidanceState.current = guidance.state;
+            setNextInstruction(guidance.nextInstruction);
+            if (guidance.cue) speakCue(guidance.cue);
+          }
         },
       );
       setLocationReady(true);
@@ -548,7 +574,43 @@ export default function DriveScreen() {
     }
   };
 
-  const startDrive = async () => {
+  const setDriveRoute = (route: PlannedRoute | null) => {
+    activeRouteRef.current = route;
+    guidanceState.current = initialGuidanceState;
+    setActiveRoute(route);
+    setNextInstruction(route?.steps[0]?.instruction ?? null);
+  };
+
+  const generateRoute = async () => {
+    setRouteError(null);
+    const permission = await Location.requestForegroundPermissionsAsync();
+    if (permission.status !== Location.PermissionStatus.GRANTED) {
+      explainPermission('Location', permission);
+      return;
+    }
+    setRouteLoading(true);
+    try {
+      const here = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+        .catch(() => Location.getLastKnownPositionAsync());
+      if (!here) throw new Error('No location');
+      const variant = routeVariant.current;
+      routeVariant.current += 1;
+      setPlannedRoute(await requestPracticeLoop(here.coords.latitude, here.coords.longitude, routeMinutes, variant));
+    } catch {
+      setRouteError('Could not build a route right now. Check your connection and try again, or start without a route.');
+    } finally {
+      setRouteLoading(false);
+    }
+  };
+
+  const driveThisRoute = async () => {
+    if (!plannedRoute) return;
+    if (CoachCameras && !recordingPrepared) setCameraCoaching(true);
+    setDriveRoute(plannedRoute);
+    if (!(await startDrive(plannedRoute))) setDriveRoute(null);
+  };
+
+  const startDrive = async (route: PlannedRoute | null = null) => {
     const session: ActiveMobileDrive = {
       id: `drive-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       date: new Date().toISOString(),
@@ -565,8 +627,12 @@ export default function DriveScreen() {
       beginActiveDrive(session);
       coachVoiceState.current = initialCoachVoiceState;
       setLastCue(null);
-      speakCue('Coached drive started. I will speak up when GPS measures something worth coaching.');
+      speakCue(route
+        ? `Route loaded. I will call out each turn. First, ${route.steps[0] ? route.steps[0].instruction.charAt(0).toLowerCase() + route.steps[0].instruction.slice(1) : 'follow the road'}.`
+        : 'Coached drive started. I will speak up when GPS measures something worth coaching.');
+      return true;
     }
+    return false;
   };
 
   const resumeDrive = async () => {
@@ -669,6 +735,8 @@ export default function DriveScreen() {
         setActive(false);
         setRecordingPrepared(false);
         setRecoveryPending(false);
+        setDriveRoute(null);
+        setPlannedRoute(null);
         AccessibilityInfo.announceForAccessibility("Drive finished.");
       },
       setRecoveryActionPending,
@@ -692,6 +760,7 @@ export default function DriveScreen() {
               setElapsed(0);
               setActive(false);
               setRecoveryPending(false);
+              setDriveRoute(null);
             },
             setRecoveryActionPending,
           );
@@ -854,6 +923,28 @@ export default function DriveScreen() {
             </View>
           )}
 
+          {activeRoute && (
+            <View style={{ marginBottom: 20, gap: 12 }}>
+              <View
+                accessibilityLiveRegion="polite"
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.primary, borderRadius: 20, padding: 16 }}
+              >
+                <Ionicons
+                  name={nextInstruction?.includes('left') ? 'arrow-back' : nextInstruction?.includes('right') ? 'arrow-forward' : nextInstruction?.startsWith('You are back') ? 'flag' : 'arrow-up'}
+                  size={30}
+                  color="#fff"
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 }}>NEXT</Text>
+                  <Text style={{ color: '#fff', fontSize: 18, fontWeight: '800', lineHeight: 24 }}>
+                    {nextInstruction ?? 'Follow the highlighted route'}
+                  </Text>
+                </View>
+              </View>
+              <RouteMap route={activeRoute} height={220} follow />
+            </View>
+          )}
+
           <Card accent padding={showRoadPreview ? 24 : 32}>
             {!showRoadPreview && (
             <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 32 }}>
@@ -981,6 +1072,77 @@ export default function DriveScreen() {
         <Card padding={24} accent>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
             <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: `${colors.primary}18`, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="map" size={24} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Eyebrow>Practice route</Eyebrow>
+              <Title>Get a loop from where you are</Title>
+            </View>
+          </View>
+
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+            {[10, 20, 30].map((minutes) => (
+              <Pressable
+                key={minutes}
+                onPress={() => {
+                  setRouteMinutes(minutes);
+                  setPlannedRoute(null);
+                }}
+                disabled={routeLoading}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: routeMinutes === minutes, disabled: routeLoading }}
+                accessibilityLabel={`About ${minutes} minute route`}
+                style={{
+                  flex: 1,
+                  minHeight: 44,
+                  borderRadius: 14,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: routeMinutes === minutes ? colors.primary : palette.soft,
+                }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '800', color: routeMinutes === minutes ? '#FFFFFF' : palette.text }}>{minutes} min</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {plannedRoute && (
+            <View style={{ marginBottom: 16, gap: 10 }}>
+              <RouteMap route={plannedRoute} height={280} />
+              <Text style={{ color: palette.text, fontSize: 16, fontWeight: '800', textAlign: 'center' }}>{describeRoute(plannedRoute)}</Text>
+            </View>
+          )}
+
+          {routeLoading ? (
+            <View style={{ minHeight: 56, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 10 }}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={{ color: palette.muted, fontWeight: '700' }}>Building a route near you…</Text>
+            </View>
+          ) : plannedRoute ? (
+            <View style={{ gap: 10 }}>
+              <ActionButton onPress={() => void driveThisRoute()}>
+                {CoachCameras && !recordingPrepared ? 'Use this route and start camera' : 'Use this route'}
+              </ActionButton>
+              <ActionButton onPress={() => void generateRoute()} secondary>Regenerate route</ActionButton>
+            </View>
+          ) : (
+            <ActionButton onPress={() => void generateRoute()}>Generate route</ActionButton>
+          )}
+
+          {routeError && (
+            <Text accessibilityLiveRegion="polite" style={{ color: palette.warning, fontSize: 14, fontWeight: '600', marginTop: 12 }}>{routeError}</Text>
+          )}
+
+          <Text style={{ color: palette.muted, fontSize: 12, lineHeight: 17, marginTop: 14 }}>
+            Generating sends your starting point, rounded to about 100 m, to the free public routing service {ROUTE_SERVICE_HOST}. Routes use OpenStreetMap data (© OpenStreetMap contributors) and can be wrong or out of date. Follow posted signs and the supervising adult over the route.
+          </Text>
+        </Card>
+      )}
+
+      {!recoveryPending && (
+        <Card padding={24} accent>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: `${colors.primary}18`, alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="car" size={24} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
@@ -1086,7 +1248,9 @@ export default function DriveScreen() {
           </View>
 
           <View style={{ marginTop: 24 }}>
-            <ActionButton onPress={() => void startDrive()}>Start coached drive</ActionButton>
+            <ActionButton onPress={() => void startDrive()} secondary={Boolean(plannedRoute)}>
+              {plannedRoute ? 'Start without a route' : 'Start coached drive'}
+            </ActionButton>
           </View>
         </Card>
       )}

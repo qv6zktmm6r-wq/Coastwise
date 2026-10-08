@@ -34,6 +34,7 @@
     "react": "19.2.0",
     "react-native": "0.83.10",
     "react-native-fast-tflite": "3.0.1",
+    "react-native-maps": "1.27.2",
     "react-native-nitro-image": "0.15.2",
     "react-native-nitro-modules": "0.37.1",
     "react-native-safe-area-context": "~5.6.0",
